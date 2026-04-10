@@ -15,6 +15,8 @@ mod style_actions;
 mod task_actions;
 mod ui_actions;
 mod workflow_actions;
+mod workflow_panel_shortcuts;
+mod workflow_selectors;
 mod workflow_support;
 
 #[cfg(test)]
@@ -47,6 +49,8 @@ mod tests_tasks;
 mod tests_ui;
 #[cfg(test)]
 mod tests_workflow;
+#[cfg(test)]
+mod tests_workflow_shortcuts;
 
 use std::sync::Mutex;
 
@@ -89,6 +93,7 @@ use style_actions::{
 use task_actions::handle_task_command;
 use ui_actions::{handle_brief_command, handle_tools_command};
 use workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_invocation};
+use workflow_selectors::WorkflowPanelFocus;
 
 #[cfg(test)]
 pub(crate) async fn handle_workflow_command_for_test(
@@ -106,6 +111,7 @@ pub async fn run_repl(session: &mut AgentSession, metadata: &ReplMetadata) -> Re
 #[derive(Debug, Default)]
 struct CliReplDriver {
     selector_context: Mutex<Option<SelectorContext>>,
+    workflow_panel_focus: Mutex<Option<WorkflowPanelFocus>>,
 }
 
 impl CliReplDriver {
@@ -166,6 +172,9 @@ impl CliReplDriver {
             if self.handle_selector_index(index, session, metadata).await? {
                 return Ok(ReplAction::Continue);
             }
+        }
+        if self.handle_workflow_panel_shortcut(input, session).await? {
+            return Ok(ReplAction::Continue);
         }
         self.clear_selector_context();
 
