@@ -1,0 +1,66 @@
+[workspace]
+members = [
+    "crates/hellox-agent",
+    "crates/hellox-bridge",
+    "crates/hellox-cli",
+    "crates/hellox-compact",
+    "crates/hellox-config",
+    "crates/hellox-core",
+    "crates/hellox-gateway",
+    "crates/hellox-gateway-api",
+    "crates/hellox-memory",
+    "crates/hellox-marketplace",
+    "crates/hellox-plugin",
+    "crates/hellox-query",
+    "crates/hellox-repl",
+    "crates/hellox-remote",
+    "crates/hellox-session",
+    "crates/hellox-server",
+    "crates/hellox-telemetry",
+    "crates/hellox-tool-runtime",
+    "crates/hellox-provider-anthropic",
+    "crates/hellox-provider-openai-compatible",
+    "crates/hellox-auth",
+    "crates/hellox-style",
+    "crates/hellox-sync",
+    "crates/hellox-tui",
+    "crates/hellox-tools-fs",
+    "crates/hellox-tools-agent",
+    "crates/hellox-tools-mcp",
+    "crates/hellox-tools-shell",
+    "crates/hellox-tools-task",
+    "crates/hellox-tools-ui",
+    "crates/hellox-tools-web",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "Apache-2.0"
+authors = ["hellox"]
+
+[workspace.dependencies]
+anyhow = "1"
+async-trait = "0.1"
+axum = { version = "0.8", features = ["macros", "multipart"] }
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+regex = "1"
+scraper = "0.24"
+lopdf = "0.35"
+similar = "2"
+rustyline = "14"

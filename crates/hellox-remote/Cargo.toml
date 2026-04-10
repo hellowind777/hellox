@@ -1,0 +1,20 @@
+[package]
+name = "hellox-remote"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+hellox-agent = { path = "../hellox-agent" }
+hellox-auth = { path = "../hellox-auth" }
+hellox-config = { path = "../hellox-config" }
+hellox-server = { path = "../hellox-server" }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+tokio.workspace = true

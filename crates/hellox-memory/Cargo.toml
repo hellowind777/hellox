@@ -1,0 +1,18 @@
+[package]
+name = "hellox-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+hellox-agent = { path = "../hellox-agent" }
+hellox-gateway-api = { path = "../hellox-gateway-api" }
+serde_json.workspace = true
+
+[dev-dependencies]
+hellox-config = { path = "../hellox-config" }
+serde.workspace = true
+

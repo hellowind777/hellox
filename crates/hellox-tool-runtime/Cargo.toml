@@ -1,0 +1,15 @@
+[package]
+name = "hellox-tool-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+hellox-gateway-api = { path = "../hellox-gateway-api" }
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

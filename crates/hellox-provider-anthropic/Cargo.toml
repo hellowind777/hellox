@@ -1,0 +1,15 @@
+[package]
+name = "hellox-provider-anthropic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+hellox-config = { path = "../hellox-config" }
+hellox-core = { path = "../hellox-core" }
+hellox-gateway-api = { path = "../hellox-gateway-api" }
+reqwest.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "hellox-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+hellox-agent = { path = "../hellox-agent" }
+hellox-auth = { path = "../hellox-auth" }
+hellox-bridge = { path = "../hellox-bridge" }
+hellox-config = { path = "../hellox-config" }
+hellox-sync = { path = "../hellox-sync" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true

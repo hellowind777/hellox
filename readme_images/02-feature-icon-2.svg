@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="REPL and TUI surface">
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#dcfce7"/>
+  <rect x="14" y="16" width="36" height="30" rx="6" fill="#22c55e" opacity="0.18"/>
+  <path d="M22 26l7 6-7 6M35 38h8" stroke="#16a34a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">Hellox Hero Banner</title>
+  <desc id="desc">Rust-native local-first coding agent platform banner for Hellox.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="55%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="320" rx="24" fill="url(#bg)"/>
+  <g opacity="0.18">
+    <circle cx="1040" cy="66" r="96" fill="#ffffff"/>
+    <circle cx="1110" cy="255" r="128" fill="#38bdf8"/>
+    <circle cx="155" cy="48" r="72" fill="#a78bfa"/>
+  </g>
+  <g transform="translate(72 72)">
+    <rect width="110" height="110" rx="24" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)" stroke-width="2"/>
+    <path d="M30 78l22-46 15 27 16-20 18 39" fill="none" stroke="url(#accent)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="52" cy="52" r="7" fill="#38bdf8"/>
+    <circle cx="82" cy="39" r="7" fill="#a78bfa"/>
+  </g>
+  <text x="222" y="118" fill="#ffffff" font-family="Segoe UI, system-ui, sans-serif" font-size="64" font-weight="700">Hellox</text>
+  <text x="224" y="168" fill="#dbeafe" font-family="Segoe UI, system-ui, sans-serif" font-size="26">Rust-native, local-first coding agent platform</text>
+  <text x="224" y="212" fill="#bfdbfe" font-family="Segoe UI, system-ui, sans-serif" font-size="22">Gateway · CLI · REPL · Tools · MCP · Team/Workflow runtime</text>
+  <rect x="224" y="236" width="286" height="12" rx="6" fill="rgba(255,255,255,0.16)"/>
+  <rect x="224" y="236" width="192" height="12" rx="6" fill="url(#accent)"/>
+</svg>

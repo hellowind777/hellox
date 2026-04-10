@@ -1,0 +1,15 @@
+[package]
+name = "hellox-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+hellox-agent = { path = "../hellox-agent" }
+serde_json.workspace = true
+
+[dev-dependencies]
+hellox-config = { path = "../hellox-config" }
+
