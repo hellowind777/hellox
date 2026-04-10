@@ -202,6 +202,18 @@ fn render_focused_step_lens(
             selected_index + 1
         ),
         format!(
+            "duplicate: `hellox workflow duplicate-step --workflow {} {} --to {} --name \"<copy-name>\"`",
+            detail.summary.name,
+            selected_index + 1,
+            selected_index + 2
+        ),
+        format!(
+            "move: `hellox workflow move-step --workflow {} {} --to {}`",
+            detail.summary.name,
+            selected_index + 1,
+            suggested_move_target(selected_index + 1, detail.steps.len())
+        ),
+        format!(
             "remove: `hellox workflow remove-step --workflow {} {}`",
             detail.summary.name,
             selected_index + 1
@@ -239,6 +251,14 @@ fn render_action_palette(
             "- edit step {step_number}: `hellox workflow update-step --workflow {workflow_name} {step_number} --prompt \"<text>\"`"
         ));
         lines.push(format!(
+            "- duplicate step {step_number}: `hellox workflow duplicate-step --workflow {workflow_name} {step_number} --to {} --name \"<copy-name>\"`",
+            step_number + 1
+        ));
+        lines.push(format!(
+            "- move step {step_number}: `hellox workflow move-step --workflow {workflow_name} {step_number} --to {}`",
+            suggested_move_target(step_number, step_count)
+        ));
+        lines.push(format!(
             "- remove step {step_number}: `hellox workflow remove-step --workflow {workflow_name} {step_number}`"
         ));
         lines.push(format!(
@@ -268,6 +288,14 @@ fn render_repl_palette(
             "- edit step {step_number}: `/workflow update-step {workflow_name} {step_number} --prompt <text>`"
         ));
         lines.push(format!(
+            "- duplicate step {step_number}: `/workflow duplicate-step {workflow_name} {step_number} --to {} --name <copy-name>`",
+            step_number + 1
+        ));
+        lines.push(format!(
+            "- move step {step_number}: `/workflow move-step {workflow_name} {step_number} --to {}`",
+            suggested_move_target(step_number, step_count)
+        ));
+        lines.push(format!(
             "- remove step {step_number}: `/workflow remove-step {workflow_name} {step_number}`"
         ));
         lines.push(format!(
@@ -293,5 +321,15 @@ fn selector_status_badge(
         status
     } else {
         status_badge(&status)
+    }
+}
+
+fn suggested_move_target(step_number: usize, step_count: usize) -> usize {
+    if step_count <= 1 {
+        1
+    } else if step_number == 1 {
+        2
+    } else {
+        1
     }
 }

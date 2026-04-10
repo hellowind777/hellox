@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use hellox_agent::{default_tool_registry, AgentOptions, AgentSession, GatewayClient};
+use hellox_config::load_or_default;
 use hellox_config::HelloxConfig;
 use hellox_config::PermissionMode;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -26,10 +27,14 @@ fn temp_dir() -> PathBuf {
 }
 
 fn session_in(root: PathBuf) -> AgentSession {
+    let config_path = root.join(".hellox").join("config.toml");
+    let gateway = load_or_default(Some(config_path.clone()))
+        .map(|config| GatewayClient::from_config(&config, None))
+        .unwrap_or_else(|_| GatewayClient::new("http://127.0.0.1:7821"));
     AgentSession::create(
-        GatewayClient::new("http://127.0.0.1:7821"),
+        gateway,
         default_tool_registry(),
-        root.join(".hellox").join("config.toml"),
+        config_path,
         root,
         "powershell",
         AgentOptions::default(),
@@ -737,6 +742,7 @@ async fn workflow_show_run_allows_numeric_step_selection() {
         &root,
         "release-review.json",
         r#"{
+  "continue_on_error": true,
   "steps": [
     { "name": "review", "prompt": "review {{workflow.shared_context}}" },
     { "name": "ship", "prompt": "ship release" }

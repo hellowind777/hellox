@@ -15,6 +15,7 @@ mod style_actions;
 mod task_actions;
 mod ui_actions;
 mod workflow_actions;
+mod workflow_support;
 
 #[cfg(test)]
 mod tests;
@@ -88,6 +89,14 @@ use style_actions::{
 use task_actions::handle_task_command;
 use ui_actions::{handle_brief_command, handle_tools_command};
 use workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_invocation};
+
+#[cfg(test)]
+pub(crate) async fn handle_workflow_command_for_test(
+    command: hellox_repl::WorkflowCommand,
+    session: &mut AgentSession,
+) -> Result<String> {
+    workflow_actions::handle_workflow_command(command, session).await
+}
 
 pub async fn run_repl(session: &mut AgentSession, metadata: &ReplMetadata) -> Result<ReplExit> {
     let driver = CliReplDriver::new();

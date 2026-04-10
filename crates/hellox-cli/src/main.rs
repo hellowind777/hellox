@@ -56,6 +56,8 @@ mod ui_commands;
 mod usage;
 mod worker_runner;
 mod workflow_authoring;
+mod workflow_command_authoring;
+mod workflow_command_support;
 mod workflow_commands;
 mod workflow_overview;
 mod workflow_panel;
@@ -76,6 +78,12 @@ mod main_tests;
 mod main_ui_tests;
 #[cfg(test)]
 mod server_admin_tests;
+#[cfg(test)]
+mod workflow_authoring_tests;
+#[cfg(test)]
+mod workflow_commands_tests;
+#[cfg(test)]
+mod workflow_repl_authoring_tests;
 #[cfg(test)]
 mod workflows_tests;
 

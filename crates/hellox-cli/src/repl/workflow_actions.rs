@@ -4,9 +4,9 @@ use anyhow::{anyhow, Result};
 use hellox_agent::AgentSession;
 
 use crate::workflow_authoring::{
-    add_workflow_step, remove_workflow_step, resolve_existing_workflow_path,
-    set_workflow_continue_on_error, set_workflow_shared_context, update_workflow_step,
-    WorkflowStepDraft, WorkflowStepPatch,
+    add_workflow_step, duplicate_workflow_step, move_workflow_step, remove_workflow_step,
+    resolve_existing_workflow_path, set_workflow_continue_on_error, set_workflow_shared_context,
+    update_workflow_step, WorkflowStepDraft, WorkflowStepPatch,
 };
 use crate::workflow_overview::render_workflow_overview;
 use crate::workflow_panel::render_workflow_panel;
@@ -21,6 +21,7 @@ use crate::workflows::{
 };
 
 use super::commands::WorkflowCommand;
+use super::workflow_support::{merge_optional_field, workflow_help_text};
 
 pub(super) async fn handle_workflow_command(
     command: WorkflowCommand,
@@ -196,6 +197,78 @@ pub(super) async fn handle_workflow_command(
                 render_workflow_detail(&detail)
             ))
         }
+        WorkflowCommand::DuplicateStep {
+            workflow_name: None,
+            ..
+        } => Ok(
+            "Usage: /workflow duplicate-step <name> <step-number> [--to <n>] [--name <step-name>]"
+                .to_string(),
+        ),
+        WorkflowCommand::DuplicateStep {
+            workflow_name: Some(_),
+            step_number: None,
+            ..
+        } => Ok(
+            "Usage: /workflow duplicate-step <name> <step-number> [--to <n>] [--name <step-name>]"
+                .to_string(),
+        ),
+        WorkflowCommand::DuplicateStep {
+            workflow_name: Some(workflow_name),
+            step_number: Some(step_number),
+            to_step_number,
+            name,
+        } => {
+            let path = resolve_existing_workflow_path(session.working_directory(), &workflow_name)?;
+            let result = duplicate_workflow_step(
+                session.working_directory(),
+                &path,
+                step_number,
+                to_step_number,
+                name,
+            )?;
+            let duplicated_name = result
+                .duplicated_step_name
+                .as_deref()
+                .unwrap_or("(unnamed)");
+            Ok(format!(
+                "Duplicated workflow step {step_number} into step {} (`{duplicated_name}`).\n{}",
+                result.step_number,
+                render_workflow_detail(&result.detail)
+            ))
+        }
+        WorkflowCommand::MoveStep {
+            workflow_name: None,
+            ..
+        } => Ok("Usage: /workflow move-step <name> <step-number> --to <n>".to_string()),
+        WorkflowCommand::MoveStep {
+            workflow_name: Some(_),
+            step_number: None,
+            ..
+        } => Ok("Usage: /workflow move-step <name> <step-number> --to <n>".to_string()),
+        WorkflowCommand::MoveStep {
+            workflow_name: Some(_),
+            step_number: Some(_),
+            to_step_number: None,
+        } => Ok("Usage: /workflow move-step <name> <step-number> --to <n>".to_string()),
+        WorkflowCommand::MoveStep {
+            workflow_name: Some(workflow_name),
+            step_number: Some(step_number),
+            to_step_number: Some(to_step_number),
+        } => {
+            let path = resolve_existing_workflow_path(session.working_directory(), &workflow_name)?;
+            let result = move_workflow_step(
+                session.working_directory(),
+                &path,
+                step_number,
+                to_step_number,
+            )?;
+            let moved_name = result.moved_step_name.as_deref().unwrap_or("(unnamed)");
+            Ok(format!(
+                "Moved workflow step {step_number} (`{moved_name}`) to step {}.\n{}",
+                result.step_number,
+                render_workflow_detail(&result.detail)
+            ))
+        }
         WorkflowCommand::RemoveStep {
             workflow_name: None,
             ..
@@ -318,37 +391,4 @@ pub(super) fn resolve_dynamic_workflow_invocation(
         .map(ToString::to_string);
 
     Ok(Some((workflow_name, shared_context)))
-}
-
-pub(super) fn workflow_help_text() -> String {
-    [
-        "Workflow commands:",
-        "  /workflow                 List project workflow scripts",
-        "  /workflow overview [name] Show a selector-style workflow overview",
-        "  /workflow panel [name] [n] Show an authoring panel with copyable edit actions",
-        "  /workflow runs [name]     List recorded workflow runs",
-        "  /workflow validate [name] Validate project workflow scripts",
-        "  /workflow show-run <id>   Show a recorded workflow run",
-        "  /workflow last-run [name] Show the latest recorded workflow run",
-        "  /workflow show <name>     Show a workflow script definition",
-        "  /workflow init <name>     Create a starter workflow script",
-        "  /workflow add-step <name> --prompt <text> Add a workflow step",
-        "  /workflow update-step <name> <n> ... Edit a workflow step",
-        "  /workflow remove-step <name> <n> Remove a workflow step",
-        "  /workflow set-shared-context <name> <text> Set workflow shared context",
-        "  /workflow clear-shared-context <name> Clear workflow shared context",
-        "  /workflow enable-continue-on-error <name> Enable continue_on_error",
-        "  /workflow disable-continue-on-error <name> Disable continue_on_error",
-        "  /workflow run <name> [shared_context] Run a workflow script locally",
-        "  /workflow <name> [shared_context] Shortcut for `/workflow run ...`",
-    ]
-    .join("\n")
-}
-
-fn merge_optional_field(value: Option<String>, clear: bool) -> Option<Option<String>> {
-    if clear {
-        Some(None)
-    } else {
-        value.map(Some)
-    }
 }

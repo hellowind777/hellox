@@ -125,6 +125,30 @@ pub(crate) enum WorkflowCommands {
         #[arg(long)]
         cwd: Option<PathBuf>,
     },
+    DuplicateStep {
+        #[arg(long = "workflow")]
+        workflow_name: Option<String>,
+        step_number: usize,
+        #[arg(long)]
+        script_path: Option<PathBuf>,
+        #[arg(long = "to", alias = "index")]
+        to_step_number: Option<usize>,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+    },
+    MoveStep {
+        #[arg(long = "workflow")]
+        workflow_name: Option<String>,
+        step_number: usize,
+        #[arg(long)]
+        script_path: Option<PathBuf>,
+        #[arg(long = "to")]
+        to_step_number: usize,
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+    },
     RemoveStep {
         #[arg(long = "workflow")]
         workflow_name: Option<String>,

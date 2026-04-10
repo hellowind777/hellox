@@ -90,6 +90,8 @@ fn render_help_text(workflow_names: Option<&[String]>) -> String {
         "  /workflow init <name> Create a starter workflow script",
         "  /workflow add-step <name> --prompt <text> Add a workflow step",
         "  /workflow update-step <name> <n> ... Edit a workflow step",
+        "  /workflow duplicate-step <name> <n> [--to <m>] Duplicate a workflow step",
+        "  /workflow move-step <name> <n> --to <m> Reorder a workflow step",
         "  /workflow remove-step <name> <n> Remove a workflow step",
         "  /workflow set-shared-context <name> <text> Set workflow shared context",
         "  /workflow clear-shared-context <name> Clear workflow shared context",

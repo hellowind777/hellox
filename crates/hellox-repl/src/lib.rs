@@ -1,10 +1,14 @@
 mod command_parser;
 mod command_types;
+mod mcp_command_types;
 mod plan_command_parser;
+mod plugin_command_types;
 mod remote_command_parser;
 mod runtime;
 mod style_parser;
 mod workflow_command_parser;
+mod workflow_command_parser_authoring;
+mod workflow_command_types;
 
 pub use command_parser::parse_command;
 pub use command_types::{
