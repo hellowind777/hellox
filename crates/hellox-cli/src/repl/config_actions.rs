@@ -14,7 +14,8 @@ pub(super) fn handle_config_command(
         ConfigCommand::Show => config_command_text(ConfigCommands::Show {
             config: Some(metadata.config_path.clone()),
         }),
-        ConfigCommand::Panel => config_command_text(ConfigCommands::Panel {
+        ConfigCommand::Panel { focus_key } => config_command_text(ConfigCommands::Panel {
+            focus_key,
             config: Some(metadata.config_path.clone()),
         }),
         ConfigCommand::Path => Ok(config_path_text(&metadata.config_path)),
@@ -37,8 +38,8 @@ pub(super) fn handle_config_command(
             key,
             config: Some(metadata.config_path.clone()),
         }),
-        ConfigCommand::Help => {
-            Ok("Usage: /config [show|path|keys|set <key> <value>|clear <key>]".to_string())
-        }
+        ConfigCommand::Help => Ok(
+            "Usage: /config [show|panel [key]|path|keys|set <key> <value>|clear <key>]".to_string(),
+        ),
     }
 }

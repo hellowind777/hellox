@@ -8,11 +8,14 @@ use crate::workflow_authoring::{
     resolve_existing_workflow_path, set_workflow_continue_on_error, set_workflow_shared_context,
     update_workflow_step, WorkflowStepDraft, WorkflowStepPatch,
 };
+use crate::workflow_dashboard::{
+    initial_workflow_dashboard_state, render_workflow_dashboard_state,
+};
 use crate::workflow_overview::render_workflow_overview;
 use crate::workflow_panel::render_workflow_panel;
 use crate::workflow_runs::{
     execute_and_record_workflow, list_workflow_runs, load_latest_workflow_run, load_workflow_run,
-    render_workflow_run_inspect_panel, render_workflow_run_list,
+    render_workflow_run_inspect_panel_with_step, render_workflow_run_list,
 };
 use crate::workflows::{
     initialize_workflow, list_workflows, load_named_workflow_detail, render_workflow_detail,
@@ -34,6 +37,10 @@ pub(super) async fn handle_workflow_command(
                 session.working_directory(),
                 &workflows,
             ))
+        }
+        WorkflowCommand::Dashboard { workflow_name } => {
+            let mut state = initial_workflow_dashboard_state(workflow_name);
+            render_workflow_dashboard_state(session.working_directory(), &mut state)
         }
         WorkflowCommand::Overview { workflow_name } => {
             render_workflow_overview(session.working_directory(), workflow_name.as_deref())
@@ -68,16 +75,24 @@ pub(super) async fn handle_workflow_command(
                 session.working_directory(),
             ))
         }
-        WorkflowCommand::ShowRun { run_id: None } => {
-            Ok("Usage: /workflow show-run <run-id>".to_string())
+        WorkflowCommand::ShowRun { run_id: None, .. } => {
+            Ok("Usage: /workflow show-run <run-id> [step-number]".to_string())
         }
-        WorkflowCommand::ShowRun { run_id: Some(run_id) } => Ok(render_workflow_run_inspect_panel(
+        WorkflowCommand::ShowRun {
+            run_id: Some(run_id),
+            step_number,
+        } => Ok(render_workflow_run_inspect_panel_with_step(
             session.working_directory(),
             &load_workflow_run(session.working_directory(), &run_id)?,
+            step_number,
         )),
-        WorkflowCommand::LastRun { workflow_name } => Ok(render_workflow_run_inspect_panel(
+        WorkflowCommand::LastRun {
+            workflow_name,
+            step_number,
+        } => Ok(render_workflow_run_inspect_panel_with_step(
             session.working_directory(),
             &load_latest_workflow_run(session.working_directory(), workflow_name.as_deref())?,
+            step_number,
         )),
         WorkflowCommand::Show { workflow_name } => {
             let workflow_name =

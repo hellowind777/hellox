@@ -152,6 +152,50 @@ fn handle_output_style_panel_renders_dashboard_and_detail() {
 }
 
 #[test]
+fn output_style_panel_selector_allows_numeric_selection() {
+    let root = temp_dir();
+    write_output_style(&root, "reviewer", "Use terse review language.");
+    save_config(
+        Some(root.join(".hellox").join("config.toml")),
+        &HelloxConfig::default(),
+    )
+    .expect("save config");
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root);
+    let driver = super::CliReplDriver::new();
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/output-style panel", &mut session, &metadata)
+                    .await
+                    .expect("open output-style panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::OutputStylePanelList { style_names }) => {
+                    assert_eq!(style_names, vec!["reviewer".to_string()]);
+                }
+                other => panic!("expected output-style selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("1", &mut session, &metadata)
+                    .await
+                    .expect("select output style"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
+}
+
+#[test]
 fn handle_persona_commands_update_and_show_session_persona() {
     let root = temp_dir();
     write_persona(

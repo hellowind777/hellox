@@ -3,14 +3,18 @@ use anyhow::Result;
 use crate::cli_workflow_types::WorkflowCommands;
 use crate::workflow_command_authoring::handle_workflow_authoring_command;
 use crate::workflow_command_support::{
-    build_workflow_session, path_text, resolve_lookup_target, resolve_optional_lookup_target,
-    resolve_script_path, workflow_command_cwd, workspace_root, WorkflowLookupTarget,
+    build_workflow_session, path_text, preferred_workflow_config_path, resolve_lookup_target,
+    resolve_optional_lookup_target, resolve_script_path, workflow_command_cwd, workspace_root,
+    WorkflowLookupTarget,
+};
+use crate::workflow_dashboard::{
+    initial_workflow_dashboard_state, render_workflow_dashboard_state, run_workflow_dashboard_loop,
 };
 use crate::workflow_overview::render_workflow_overview;
 use crate::workflow_panel::{render_workflow_panel, render_workflow_panel_detail};
 use crate::workflow_runs::{
     execute_and_record_workflow, list_workflow_runs, load_latest_workflow_run, load_workflow_run,
-    render_workflow_run_inspect_panel, render_workflow_run_list,
+    render_workflow_run_inspect_panel_with_step, render_workflow_run_list,
 };
 use crate::workflows::{
     initialize_workflow, list_workflows, load_named_workflow_detail,
@@ -20,8 +24,16 @@ use crate::workflows::{
 };
 
 pub(crate) async fn handle_workflow_command(command: WorkflowCommands) -> Result<()> {
-    println!("{}", workflow_command_text(command).await?);
-    Ok(())
+    match command {
+        WorkflowCommands::Dashboard { workflow_name, cwd } => {
+            let root = workspace_root(cwd)?;
+            run_workflow_dashboard_loop(&root, workflow_name).await
+        }
+        other => {
+            println!("{}", workflow_command_text(other).await?);
+            Ok(())
+        }
+    }
 }
 
 pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<String> {
@@ -34,6 +46,10 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
         WorkflowCommands::List { .. } => {
             let workflows = list_workflows(&root)?;
             Ok(render_workflow_list(&root, &workflows))
+        }
+        WorkflowCommands::Dashboard { workflow_name, .. } => {
+            let mut state = initial_workflow_dashboard_state(workflow_name);
+            render_workflow_dashboard_state(&root, &mut state)
         }
         WorkflowCommands::Overview { workflow_name, .. } => {
             render_workflow_overview(&root, workflow_name.as_deref())
@@ -89,13 +105,21 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
             };
             Ok(render_workflow_validation(&results, &root))
         }
-        WorkflowCommands::ShowRun { run_id, .. } => Ok(render_workflow_run_inspect_panel(
-            &root,
-            &load_workflow_run(&root, &run_id)?,
-        )),
-        WorkflowCommands::LastRun { workflow_name, .. } => Ok(render_workflow_run_inspect_panel(
+        WorkflowCommands::ShowRun { run_id, step, .. } => {
+            Ok(render_workflow_run_inspect_panel_with_step(
+                &root,
+                &load_workflow_run(&root, &run_id)?,
+                step,
+            ))
+        }
+        WorkflowCommands::LastRun {
+            workflow_name,
+            step,
+            ..
+        } => Ok(render_workflow_run_inspect_panel_with_step(
             &root,
             &load_latest_workflow_run(&root, workflow_name.as_deref())?,
+            step,
         )),
         WorkflowCommands::Show {
             workflow_name,
@@ -143,7 +167,10 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
                     WorkflowRunTarget::Path(resolve_script_path(&root, path))
                 }
             };
-            let session = build_workflow_session(config, root)?;
+            let session = build_workflow_session(
+                config.or_else(|| preferred_workflow_config_path(&root)),
+                root,
+            )?;
             execute_and_record_workflow(
                 &session,
                 target,

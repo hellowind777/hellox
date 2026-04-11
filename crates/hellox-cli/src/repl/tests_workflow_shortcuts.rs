@@ -52,6 +52,39 @@ fn write_workflow(root: &Path, relative: &str, raw: &str) {
     fs::write(path, raw).expect("write workflow");
 }
 
+fn write_run(root: &Path, run_id: &str, workflow_name: &str) {
+    let path = root
+        .join(".hellox")
+        .join("workflow-runs")
+        .join(format!("{run_id}.json"));
+    fs::create_dir_all(path.parent().expect("run dir")).expect("create run dir");
+    fs::write(
+        path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "run_id": run_id,
+            "status": "completed",
+            "workflow_name": workflow_name,
+            "workflow_source": format!(".hellox/workflows/{workflow_name}.json"),
+            "started_at": 1,
+            "finished_at": 2,
+            "summary": {
+                "total_steps": 2,
+                "completed_steps": 2,
+                "failed_steps": 0,
+                "running_steps": 0,
+                "skipped_steps": 0
+            },
+            "steps": [
+                { "name": "review", "status": "completed", "result_text": "ok" },
+                { "name": "ship", "status": "completed", "result_text": "done" }
+            ],
+            "result_text": "done"
+        }))
+        .expect("serialize run"),
+    )
+    .expect("write run");
+}
+
 #[test]
 fn workflow_panel_shortcuts_submit_without_panel_context() {
     let root = temp_dir();
@@ -182,6 +215,195 @@ fn workflow_panel_shortcuts_keep_focus_and_refresh_script() {
                     assert_eq!(step_count, 2);
                 }
                 other => panic!("expected workflow panel selector context, got {other:?}"),
+            }
+        });
+}
+
+#[test]
+fn workflow_panel_shortcuts_support_field_edits() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" }
+  ]
+}"#,
+    );
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow panel release-review 1",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open focused workflow panel"),
+                ReplAction::Continue
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("name ship review", &mut session, &metadata)
+                    .await
+                    .expect("rename focused step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("backend detached_process", &mut session, &metadata)
+                    .await
+                    .expect("set backend"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("background", &mut session, &metadata)
+                    .await
+                    .expect("set background mode"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("clear-name", &mut session, &metadata)
+                    .await
+                    .expect("clear name"),
+                ReplAction::Continue
+            );
+        });
+
+    let raw = fs::read_to_string(
+        root.join(".hellox")
+            .join("workflows")
+            .join("release-review.json"),
+    )
+    .expect("read workflow json");
+    let value = serde_json::from_str::<serde_json::Value>(&raw).expect("parse workflow json");
+    let step = value
+        .get("steps")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|steps| steps.first())
+        .expect("workflow step");
+    assert!(step.get("name").is_none());
+    assert_eq!(
+        step.get("backend").and_then(serde_json::Value::as_str),
+        Some("detached_process")
+    );
+    assert_eq!(
+        step.get("run_in_background")
+            .and_then(serde_json::Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        driver.workflow_panel_focus(),
+        Some(super::workflow_selectors::WorkflowPanelFocus {
+            workflow_name: String::from("release-review"),
+            selected_step: 1,
+        })
+    );
+}
+
+#[test]
+fn workflow_step_navigation_shortcuts_keep_focus_in_panel_and_run_views() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+    );
+    write_run(&root, "run-123", "release-review");
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow panel release-review 1",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open focused workflow panel"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("next", &mut session, &metadata)
+                    .await
+                    .expect("focus next workflow step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_panel_focus(),
+                Some(super::workflow_selectors::WorkflowPanelFocus {
+                    workflow_name: String::from("release-review"),
+                    selected_step: 2,
+                })
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow show-run run-123 1",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open workflow run inspect"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_run_focus(),
+                Some(super::workflow_selectors::WorkflowRunFocus {
+                    run_id: String::from("run-123"),
+                    selected_step: 1,
+                })
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("last", &mut session, &metadata)
+                    .await
+                    .expect("focus last recorded step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_run_focus(),
+                Some(super::workflow_selectors::WorkflowRunFocus {
+                    run_id: String::from("run-123"),
+                    selected_step: 2,
+                })
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::WorkflowRunSteps { run_id, step_count }) => {
+                    assert_eq!(run_id, "run-123");
+                    assert_eq!(step_count, 2);
+                }
+                other => panic!("expected workflow run selector context, got {other:?}"),
             }
         });
 }

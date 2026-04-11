@@ -296,6 +296,12 @@ fn parse_known_and_unknown_commands() {
         Some(ReplCommand::Workflow(WorkflowCommand::List))
     );
     assert_eq!(
+        super::commands::parse_command("/workflow dashboard release-review"),
+        Some(ReplCommand::Workflow(WorkflowCommand::Dashboard {
+            workflow_name: Some(String::from("release-review"))
+        }))
+    );
+    assert_eq!(
         super::commands::parse_command("/workflow validate release-review"),
         Some(ReplCommand::Workflow(WorkflowCommand::Validate {
             workflow_name: Some(String::from("release-review"))
@@ -334,6 +340,7 @@ fn help_text_lists_core_commands() {
     assert!(text.contains("/output-style"));
     assert!(text.contains("/install"));
     assert!(text.contains("/upgrade"));
+    assert!(text.contains("/workflow dashboard [name]"));
     assert!(text.contains("/output-style panel [name]"));
     assert!(text.contains("/model list"));
     assert!(text.contains("/model panel [name]"));
@@ -395,7 +402,7 @@ fn handle_output_style_commands_update_and_show_session_style() {
     let metadata = metadata_in(&root);
     let mut session = session_in(root.clone());
 
-    let summary = super::core_actions::handle_output_style_command(
+    let summary = super::style_actions::handle_output_style_command(
         OutputStyleCommand::Current,
         &mut session,
         &metadata,
@@ -404,7 +411,7 @@ fn handle_output_style_commands_update_and_show_session_style() {
     assert!(summary.contains("default_output_style: reviewer"));
     assert!(summary.contains("reviewer"));
 
-    let detail = super::core_actions::handle_output_style_command(
+    let detail = super::style_actions::handle_output_style_command(
         OutputStyleCommand::Show { style_name: None },
         &mut session,
         &metadata,

@@ -16,6 +16,7 @@ use crate::search::{
 use crate::sessions::{format_session_detail, format_session_list, list_sessions, load_session};
 use crate::workflows::list_invocable_workflows;
 
+#[cfg(test)]
 pub(super) fn help_text() -> String {
     render_help_text(None)
 }
@@ -52,7 +53,7 @@ fn render_help_text(workflow_names: Option<&[String]>) -> String {
         "  /brief clear         Remove the current workspace brief",
         "  /tools <query>       Search available local tools by name or description",
         "  /plan                Show current planning state for this session",
-        "  /plan panel          Show a plan dashboard with accepted steps",
+        "  /plan panel [n]      Show a plan dashboard or focus one accepted step",
         "  /plan enter          Enable plan mode for this session",
         "  /plan add [--index <n>] <status>:<text> Insert or append an accepted plan step",
         "  /plan update <n> <status>:<text> Replace an accepted plan step",
@@ -80,12 +81,13 @@ fn render_help_text(workflow_names: Option<&[String]>) -> String {
         "  /skills [name]       List skills or show a skill definition",
         "  /hooks [name]        List hooks or show a hook definition",
         "  /workflow            List project workflow scripts",
+        "  /workflow dashboard [name] Open the interactive workflow dashboard shell",
         "  /workflow overview [name] Show a selector-style workflow overview",
         "  /workflow panel [name] [n] Show an authoring panel with copyable edit actions",
         "  /workflow runs [name] List recorded workflow runs",
         "  /workflow validate [name] Validate workflow scripts",
-        "  /workflow show-run <id> Show a recorded workflow run",
-        "  /workflow last-run [name] Show the latest recorded workflow run",
+        "  /workflow show-run <id> [n] Show a recorded workflow run",
+        "  /workflow last-run [name] [n] Show the latest recorded workflow run",
         "  /workflow show <name> Show a workflow script definition",
         "  /workflow init <name> Create a starter workflow script",
         "  /workflow add-step <name> --prompt <text> Add a workflow step",
@@ -175,7 +177,7 @@ fn render_help_text(workflow_names: Option<&[String]>) -> String {
         "  /model default <name> Persist the default model profile",
         "  /permissions [mode] Show or switch the permission mode",
         "  /config              Show active config path and resolved config",
-        "  /config panel        Show a config dashboard with resolved values",
+        "  /config panel [key]  Show a config dashboard or focus one resolved key",
         "  /config path|keys    Show active config path or supported writable keys",
         "  /config set <key> <value> Update a supported config key",
         "  /config clear <key>  Clear a supported optional config key",
@@ -248,6 +250,7 @@ pub(super) fn status_text(session: &AgentSession, metadata: &ReplMetadata) -> St
     )
 }
 
+#[cfg(test)]
 pub(super) fn config_text(metadata: &ReplMetadata) -> String {
     let (config, reload_note) = runtime_config(metadata);
     let rendered = toml::to_string_pretty(&config)

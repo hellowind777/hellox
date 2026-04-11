@@ -13,9 +13,12 @@ pub(super) async fn handle_plan_command(
 ) -> Result<String> {
     match command {
         PlanCommand::Show => Ok(format_planning_state(&session.planning_state())),
-        PlanCommand::Panel => {
+        PlanCommand::Panel { step_number } => {
             let planning = session.planning_state();
-            Ok(render_plan_panel(session.session_id(), &planning))
+            match render_plan_panel(session.session_id(), &planning, step_number) {
+                Ok(panel) => Ok(panel),
+                Err(error) => Ok(format!("Unable to render plan panel: {error}")),
+            }
         }
         PlanCommand::Enter => {
             let mut planning = session.planning_state();
@@ -144,7 +147,7 @@ pub(super) async fn handle_plan_command(
             ))
         }
         PlanCommand::Help => Ok(
-            "Usage: /plan [show|enter|add [--index <n>] <status>:<text>|update <step-number> <status>:<text>|remove <step-number>|allow <prompt>|disallow <prompt>|exit --step <status>:<text>... [--allow <prompt>...]|clear]"
+            "Usage: /plan [show|panel [step-number]|enter|add [--index <n>] <status>:<text>|update <step-number> <status>:<text>|remove <step-number>|allow <prompt>|disallow <prompt>|exit --step <status>:<text>... [--allow <prompt>...]|clear]"
                 .to_string(),
         ),
     }

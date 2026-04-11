@@ -1,7 +1,18 @@
 use hellox_config::HelloxConfig;
 use hellox_tui::{render_selector, SelectorEntry};
 
-pub(super) fn render_config_selector(config: &HelloxConfig) -> Vec<String> {
+pub(crate) fn config_selector_keys(config: &HelloxConfig) -> Vec<String> {
+    resolved_values(config)
+        .into_iter()
+        .map(|entry| entry.key.to_string())
+        .collect()
+}
+
+pub(super) fn render_config_selector(
+    config: &HelloxConfig,
+    focus_key: Option<&str>,
+) -> Vec<String> {
+    let focus_key = normalized_focus_key(focus_key);
     let entries = resolved_values(config)
         .into_iter()
         .map(|entry| {
@@ -19,13 +30,19 @@ pub(super) fn render_config_selector(config: &HelloxConfig) -> Vec<String> {
                     },
                 ],
             )
+            .selected(focus_key == Some(entry.key))
         })
         .collect::<Vec<_>>();
     render_selector(&entries)
 }
 
-pub(super) fn render_config_lens(config: &HelloxConfig) -> Vec<String> {
-    let Some(entry) = resolved_values(config).into_iter().next() else {
+pub(super) fn render_config_lens(config: &HelloxConfig, focus_key: Option<&str>) -> Vec<String> {
+    let focus_key = normalized_focus_key(focus_key);
+    let Some(entry) = resolved_values(config)
+        .into_iter()
+        .find(|entry| focus_key.is_none_or(|key| key == entry.key))
+        .or_else(|| resolved_values(config).into_iter().next())
+    else {
         return vec!["(no resolved config values)".to_string()];
     };
 
@@ -36,6 +53,7 @@ pub(super) fn render_config_lens(config: &HelloxConfig) -> Vec<String> {
         format!("description: {}", entry.description),
         format!("value_chars: {}", entry.value.chars().count()),
         format!("set: `/config set {} <value>`", entry.key),
+        format!("panel: `/config panel {}`", entry.key),
     ];
 
     render_selector(&[SelectorEntry::new(entry.key.to_string(), lines).selected(true)])
@@ -136,4 +154,8 @@ fn preview_text(value: &str, max_chars: usize) -> String {
             .collect::<String>();
         format!("{head}...")
     }
+}
+
+fn normalized_focus_key(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
 }

@@ -15,6 +15,7 @@ mod style_actions;
 mod task_actions;
 mod ui_actions;
 mod workflow_actions;
+mod workflow_dashboard;
 mod workflow_panel_shortcuts;
 mod workflow_selectors;
 mod workflow_support;
@@ -59,6 +60,7 @@ use async_trait::async_trait;
 use hellox_agent::AgentSession;
 use hellox_repl::{run_repl_loop, ReplLoopDriver};
 pub use hellox_repl::{ReplAction, ReplExit, ReplMetadata};
+use hellox_tui::WorkflowDashboardState;
 
 use crate::auto_compact::{format_auto_compact_notice, maybe_auto_compact_session};
 use crate::auto_memory::{format_auto_memory_refresh_notice, maybe_auto_refresh_session_memory};
@@ -93,7 +95,7 @@ use style_actions::{
 use task_actions::handle_task_command;
 use ui_actions::{handle_brief_command, handle_tools_command};
 use workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_invocation};
-use workflow_selectors::WorkflowPanelFocus;
+use workflow_selectors::{WorkflowPanelFocus, WorkflowRunFocus};
 
 #[cfg(test)]
 pub(crate) async fn handle_workflow_command_for_test(
@@ -112,6 +114,8 @@ pub async fn run_repl(session: &mut AgentSession, metadata: &ReplMetadata) -> Re
 struct CliReplDriver {
     selector_context: Mutex<Option<SelectorContext>>,
     workflow_panel_focus: Mutex<Option<WorkflowPanelFocus>>,
+    workflow_run_focus: Mutex<Option<WorkflowRunFocus>>,
+    workflow_dashboard_state: Mutex<Option<WorkflowDashboardState>>,
 }
 
 impl CliReplDriver {
@@ -168,6 +172,9 @@ impl CliReplDriver {
         session: &mut AgentSession,
         metadata: &ReplMetadata,
     ) -> Result<ReplAction> {
+        if self.handle_workflow_dashboard_input(input, session).await? {
+            return Ok(ReplAction::Continue);
+        }
         if let Some(index) = parse_selector_index(input) {
             if self.handle_selector_index(index, session, metadata).await? {
                 return Ok(ReplAction::Continue);

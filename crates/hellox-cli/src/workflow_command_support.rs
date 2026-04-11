@@ -18,6 +18,7 @@ pub(crate) enum WorkflowLookupTarget {
 pub(crate) fn workflow_command_cwd(command: &WorkflowCommands) -> Option<&PathBuf> {
     match command {
         WorkflowCommands::List { cwd }
+        | WorkflowCommands::Dashboard { cwd, .. }
         | WorkflowCommands::Overview { cwd, .. }
         | WorkflowCommands::Panel { cwd, .. }
         | WorkflowCommands::Runs { cwd, .. }
@@ -109,6 +110,11 @@ pub(crate) fn build_workflow_session(
         false,
         None,
     ))
+}
+
+pub(crate) fn preferred_workflow_config_path(root: &Path) -> Option<PathBuf> {
+    let path = root.join(".hellox").join("config.toml");
+    path.is_file().then_some(path)
 }
 
 pub(crate) fn workspace_root(value: Option<PathBuf>) -> Result<PathBuf> {

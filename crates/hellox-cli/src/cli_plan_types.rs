@@ -7,6 +7,7 @@ pub(crate) enum PlanCommands {
     },
     Panel {
         session_id: String,
+        step_number: Option<usize>,
     },
     Enter {
         session_id: String,

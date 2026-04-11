@@ -287,6 +287,18 @@ fn render_repl_palette(
         lines.push(format!(
             "- edit step {step_number}: `/workflow update-step {workflow_name} {step_number} --prompt <text>`"
         ));
+        lines.push(
+            "- quick field edit in focused panel/dashboard: `name <text>` / `prompt <text>` / `when <json>` / `model <name>` / `backend <name>` / `step-cwd <path>`".to_string(),
+        );
+        lines.push(
+            "- clear focused fields: `clear-name` / `clear-when` / `clear-model` / `clear-backend` / `clear-step-cwd`".to_string(),
+        );
+        lines.push(
+            "- switch focused step mode: `background` / `foreground`; reorder with `dup [to]` / `move <to>` / `rm`".to_string(),
+        );
+        lines.push(
+            "- move focused lens in REPL/dashboard: `first` / `prev` / `next` / `last`".to_string(),
+        );
         lines.push(format!(
             "- duplicate step {step_number}: `/workflow duplicate-step {workflow_name} {step_number} --to {} --name <copy-name>`",
             step_number + 1

@@ -18,12 +18,15 @@ pub(crate) fn plan_command_text(command: PlanCommands) -> Result<String> {
                 &stored.snapshot.planning,
             ))
         }
-        PlanCommands::Panel { session_id } => {
+        PlanCommands::Panel {
+            session_id,
+            step_number,
+        } => {
             let stored = StoredSession::load(&session_id)?;
-            Ok(render_plan_panel(
-                Some(&session_id),
-                &stored.snapshot.planning,
-            ))
+            match render_plan_panel(Some(&session_id), &stored.snapshot.planning, step_number) {
+                Ok(panel) => Ok(panel),
+                Err(error) => Ok(format!("Unable to render plan panel: {error}")),
+            }
         }
         PlanCommands::Enter { session_id } => {
             let mut stored = StoredSession::load(&session_id)?;

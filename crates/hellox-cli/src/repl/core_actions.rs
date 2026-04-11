@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use hellox_agent::{AgentSession, CompactMode, OutputStylePrompt};
+use hellox_agent::{AgentSession, CompactMode};
 use hellox_config::{load_or_default, PermissionMode};
 
 use crate::memory::{
@@ -15,9 +15,6 @@ use crate::memory::{
 };
 use crate::memory_panel::render_memory_panel;
 use crate::model_panel::render_model_panel;
-use crate::output_styles::{
-    discover_output_styles, format_output_style_detail, format_output_style_list, load_output_style,
-};
 use crate::repl::format::{
     permissions_text, resume_help_text, session_detail_text, session_list_text, session_text,
 };
@@ -25,12 +22,11 @@ use crate::repl::ReplMetadata;
 use crate::session_panel::render_session_panel;
 use crate::sessions::load_session;
 use crate::settings_commands::model_command_text;
-use crate::style_panels::render_output_style_panel;
 use crate::transcript::{
     default_share_path, export_session_markdown, export_stored_session_markdown,
 };
 
-use super::commands::{MemoryCommand, ModelCommand, OutputStyleCommand, SessionCommand};
+use super::commands::{MemoryCommand, ModelCommand, SessionCommand};
 
 pub(super) enum ResumeAction {
     Continue(String),
@@ -240,89 +236,6 @@ pub(super) fn handle_session_command(
     }
 }
 
-pub(super) fn handle_output_style_command(
-    command: OutputStyleCommand,
-    session: &mut AgentSession,
-    metadata: &ReplMetadata,
-) -> Result<String> {
-    let config = runtime_config(metadata);
-
-    match command {
-        OutputStyleCommand::Panel { style_name } => Ok(
-            match render_output_style_panel(
-                &metadata.config_path,
-                session.working_directory(),
-                config.output_style.default.as_deref(),
-                session.output_style_name(),
-                style_name.as_deref(),
-            ) {
-                Ok(panel) => panel,
-                Err(error) => format!("Unable to render output style panel: {error}"),
-            },
-        ),
-        OutputStyleCommand::Current | OutputStyleCommand::List => {
-            match discover_output_styles(session.working_directory()) {
-                Ok(styles) => Ok(format_output_style_overview(
-                    &styles,
-                    session,
-                    config.output_style.default.as_deref(),
-                )),
-                Err(error) => Ok(format!("Unable to inspect output styles: {error}")),
-            }
-        }
-        OutputStyleCommand::Show { style_name } => {
-            let Some(style_name) = style_name
-                .or_else(|| session.output_style_name().map(ToString::to_string))
-                .or_else(|| config.output_style.default.clone())
-            else {
-                return Ok("Usage: /output-style show <name>".to_string());
-            };
-
-            match load_output_style(&style_name, session.working_directory()) {
-                Ok(style) => Ok(format_output_style_detail(
-                    &style,
-                    config.output_style.default.as_deref() == Some(style.name.as_str()),
-                    session.output_style_name() == Some(style.name.as_str()),
-                )),
-                Err(error) => Ok(format!(
-                    "Unable to load output style `{style_name}`: {error}"
-                )),
-            }
-        }
-        OutputStyleCommand::Use { style_name: None } => {
-            Ok("Usage: /output-style use <name>".to_string())
-        }
-        OutputStyleCommand::Use {
-            style_name: Some(style_name),
-        } => match load_output_style(&style_name, session.working_directory()) {
-            Ok(style) => {
-                session.set_output_style(Some(OutputStylePrompt {
-                    name: style.name.clone(),
-                    prompt: style.prompt,
-                }))?;
-                Ok(format!(
-                    "Active output style set to `{}` for the current session.",
-                    style.name
-                ))
-            }
-            Err(error) => Ok(format!(
-                "Unable to load output style `{style_name}`: {error}"
-            )),
-        },
-        OutputStyleCommand::Clear => match session.output_style_name() {
-            Some(active_style) => {
-                let active_style = active_style.to_string();
-                session.set_output_style(None)?;
-                Ok(format!(
-                    "Cleared active output style `{active_style}` for the current session."
-                ))
-            }
-            None => Ok("No active output style is set for the current session.".to_string()),
-        },
-        OutputStyleCommand::Help => Ok(output_style_help_text().to_string()),
-    }
-}
-
 pub(super) fn handle_permissions_command(
     value: Option<String>,
     session: &mut AgentSession,
@@ -509,30 +422,4 @@ fn compact_mode_label(mode: CompactMode) -> &'static str {
         CompactMode::Micro => "microcompact",
         CompactMode::Full => "compact",
     }
-}
-
-fn format_output_style_overview(
-    styles: &[crate::output_styles::OutputStyleDefinition],
-    session: &AgentSession,
-    default_style: Option<&str>,
-) -> String {
-    format!(
-        "active_output_style: {}\ndefault_output_style: {}\nworkspace_root: {}\n\n{}",
-        session.output_style_name().unwrap_or("(none)"),
-        default_style.unwrap_or("(none)"),
-        format_path(session.working_directory()),
-        format_output_style_list(styles, default_style)
-    )
-}
-
-fn output_style_help_text() -> &'static str {
-    concat!(
-        "Usage:\n",
-        "  /output-style              Show active, default, and discovered output styles\n",
-        "  /output-style panel [name] Show an output-style dashboard or inspect one style\n",
-        "  /output-style list         List discovered output styles\n",
-        "  /output-style show <name>  Show a style prompt\n",
-        "  /output-style use <name>   Apply a style to the current session\n",
-        "  /output-style clear        Clear the active session style"
-    )
 }

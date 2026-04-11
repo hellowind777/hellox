@@ -119,12 +119,13 @@ fn help_text_lists_project_workflow_commands() {
     );
 
     let text = help_text_for_workdir(&root);
+    assert!(text.contains("/workflow dashboard [name]"));
     assert!(text.contains("/workflow overview [name]"));
     assert!(text.contains("/workflow panel [name] [n]"));
     assert!(text.contains("/workflow runs [name]"));
     assert!(text.contains("/workflow validate [name]"));
-    assert!(text.contains("/workflow show-run <id>"));
-    assert!(text.contains("/workflow last-run [name]"));
+    assert!(text.contains("/workflow show-run <id> [n]"));
+    assert!(text.contains("/workflow last-run [name] [n]"));
     assert!(text.contains("/workflow init <name>"));
     assert!(text.contains("/workflow add-step <name> --prompt <text>"));
     assert!(text.contains("/workflow run <name> [shared_context]"));
@@ -193,6 +194,14 @@ fn handle_workflow_validate_and_init_commands() {
 #[test]
 fn parse_workflow_authoring_commands() {
     assert_eq!(
+        super::commands::parse_command("/workflow dashboard release-review"),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Dashboard {
+                workflow_name: Some(String::from("release-review")),
+            }
+        ))
+    );
+    assert_eq!(
         super::commands::parse_command("/workflow panel release-review 2"),
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::Panel {
@@ -218,18 +227,20 @@ fn parse_workflow_authoring_commands() {
         ))
     );
     assert_eq!(
-        super::commands::parse_command("/workflow show-run run-123"),
+        super::commands::parse_command("/workflow show-run run-123 2"),
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::ShowRun {
                 run_id: Some(String::from("run-123")),
+                step_number: Some(2),
             }
         ))
     );
     assert_eq!(
-        super::commands::parse_command("/workflow last-run release-review"),
+        super::commands::parse_command("/workflow last-run release-review 3"),
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::LastRun {
                 workflow_name: Some(String::from("release-review")),
+                step_number: Some(3),
             }
         ))
     );
@@ -281,6 +292,308 @@ fn parse_workflow_authoring_commands() {
             }
         ))
     );
+}
+
+#[test]
+fn workflow_dashboard_mode_navigates_and_closes() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+    );
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow dashboard release-review",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open workflow dashboard"),
+                ReplAction::Continue
+            );
+            assert!(driver.workflow_dashboard_state().is_some());
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("panel 2", &mut session, &metadata)
+                    .await
+                    .expect("focus workflow panel from dashboard"),
+                ReplAction::Continue
+            );
+            let state = driver
+                .workflow_dashboard_state()
+                .expect("workflow dashboard state");
+            match state.current() {
+                hellox_tui::WorkflowDashboardView::PanelFocus {
+                    workflow_name,
+                    step_number,
+                } => {
+                    assert_eq!(workflow_name, "release-review");
+                    assert_eq!(*step_number, Some(2));
+                }
+                other => panic!("expected workflow panel focus, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("close", &mut session, &metadata)
+                    .await
+                    .expect("close workflow dashboard"),
+                ReplAction::Continue
+            );
+            assert!(driver.workflow_dashboard_state().is_none());
+        });
+}
+
+#[test]
+fn workflow_dashboard_mode_supports_context_updates() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+    );
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow dashboard release-review",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open workflow dashboard"),
+                ReplAction::Continue
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "set-shared-context ship carefully",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("set workflow shared_context"),
+                ReplAction::Continue
+            );
+            let state = driver
+                .workflow_dashboard_state()
+                .expect("workflow dashboard state");
+            match state.current() {
+                hellox_tui::WorkflowDashboardView::OverviewFocus { workflow_name } => {
+                    assert_eq!(workflow_name, "release-review");
+                }
+                other => panic!("expected workflow overview focus, got {other:?}"),
+            }
+
+            let detail = crate::workflows::load_named_workflow_detail(&root, "release-review")
+                .expect("load updated workflow");
+            assert_eq!(
+                detail.summary.shared_context,
+                Some(String::from("ship carefully"))
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("enable-continue-on-error", &mut session, &metadata)
+                    .await
+                    .expect("enable continue_on_error"),
+                ReplAction::Continue
+            );
+
+            let detail = crate::workflows::load_named_workflow_detail(&root, "release-review")
+                .expect("load updated workflow");
+            assert!(detail.summary.continue_on_error);
+        });
+}
+
+#[test]
+fn workflow_dashboard_mode_supports_step_authoring() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+    );
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow dashboard release-review",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open workflow dashboard"),
+                ReplAction::Continue
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "add-step --prompt summarize findings --name summarize --background",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("add workflow step from dashboard"),
+                ReplAction::Continue
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "update-step --clear-name --prompt ship release --foreground",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("update workflow step from dashboard"),
+                ReplAction::Continue
+            );
+        });
+
+    let raw = fs::read_to_string(
+        root.join(".hellox")
+            .join("workflows")
+            .join("release-review.json"),
+    )
+    .expect("read workflow json");
+    let value = serde_json::from_str::<serde_json::Value>(&raw).expect("parse workflow json");
+    let steps = value
+        .get("steps")
+        .and_then(serde_json::Value::as_array)
+        .expect("workflow steps");
+    assert_eq!(steps.len(), 2);
+    assert!(steps[1].get("name").is_none());
+    assert_eq!(
+        steps[1].get("prompt").and_then(serde_json::Value::as_str),
+        Some("ship release")
+    );
+    assert_eq!(
+        steps[1]
+            .get("run_in_background")
+            .and_then(serde_json::Value::as_bool),
+        None
+    );
+
+    let state = driver
+        .workflow_dashboard_state()
+        .expect("workflow dashboard state");
+    match state.current() {
+        hellox_tui::WorkflowDashboardView::PanelFocus {
+            workflow_name,
+            step_number,
+        } => {
+            assert_eq!(workflow_name, "release-review");
+            assert_eq!(*step_number, Some(2));
+        }
+        other => panic!("expected workflow panel focus after authoring, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn workflow_dashboard_mode_runs_active_workflow() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow dashboard done").await;
+    write_config(&root, &base_url);
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async(
+                "/workflow dashboard release-review",
+                &mut session,
+                &metadata
+            )
+            .await
+            .expect("open workflow dashboard"),
+        ReplAction::Continue
+    );
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("run ship carefully", &mut session, &metadata)
+            .await
+            .expect("run workflow from dashboard"),
+        ReplAction::Continue
+    );
+
+    let run_ids = fs::read_dir(root.join(".hellox").join("workflow-runs"))
+        .expect("read workflow runs dir")
+        .map(|entry| {
+            entry
+                .expect("workflow run entry")
+                .path()
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .expect("workflow run id")
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(run_ids.len(), 1);
+
+    let state = driver
+        .workflow_dashboard_state()
+        .expect("workflow dashboard state");
+    match state.current() {
+        hellox_tui::WorkflowDashboardView::RunInspect {
+            run_id,
+            step_number,
+        } => {
+            assert_eq!(run_id, &run_ids[0]);
+            assert_eq!(*step_number, None);
+        }
+        other => panic!("expected workflow run inspect view, got {other:?}"),
+    }
 }
 
 #[tokio::test]
@@ -337,6 +650,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let detail = handle_workflow_command(
         WorkflowCommand::ShowRun {
             run_id: Some(run_id.clone()),
+            step_number: Some(1),
         },
         &mut session,
     )
@@ -350,6 +664,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let latest = handle_workflow_command(
         WorkflowCommand::LastRun {
             workflow_name: Some(String::from("release-review")),
+            step_number: Some(1),
         },
         &mut session,
     )

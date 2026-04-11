@@ -188,6 +188,51 @@ fn handle_mcp_panel_renders_dashboard_and_detail() {
 }
 
 #[test]
+fn mcp_panel_selector_allows_numeric_selection() {
+    let root = temp_dir();
+    let mut session = session(root.clone());
+    let metadata = metadata(&root);
+    let driver = super::CliReplDriver::new();
+
+    handle_repl_input(
+        "/mcp add sse docs https://example.test/sse",
+        &mut session,
+        &metadata,
+    )
+    .expect("mcp add sse");
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/mcp panel", &mut session, &metadata)
+                    .await
+                    .expect("open mcp panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::McpPanelList { server_names }) => {
+                    assert_eq!(server_names, vec!["docs".to_string()]);
+                }
+                other => panic!("expected mcp selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("1", &mut session, &metadata)
+                    .await
+                    .expect("select server"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
+}
+
+#[test]
 fn handle_mcp_stdio_add_persists_config_and_config_view_reloads_it() {
     let root = temp_dir();
     let mut session = session(root.clone());

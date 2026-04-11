@@ -59,9 +59,12 @@ mod workflow_authoring;
 mod workflow_command_authoring;
 mod workflow_command_support;
 mod workflow_commands;
+mod workflow_dashboard;
 mod workflow_overview;
 mod workflow_panel;
 mod workflow_runs;
+mod workflow_step_navigation;
+mod workflow_step_shortcuts;
 mod workflows;
 
 #[cfg(test)]

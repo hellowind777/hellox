@@ -41,6 +41,13 @@ pub(crate) fn render_output_style_panel(
     )
 }
 
+pub(crate) fn output_style_panel_names(workspace_root: &Path) -> Result<Vec<String>> {
+    Ok(discover_output_styles(workspace_root)?
+        .iter()
+        .map(|style| style.name.clone())
+        .collect())
+}
+
 pub(crate) fn render_persona_panel(
     config_path: &Path,
     workspace_root: &Path,
@@ -65,6 +72,13 @@ pub(crate) fn render_persona_panel(
     )
 }
 
+pub(crate) fn persona_panel_names(workspace_root: &Path) -> Result<Vec<String>> {
+    Ok(discover_personas(workspace_root)?
+        .iter()
+        .map(|persona| persona.name.clone())
+        .collect())
+}
+
 pub(crate) fn render_prompt_fragment_panel(
     config_path: &Path,
     workspace_root: &Path,
@@ -87,6 +101,13 @@ pub(crate) fn render_prompt_fragment_panel(
         "prompt-fragment",
         "fragment",
     )
+}
+
+pub(crate) fn prompt_fragment_panel_names(workspace_root: &Path) -> Result<Vec<String>> {
+    Ok(discover_prompt_fragments(workspace_root)?
+        .iter()
+        .map(|fragment| fragment.name.clone())
+        .collect())
 }
 
 fn render_asset_panel(
@@ -287,6 +308,7 @@ fn asset_list_cli_palette(cli_root: &str) -> Vec<String> {
 fn asset_list_repl_palette(repl_root: &str) -> Vec<String> {
     vec![
         format!("- open panel: `/{repl_root} panel [name]`"),
+        format!("- numeric open: render `/{repl_root} panel`, then enter `1..n`"),
         format!("- show raw: `/{repl_root} show <name>`"),
         format!("- use in session: `/{repl_root} use <name>`"),
         format!("- clear active: `/{repl_root} clear`"),

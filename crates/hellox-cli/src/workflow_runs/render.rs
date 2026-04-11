@@ -11,6 +11,7 @@ use super::selector::render_run_selector;
 use super::{
     normalize_filter, path_text, workflow_run_path, workflow_runs_root, WorkflowRunRecord,
 };
+pub(crate) use inspect::select_workflow_run_step_number;
 
 pub(crate) fn render_workflow_run_list(
     root: &Path,
@@ -62,6 +63,7 @@ pub(crate) fn render_workflow_run_list(
     render_panel("Workflow run history panel", &metadata, &sections)
 }
 
+#[cfg(test)]
 pub(crate) fn render_workflow_run_inspect_panel(root: &Path, record: &WorkflowRunRecord) -> String {
     inspect::render_workflow_run_inspect_panel(root, record, None)
 }

@@ -206,6 +206,7 @@ pub(crate) enum ConfigCommands {
         config: Option<PathBuf>,
     },
     Panel {
+        focus_key: Option<String>,
         #[arg(long)]
         config: Option<PathBuf>,
     },

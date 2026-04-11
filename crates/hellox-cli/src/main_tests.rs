@@ -563,6 +563,15 @@ fn parses_tasks_add_command() {
 
 #[test]
 fn parses_workflow_commands() {
+    let dashboard = Cli::try_parse_from([
+        "hellox",
+        "workflow",
+        "dashboard",
+        "release-review",
+        "--cwd",
+        "workspace/app",
+    ])
+    .expect("parse workflow dashboard");
     let overview = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -610,13 +619,16 @@ fn parses_workflow_commands() {
     .expect("parse workflow run");
     let validate = Cli::try_parse_from(["hellox", "workflow", "validate", "release-review"])
         .expect("parse workflow validate");
-    let show_run = Cli::try_parse_from(["hellox", "workflow", "show-run", "run-123"])
-        .expect("parse workflow show-run");
+    let show_run =
+        Cli::try_parse_from(["hellox", "workflow", "show-run", "run-123", "--step", "2"])
+            .expect("parse workflow show-run");
     let last_run = Cli::try_parse_from([
         "hellox",
         "workflow",
         "last-run",
         "release-review",
+        "--step",
+        "3",
         "--cwd",
         "workspace/app",
     ])
@@ -634,6 +646,16 @@ fn parses_workflow_commands() {
         "--force",
     ])
     .expect("parse workflow init");
+
+    match dashboard.command {
+        Some(Commands::Workflow {
+            command: WorkflowCommands::Dashboard { workflow_name, cwd },
+        }) => {
+            assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(cwd, Some(PathBuf::from("workspace/app")));
+        }
+        other => panic!("unexpected workflow dashboard command: {other:?}"),
+    }
 
     match overview.command {
         Some(Commands::Workflow {
@@ -719,9 +741,10 @@ fn parses_workflow_commands() {
 
     match show_run.command {
         Some(Commands::Workflow {
-            command: WorkflowCommands::ShowRun { run_id, cwd },
+            command: WorkflowCommands::ShowRun { run_id, step, cwd },
         }) => {
             assert_eq!(run_id, "run-123");
+            assert_eq!(step, Some(2));
             assert_eq!(cwd, None);
         }
         other => panic!("unexpected workflow show-run command: {other:?}"),
@@ -729,9 +752,15 @@ fn parses_workflow_commands() {
 
     match last_run.command {
         Some(Commands::Workflow {
-            command: WorkflowCommands::LastRun { workflow_name, cwd },
+            command:
+                WorkflowCommands::LastRun {
+                    workflow_name,
+                    step,
+                    cwd,
+                },
         }) => {
             assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(step, Some(3));
             assert_eq!(cwd, Some(PathBuf::from("workspace/app")));
         }
         other => panic!("unexpected workflow last-run command: {other:?}"),

@@ -20,9 +20,12 @@ pub(crate) fn config_command_text(command: ConfigCommands) -> Result<String> {
             let (config_path, config) = load_config(config)?;
             Ok(format_config_detail(&config_path, &config))
         }
-        ConfigCommands::Panel { config } => {
+        ConfigCommands::Panel { focus_key, config } => {
             let (config_path, config) = load_config(config)?;
-            Ok(render_config_panel(&config_path, &config))
+            match render_config_panel(&config_path, &config, focus_key.as_deref()) {
+                Ok(panel) => Ok(panel),
+                Err(error) => Ok(format!("Unable to render config panel: {error}")),
+            }
         }
         ConfigCommands::Keys => Ok(format_supported_config_keys()),
         ConfigCommands::Set { key, value, config } => {
@@ -306,6 +309,7 @@ mod tests {
         save_config(Some(config_path.clone()), &HelloxConfig::default()).expect("save config");
 
         let text = config_command_text(ConfigCommands::Panel {
+            focus_key: None,
             config: Some(config_path),
         })
         .expect("render panel");
@@ -314,5 +318,21 @@ mod tests {
         assert!(text.contains("== Focused config lens =="));
         assert!(text.contains("hellox config set gateway.listen <value>"));
         assert!(text.contains("/config set gateway.listen <value>"));
+    }
+
+    #[test]
+    fn focused_panel_marks_selected_key() {
+        let root = temp_dir();
+        let config_path = root.join("config.toml");
+        save_config(Some(config_path.clone()), &HelloxConfig::default()).expect("save config");
+
+        let text = config_command_text(ConfigCommands::Panel {
+            focus_key: Some("prompt.persona".to_string()),
+            config: Some(config_path),
+        })
+        .expect("render focused panel");
+
+        assert!(text.contains("> [6] prompt.persona"));
+        assert!(text.contains("/config panel prompt.persona"));
     }
 }

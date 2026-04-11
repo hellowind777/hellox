@@ -1,6 +1,9 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkflowCommand {
     List,
+    Dashboard {
+        workflow_name: Option<String>,
+    },
     Overview {
         workflow_name: Option<String>,
     },
@@ -16,9 +19,11 @@ pub enum WorkflowCommand {
     },
     ShowRun {
         run_id: Option<String>,
+        step_number: Option<usize>,
     },
     LastRun {
         workflow_name: Option<String>,
+        step_number: Option<usize>,
     },
     Show {
         workflow_name: Option<String>,

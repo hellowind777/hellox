@@ -57,6 +57,7 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::OutputStyle(command) => {
+            driver.prepare_output_style_selector_context(&command, session, metadata);
             println!(
                 "{}",
                 handle_output_style_command(command, session, metadata)?
@@ -64,10 +65,12 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Persona(command) => {
+            driver.prepare_persona_selector_context(&command, session, metadata);
             println!("{}", handle_persona_command(command, session, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::PromptFragment(command) => {
+            driver.prepare_prompt_fragment_selector_context(&command, session, metadata);
             println!(
                 "{}",
                 handle_prompt_fragment_command(command, session, metadata)?
@@ -114,10 +117,12 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Mcp(command) => {
+            driver.prepare_mcp_selector_context(&command, metadata);
             println!("{}", handle_mcp_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Plugin(command) => {
+            driver.prepare_plugin_selector_context(&command, metadata);
             println!("{}", handle_plugin_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
@@ -137,15 +142,24 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Workflow(command) => {
+            if let WorkflowCommand::Dashboard { workflow_name } = &command {
+                println!(
+                    "{}",
+                    driver.open_workflow_dashboard(session, workflow_name.clone())?
+                );
+                return Ok(ReplAction::Continue);
+            }
             driver.prepare_workflow_selector_context(session, &command);
             println!("{}", handle_workflow_command(command, session).await?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Config(command) => {
+            driver.prepare_config_selector_context(&command, metadata);
             println!("{}", handle_config_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Plan(command) => {
+            driver.prepare_plan_selector_context(&command, session);
             println!("{}", handle_plan_command(command, session).await?);
             Ok(ReplAction::Continue)
         }
@@ -184,6 +198,7 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Model(command) => {
+            driver.prepare_model_selector_context(&command, session, metadata);
             println!("{}", handle_model_command(command, session, metadata)?);
             Ok(ReplAction::Continue)
         }

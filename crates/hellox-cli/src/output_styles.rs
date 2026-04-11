@@ -3,8 +3,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
+#[cfg(test)]
 use hellox_agent::OutputStylePrompt;
-use hellox_config::{output_styles_root, HelloxConfig};
+use hellox_config::output_styles_root;
+#[cfg(test)]
+use hellox_config::HelloxConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OutputStyleScope {
@@ -20,6 +23,7 @@ pub struct OutputStyleDefinition {
     pub prompt: String,
 }
 
+#[cfg(test)]
 pub fn resolve_configured_output_style(
     config: &HelloxConfig,
     workspace_root: &Path,

@@ -1,9 +1,26 @@
+use super::commands::{
+    ConfigCommand, McpCommand, ModelCommand, OutputStyleCommand, PersonaCommand, PlanCommand,
+    PluginCommand, PromptFragmentCommand,
+};
 use super::*;
+use crate::config_panel::config_selector_keys;
+use crate::mcp_panel::mcp_panel_server_names;
+use crate::model_panel::model_panel_profile_names;
+use crate::plugin_panel::plugin_panel_ids;
 use crate::sessions::list_sessions;
+use crate::style_panels::{
+    output_style_panel_names, persona_panel_names, prompt_fragment_panel_names,
+};
 use hellox_memory::{list_archived_memories, list_memories};
 
 #[derive(Debug, Clone)]
 pub(super) enum SelectorContext {
+    ConfigPanelList {
+        focus_keys: Vec<String>,
+    },
+    PlanPanelSteps {
+        step_count: usize,
+    },
     SessionPanelList {
         session_ids: Vec<String>,
     },
@@ -13,6 +30,24 @@ pub(super) enum SelectorContext {
     MemoryPanelList {
         archived: bool,
         memory_ids: Vec<String>,
+    },
+    ModelPanelList {
+        profile_names: Vec<String>,
+    },
+    OutputStylePanelList {
+        style_names: Vec<String>,
+    },
+    PersonaPanelList {
+        persona_names: Vec<String>,
+    },
+    PromptFragmentPanelList {
+        fragment_names: Vec<String>,
+    },
+    McpPanelList {
+        server_names: Vec<String>,
+    },
+    PluginPanelList {
+        plugin_ids: Vec<String>,
     },
     WorkflowOverviewList {
         items: Vec<crate::workflow_overview::WorkflowOverviewSelectionItem>,
@@ -38,20 +73,52 @@ pub(super) enum SelectorContext {
 }
 
 impl CliReplDriver {
+    pub(super) fn prepare_config_selector_context(
+        &self,
+        command: &ConfigCommand,
+        metadata: &ReplMetadata,
+    ) {
+        if let ConfigCommand::Panel { focus_key: None } = command {
+            let keys = config_selector_keys(&metadata.config);
+            if !keys.is_empty() {
+                self.set_selector_context(SelectorContext::ConfigPanelList { focus_keys: keys });
+            }
+        }
+    }
+
+    pub(super) fn prepare_plan_selector_context(
+        &self,
+        command: &PlanCommand,
+        session: &AgentSession,
+    ) {
+        if let PlanCommand::Panel { step_number: None } = command {
+            let step_count = session.planning_state().plan.len();
+            if step_count > 0 {
+                self.set_selector_context(SelectorContext::PlanPanelSteps { step_count });
+            }
+        }
+    }
+
     pub(super) fn clear_selector_context(&self) {
         if let Ok(mut guard) = self.selector_context.lock() {
             *guard = None;
         }
         self.clear_workflow_panel_focus();
+        self.clear_workflow_run_focus();
     }
 
     pub(super) fn set_selector_context(&self, context: SelectorContext) {
-        let keep_workflow_focus = matches!(context, SelectorContext::WorkflowPanelSteps { .. });
+        let keep_workflow_panel_focus =
+            matches!(context, SelectorContext::WorkflowPanelSteps { .. });
+        let keep_workflow_run_focus = matches!(context, SelectorContext::WorkflowRunSteps { .. });
         if let Ok(mut guard) = self.selector_context.lock() {
             *guard = Some(context);
         }
-        if !keep_workflow_focus {
+        if !keep_workflow_panel_focus {
             self.clear_workflow_panel_focus();
+        }
+        if !keep_workflow_run_focus {
+            self.clear_workflow_run_focus();
         }
     }
 
@@ -93,6 +160,74 @@ impl CliReplDriver {
         }
     }
 
+    pub(super) fn prepare_model_selector_context(
+        &self,
+        command: &ModelCommand,
+        _session: &AgentSession,
+        metadata: &ReplMetadata,
+    ) {
+        if let ModelCommand::Panel { profile_name: None } = command {
+            let config = hellox_config::load_or_default(Some(metadata.config_path.clone()))
+                .unwrap_or_else(|_| metadata.config.clone());
+            let profile_names = model_panel_profile_names(&config);
+            if !profile_names.is_empty() {
+                self.set_selector_context(SelectorContext::ModelPanelList { profile_names });
+            }
+        }
+    }
+
+    pub(super) fn prepare_output_style_selector_context(
+        &self,
+        command: &OutputStyleCommand,
+        session: &AgentSession,
+        _metadata: &ReplMetadata,
+    ) {
+        if let OutputStyleCommand::Panel { style_name: None } = command {
+            if let Ok(style_names) = output_style_panel_names(session.working_directory()) {
+                if !style_names.is_empty() {
+                    self.set_selector_context(SelectorContext::OutputStylePanelList {
+                        style_names,
+                    });
+                }
+            }
+        }
+    }
+
+    pub(super) fn prepare_persona_selector_context(
+        &self,
+        command: &PersonaCommand,
+        session: &AgentSession,
+        _metadata: &ReplMetadata,
+    ) {
+        if let PersonaCommand::Panel { persona_name: None } = command {
+            if let Ok(persona_names) = persona_panel_names(session.working_directory()) {
+                if !persona_names.is_empty() {
+                    self.set_selector_context(SelectorContext::PersonaPanelList { persona_names });
+                }
+            }
+        }
+    }
+
+    pub(super) fn prepare_prompt_fragment_selector_context(
+        &self,
+        command: &PromptFragmentCommand,
+        session: &AgentSession,
+        _metadata: &ReplMetadata,
+    ) {
+        if let PromptFragmentCommand::Panel {
+            fragment_name: None,
+        } = command
+        {
+            if let Ok(fragment_names) = prompt_fragment_panel_names(session.working_directory()) {
+                if !fragment_names.is_empty() {
+                    self.set_selector_context(SelectorContext::PromptFragmentPanelList {
+                        fragment_names,
+                    });
+                }
+            }
+        }
+    }
+
     pub(super) fn prepare_session_selector_context(
         &self,
         command: &SessionCommand,
@@ -106,6 +241,36 @@ impl CliReplDriver {
                         .map(|summary| summary.session_id)
                         .collect(),
                 });
+            }
+        }
+    }
+
+    pub(super) fn prepare_mcp_selector_context(
+        &self,
+        command: &McpCommand,
+        metadata: &ReplMetadata,
+    ) {
+        if let McpCommand::Panel { server_name: None } = command {
+            let config = hellox_config::load_or_default(Some(metadata.config_path.clone()))
+                .unwrap_or_else(|_| metadata.config.clone());
+            let server_names = mcp_panel_server_names(&config);
+            if !server_names.is_empty() {
+                self.set_selector_context(SelectorContext::McpPanelList { server_names });
+            }
+        }
+    }
+
+    pub(super) fn prepare_plugin_selector_context(
+        &self,
+        command: &PluginCommand,
+        metadata: &ReplMetadata,
+    ) {
+        if let PluginCommand::Panel { plugin_id: None } = command {
+            let config = hellox_config::load_or_default(Some(metadata.config_path.clone()))
+                .unwrap_or_else(|_| metadata.config.clone());
+            let plugin_ids = plugin_panel_ids(&config);
+            if !plugin_ids.is_empty() {
+                self.set_selector_context(SelectorContext::PluginPanelList { plugin_ids });
             }
         }
     }
@@ -143,6 +308,50 @@ impl CliReplDriver {
         }
 
         match context {
+            SelectorContext::ConfigPanelList { focus_keys } => {
+                if index == 0 || index > focus_keys.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/config panel`.",
+                        focus_keys.len()
+                    );
+                    return Ok(true);
+                }
+
+                let focus_key = focus_keys[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_config_command(
+                        ConfigCommand::Panel {
+                            focus_key: Some(focus_key),
+                        },
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::PlanPanelSteps { step_count } => {
+                if index == 0 || index > step_count {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/plan panel`.",
+                        step_count
+                    );
+                    return Ok(true);
+                }
+
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_plan_command(
+                        PlanCommand::Panel {
+                            step_number: Some(index),
+                        },
+                        session,
+                    )
+                    .await?
+                );
+                Ok(true)
+            }
             SelectorContext::SessionPanelList { session_ids } => {
                 if index == 0 || index > session_ids.len() {
                     println!(
@@ -211,6 +420,142 @@ impl CliReplDriver {
                             memory_id: Some(memory_id),
                         },
                         session,
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::ModelPanelList { profile_names } => {
+                if index == 0 || index > profile_names.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/model panel`.",
+                        profile_names.len()
+                    );
+                    return Ok(true);
+                }
+
+                let profile_name = profile_names[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_model_command(
+                        ModelCommand::Panel {
+                            profile_name: Some(profile_name),
+                        },
+                        session,
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::OutputStylePanelList { style_names } => {
+                if index == 0 || index > style_names.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/output-style panel`.",
+                        style_names.len()
+                    );
+                    return Ok(true);
+                }
+
+                let style_name = style_names[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_output_style_command(
+                        OutputStyleCommand::Panel {
+                            style_name: Some(style_name),
+                        },
+                        session,
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::PersonaPanelList { persona_names } => {
+                if index == 0 || index > persona_names.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/persona panel`.",
+                        persona_names.len()
+                    );
+                    return Ok(true);
+                }
+
+                let persona_name = persona_names[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_persona_command(
+                        PersonaCommand::Panel {
+                            persona_name: Some(persona_name),
+                        },
+                        session,
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::PromptFragmentPanelList { fragment_names } => {
+                if index == 0 || index > fragment_names.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/fragment panel`.",
+                        fragment_names.len()
+                    );
+                    return Ok(true);
+                }
+
+                let fragment_name = fragment_names[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_prompt_fragment_command(
+                        PromptFragmentCommand::Panel {
+                            fragment_name: Some(fragment_name),
+                        },
+                        session,
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::McpPanelList { server_names } => {
+                if index == 0 || index > server_names.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/mcp panel`.",
+                        server_names.len()
+                    );
+                    return Ok(true);
+                }
+
+                let server_name = server_names[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_mcp_command(
+                        McpCommand::Panel {
+                            server_name: Some(server_name),
+                        },
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::PluginPanelList { plugin_ids } => {
+                if index == 0 || index > plugin_ids.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/plugin panel`.",
+                        plugin_ids.len()
+                    );
+                    return Ok(true);
+                }
+
+                let plugin_id = plugin_ids[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    handle_plugin_command(
+                        PluginCommand::Panel {
+                            plugin_id: Some(plugin_id),
+                        },
                         metadata,
                     )?
                 );

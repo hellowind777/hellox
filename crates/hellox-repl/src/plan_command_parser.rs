@@ -7,7 +7,9 @@ pub fn parse_plan_command(remainder: &str) -> PlanCommand {
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => PlanCommand::Show,
         Some(action) if action == "show" => PlanCommand::Show,
-        Some(action) if action == "panel" => PlanCommand::Panel,
+        Some(action) if action == "panel" => PlanCommand::Panel {
+            step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
+        },
         Some(action) if action == "enter" => PlanCommand::Enter,
         Some(action) if action == "add" => parse_plan_add_command(trimmed[action.len()..].trim()),
         Some(action) if action == "update" || action == "set" => {

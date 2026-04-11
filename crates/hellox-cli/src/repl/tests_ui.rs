@@ -75,7 +75,15 @@ fn parse_ui_commands() {
     );
     assert_eq!(
         super::commands::parse_command("/config panel"),
-        Some(ReplCommand::Config(ConfigCommand::Panel))
+        Some(ReplCommand::Config(ConfigCommand::Panel {
+            focus_key: None
+        }))
+    );
+    assert_eq!(
+        super::commands::parse_command("/config panel prompt.persona"),
+        Some(ReplCommand::Config(ConfigCommand::Panel {
+            focus_key: Some(String::from("prompt.persona"))
+        }))
     );
     assert_eq!(
         super::commands::parse_command(
@@ -91,7 +99,13 @@ fn parse_ui_commands() {
     );
     assert_eq!(
         super::commands::parse_command("/plan panel"),
-        Some(ReplCommand::Plan(PlanCommand::Panel))
+        Some(ReplCommand::Plan(PlanCommand::Panel { step_number: None }))
+    );
+    assert_eq!(
+        super::commands::parse_command("/plan panel 2"),
+        Some(ReplCommand::Plan(PlanCommand::Panel {
+            step_number: Some(2)
+        }))
     );
     assert_eq!(
         super::commands::parse_command("/plan add --index 1 pending:Draft implementation plan"),
@@ -264,12 +278,125 @@ async fn plan_panel_renders_selector_and_lens() {
         .set_planning_state(planning)
         .expect("set planning state");
 
-    let text = super::plan_actions::handle_plan_command(PlanCommand::Panel, &mut session)
-        .await
-        .expect("render plan panel");
+    let text = super::plan_actions::handle_plan_command(
+        PlanCommand::Panel { step_number: None },
+        &mut session,
+    )
+    .await
+    .expect("render plan panel");
 
     assert!(text.contains("== Accepted plan selector =="));
     assert!(text.contains("== Focused step lens =="));
     assert!(text.contains("== Allowed prompt selector =="));
     assert!(text.contains("/plan update 1 <status>:<text>"));
+}
+
+#[test]
+fn config_panel_selector_allows_numeric_focus() {
+    let root = temp_dir();
+    let metadata = metadata(&root);
+    let mut session = session(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/config set prompt.persona reviewer",
+                        &mut session,
+                        &metadata,
+                    )
+                    .await
+                    .expect("set config"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/config panel", &mut session, &metadata)
+                    .await
+                    .expect("open config panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::ConfigPanelList { focus_keys }) => {
+                    assert!(focus_keys.contains(&"prompt.persona".to_string()));
+                }
+                other => panic!("expected config selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("6", &mut session, &metadata)
+                    .await
+                    .expect("focus config key"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
+}
+
+#[test]
+fn plan_panel_selector_allows_numeric_focus() {
+    let root = temp_dir();
+    let metadata = metadata(&root);
+    let mut session = session(root);
+    let driver = super::CliReplDriver::new();
+
+    let mut planning = session.planning_state();
+    planning
+        .add_step(
+            hellox_agent::PlanItem {
+                status: String::from("completed"),
+                step: String::from("Audit docs"),
+            },
+            None,
+        )
+        .expect("add step");
+    planning
+        .add_step(
+            hellox_agent::PlanItem {
+                status: String::from("in_progress"),
+                step: String::from("Ship richer plan surface"),
+            },
+            None,
+        )
+        .expect("add step");
+    session
+        .set_planning_state(planning)
+        .expect("set planning state");
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/plan panel", &mut session, &metadata)
+                    .await
+                    .expect("open plan panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::PlanPanelSteps { step_count }) => {
+                    assert_eq!(step_count, 2);
+                }
+                other => panic!("expected plan selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("2", &mut session, &metadata)
+                    .await
+                    .expect("focus plan step"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
 }

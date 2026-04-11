@@ -171,6 +171,45 @@ fn handle_model_panel_renders_dashboard_and_detail() {
 }
 
 #[test]
+fn model_panel_selector_allows_numeric_selection() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    save_config(Some(metadata.config_path.clone()), &HelloxConfig::default()).expect("save config");
+    let mut session = session_in(root);
+    let driver = super::CliReplDriver::new();
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/model panel", &mut session, &metadata)
+                    .await
+                    .expect("open model panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::ModelPanelList { profile_names }) => {
+                    assert!(profile_names.contains(&"sonnet".to_string()));
+                }
+                other => panic!("expected model selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("1", &mut session, &metadata)
+                    .await
+                    .expect("select profile"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
+}
+
+#[test]
 fn handle_session_panel_renders_dashboard_and_detail() {
     let root = temp_dir();
     let metadata = metadata_in(&root);

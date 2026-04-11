@@ -2,12 +2,13 @@ pub(super) fn workflow_help_text() -> String {
     [
         "Workflow commands:",
         "  /workflow                 List project workflow scripts",
+        "  /workflow dashboard [name] Open the interactive workflow dashboard shell",
         "  /workflow overview [name] Show a selector-style workflow overview",
         "  /workflow panel [name] [n] Show an authoring panel with copyable edit actions",
         "  /workflow runs [name]     List recorded workflow runs",
         "  /workflow validate [name] Validate project workflow scripts",
-        "  /workflow show-run <id>   Show a recorded workflow run",
-        "  /workflow last-run [name] Show the latest recorded workflow run",
+        "  /workflow show-run <id> [n] Show a recorded workflow run",
+        "  /workflow last-run [name] [n] Show the latest recorded workflow run",
         "  /workflow show <name>     Show a workflow script definition",
         "  /workflow init <name>     Create a starter workflow script",
         "  /workflow add-step <name> --prompt <text> Add a workflow step",
@@ -21,6 +22,7 @@ pub(super) fn workflow_help_text() -> String {
         "  /workflow disable-continue-on-error <name> Disable continue_on_error",
         "  /workflow run <name> [shared_context] Run a workflow script locally",
         "  /workflow <name> [shared_context] Shortcut for `/workflow run ...`",
+        "  focused workflow panel/show-run/dashboard: `first` / `prev` / `next` / `last`",
     ]
     .join("\n")
 }

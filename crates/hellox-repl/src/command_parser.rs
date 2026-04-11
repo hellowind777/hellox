@@ -137,7 +137,9 @@ fn parse_config_command(remainder: &str) -> ConfigCommand {
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => ConfigCommand::Show,
         Some(action) if action == "show" => ConfigCommand::Show,
-        Some(action) if action == "panel" => ConfigCommand::Panel,
+        Some(action) if action == "panel" => ConfigCommand::Panel {
+            focus_key: parts.next().map(ToString::to_string),
+        },
         Some(action) if action == "path" => ConfigCommand::Path,
         Some(action) if action == "keys" => ConfigCommand::Keys,
         Some(action) if action == "set" => {

@@ -16,8 +16,8 @@ const WORKFLOW_SCRIPT_PREFIX: &str = ".hellox/workflows/";
 pub(crate) const WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT: usize = 8;
 
 pub(crate) use render::{
-    render_workflow_run_inspect_panel, render_workflow_run_inspect_panel_with_step,
-    render_workflow_run_list,
+    render_workflow_run_inspect_panel_with_step, render_workflow_run_list,
+    select_workflow_run_step_number,
 };
 pub(crate) use store::{list_workflow_runs, load_latest_workflow_run, load_workflow_run};
 

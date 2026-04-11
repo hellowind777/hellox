@@ -17,6 +17,13 @@ pub(crate) fn render_plugin_panel(
     }
 }
 
+pub(crate) fn plugin_panel_ids(config: &HelloxConfig) -> Vec<String> {
+    load_installed_plugins(config)
+        .into_iter()
+        .map(|plugin| plugin.plugin_id)
+        .collect()
+}
+
 fn render_plugin_list_panel(config_path: &Path, config: &HelloxConfig) -> String {
     let plugins = load_installed_plugins(config);
     let enabled = plugins.iter().filter(|plugin| plugin.enabled).count();
@@ -244,6 +251,7 @@ fn plugin_list_cli_palette() -> Vec<String> {
 fn plugin_list_repl_palette() -> Vec<String> {
     vec![
         "- open panel: `/plugin panel [plugin-id]`".to_string(),
+        "- numeric open: render `/plugin panel`, then enter `1..n`".to_string(),
         "- show detail: `/plugin show <plugin-id>`".to_string(),
         "- install: `/plugin install <path>`".to_string(),
         "- marketplaces: `/plugin marketplace`".to_string(),

@@ -23,6 +23,10 @@ pub(crate) fn render_model_panel(
     }
 }
 
+pub(crate) fn model_panel_profile_names(config: &HelloxConfig) -> Vec<String> {
+    config.profiles.keys().cloned().collect()
+}
+
 fn render_model_list_panel(
     config_path: &Path,
     config: &HelloxConfig,
@@ -168,6 +172,7 @@ fn model_list_cli_palette() -> Vec<String> {
 fn model_list_repl_palette() -> Vec<String> {
     vec![
         "- open panel: `/model panel [profile-name]`".to_string(),
+        "- numeric open: render `/model panel`, then enter `1..n`".to_string(),
         "- show raw: `/model show [profile-name]`".to_string(),
         "- use for session: `/model use <profile-name>`".to_string(),
         "- persist default: `/model default <profile-name>`".to_string(),

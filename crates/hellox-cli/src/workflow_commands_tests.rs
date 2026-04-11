@@ -76,6 +76,8 @@ async fn spawn_mock_gateway(response_text: &str) -> String {
 
 #[test]
 fn parses_workflow_duplicate_and_move_commands() {
+    let dashboard = Cli::try_parse_from(["hellox", "workflow", "dashboard", "release-review"])
+        .expect("parse workflow dashboard");
     let duplicate = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -100,6 +102,16 @@ fn parses_workflow_duplicate_and_move_commands() {
         "1",
     ])
     .expect("parse workflow move-step");
+
+    match dashboard.command {
+        Some(Commands::Workflow {
+            command: WorkflowCommands::Dashboard { workflow_name, cwd },
+        }) => {
+            assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected workflow dashboard command: {other:?}"),
+    }
 
     match duplicate.command {
         Some(Commands::Workflow {
@@ -206,4 +218,24 @@ async fn workflow_run_command_executes_named_script() {
 
     assert!(text.contains("\"workflow_source\": \".hellox/workflows/release-review.json\""));
     assert!(text.contains("workflow command done"));
+}
+
+#[tokio::test]
+async fn workflow_dashboard_command_renders_initial_view() {
+    let root = temp_dir();
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{ "steps": [{ "name": "review", "prompt": "review release notes" }] }"#,
+    );
+
+    let text = workflow_command_text(WorkflowCommands::Dashboard {
+        workflow_name: Some("release-review".to_string()),
+        cwd: Some(root),
+    })
+    .await
+    .expect("render workflow dashboard");
+
+    assert!(text.contains("Workflow overview: release-review"));
+    assert!(text.contains("== Dashboard =="));
 }

@@ -93,6 +93,9 @@ fn focused_panel_renders_action_palette_and_step_status() {
     assert!(text.contains("== Action palette =="));
     assert!(text.contains("hellox workflow update-step --workflow release-review 2"));
     assert!(text.contains("== REPL palette =="));
+    assert!(text.contains("name <text>"));
+    assert!(text.contains("background` / `foreground"));
+    assert!(text.contains("`first` / `prev` / `next` / `last`"));
     assert!(text.contains("/workflow panel release-review 2"));
 }
 

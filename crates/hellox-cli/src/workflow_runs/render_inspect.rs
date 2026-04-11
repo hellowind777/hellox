@@ -121,7 +121,7 @@ fn build_execution_table(record: &WorkflowRunRecord) -> Table {
 }
 
 fn render_step_selector(record: &WorkflowRunRecord, step_number: Option<usize>) -> Vec<String> {
-    let selected_step = select_step_number(record, step_number);
+    let selected_step = select_workflow_run_step_number(record, step_number);
     let entries = record
         .steps
         .iter()
@@ -222,6 +222,12 @@ fn render_repl_palette(record: &WorkflowRunRecord) -> Vec<String> {
         "- rerun: `{}`",
         repl_run_command(workflow_name, record.shared_context.as_deref())
     )];
+    if !record.steps.is_empty() {
+        lines.push(
+            "- focus adjacent step in REPL/dashboard: `first` / `prev` / `next` / `last`"
+                .to_string(),
+        );
+    }
     lines.push(format!(
         "- inspect script: `/workflow panel {workflow_name}`"
     ));
@@ -272,7 +278,10 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-fn select_step_number(record: &WorkflowRunRecord, step_number: Option<usize>) -> Option<usize> {
+pub(crate) fn select_workflow_run_step_number(
+    record: &WorkflowRunRecord,
+    step_number: Option<usize>,
+) -> Option<usize> {
     if let Some(step_number) = step_number {
         return (step_number > 0 && step_number <= record.steps.len()).then_some(step_number);
     }

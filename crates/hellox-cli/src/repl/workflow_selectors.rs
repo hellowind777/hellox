@@ -7,13 +7,20 @@ use crate::workflow_overview::{
 };
 use crate::workflow_runs::{
     list_workflow_runs, load_latest_workflow_run, load_workflow_run,
-    render_workflow_run_inspect_panel_with_step, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+    render_workflow_run_inspect_panel_with_step, select_workflow_run_step_number,
+    WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
 use crate::workflows::{list_workflows, load_named_workflow_detail};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct WorkflowPanelFocus {
     pub(super) workflow_name: String,
+    pub(super) selected_step: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct WorkflowRunFocus {
+    pub(super) run_id: String,
     pub(super) selected_step: usize,
 }
 
@@ -35,6 +42,28 @@ impl CliReplDriver {
 
     pub(super) fn workflow_panel_focus(&self) -> Option<WorkflowPanelFocus> {
         self.workflow_panel_focus
+            .lock()
+            .ok()
+            .and_then(|guard| guard.clone())
+    }
+
+    pub(super) fn clear_workflow_run_focus(&self) {
+        if let Ok(mut guard) = self.workflow_run_focus.lock() {
+            *guard = None;
+        }
+    }
+
+    pub(super) fn set_workflow_run_focus(&self, run_id: String, selected_step: usize) {
+        if let Ok(mut guard) = self.workflow_run_focus.lock() {
+            *guard = Some(WorkflowRunFocus {
+                run_id,
+                selected_step,
+            });
+        }
+    }
+
+    pub(super) fn workflow_run_focus(&self) -> Option<WorkflowRunFocus> {
+        self.workflow_run_focus
             .lock()
             .ok()
             .and_then(|guard| guard.clone())
@@ -122,25 +151,39 @@ impl CliReplDriver {
             }
             WorkflowCommand::ShowRun {
                 run_id: Some(run_id),
+                step_number,
             } => {
                 if let Ok(record) = load_workflow_run(session.working_directory(), run_id) {
                     if !record.steps.is_empty() {
                         self.set_selector_context(SelectorContext::WorkflowRunSteps {
-                            run_id: record.run_id,
+                            run_id: record.run_id.clone(),
                             step_count: record.steps.len(),
                         });
+                        if let Some(selected_step) =
+                            select_workflow_run_step_number(&record, *step_number)
+                        {
+                            self.set_workflow_run_focus(record.run_id, selected_step);
+                        }
                     }
                 }
             }
-            WorkflowCommand::LastRun { workflow_name } => {
+            WorkflowCommand::LastRun {
+                workflow_name,
+                step_number,
+            } => {
                 if let Ok(record) =
                     load_latest_workflow_run(session.working_directory(), workflow_name.as_deref())
                 {
                     if !record.steps.is_empty() {
                         self.set_selector_context(SelectorContext::WorkflowRunSteps {
-                            run_id: record.run_id,
+                            run_id: record.run_id.clone(),
                             step_count: record.steps.len(),
                         });
+                        if let Some(selected_step) =
+                            select_workflow_run_step_number(&record, *step_number)
+                        {
+                            self.set_workflow_run_focus(record.run_id, selected_step);
+                        }
                     }
                 }
             }
@@ -177,6 +220,7 @@ impl CliReplDriver {
                     WorkflowOverviewSelectionItem::Run(run_id) => {
                         let command = WorkflowCommand::ShowRun {
                             run_id: Some(run_id),
+                            step_number: None,
                         };
                         self.prepare_workflow_selector_context(session, &command);
                         println!("{}", handle_workflow_command(command, session).await?);
@@ -260,6 +304,7 @@ impl CliReplDriver {
 
                 let command = WorkflowCommand::ShowRun {
                     run_id: Some(run_ids[index - 1].clone()),
+                    step_number: None,
                 };
                 self.clear_selector_context();
                 self.prepare_workflow_selector_context(session, &command);
@@ -281,6 +326,7 @@ impl CliReplDriver {
                     run_id: run_id.clone(),
                     step_count: *step_count,
                 });
+                self.set_workflow_run_focus(run_id.clone(), index);
                 println!(
                     "{}",
                     render_workflow_run_inspect_panel_with_step(

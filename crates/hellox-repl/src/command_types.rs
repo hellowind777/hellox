@@ -63,7 +63,9 @@ pub enum ToolsCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigCommand {
     Show,
-    Panel,
+    Panel {
+        focus_key: Option<String>,
+    },
     Path,
     Keys,
     Set {
@@ -79,7 +81,9 @@ pub enum ConfigCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlanCommand {
     Show,
-    Panel,
+    Panel {
+        step_number: Option<usize>,
+    },
     Enter,
     Add {
         step: Option<String>,

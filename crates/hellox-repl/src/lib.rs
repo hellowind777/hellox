@@ -28,6 +28,12 @@ mod tests {
     fn parses_basic_repl_commands() {
         assert_eq!(parse_command("/help"), Some(ReplCommand::Help));
         assert_eq!(
+            parse_command("/workflow dashboard release-review"),
+            Some(ReplCommand::Workflow(WorkflowCommand::Dashboard {
+                workflow_name: Some(String::from("release-review")),
+            }))
+        );
+        assert_eq!(
             parse_command("/workflow demo"),
             Some(ReplCommand::Workflow(WorkflowCommand::Run {
                 workflow_name: Some(String::from("demo")),

@@ -148,6 +148,55 @@ fn handle_plugin_panel_renders_dashboard_and_detail() {
 }
 
 #[test]
+fn plugin_panel_selector_allows_numeric_selection() {
+    let root = temp_dir();
+    let mut session = session(root.clone());
+    let metadata = metadata(&root);
+    let source = write_plugin_source(&root, "filesystem");
+    let driver = super::CliReplDriver::new();
+
+    handle_repl_input(
+        &format!(
+            "/plugin install {}",
+            source.display().to_string().replace('\\', "/")
+        ),
+        &mut session,
+        &metadata,
+    )
+    .expect("plugin install");
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/plugin panel", &mut session, &metadata)
+                    .await
+                    .expect("open plugin panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::PluginPanelList { plugin_ids }) => {
+                    assert_eq!(plugin_ids, vec!["filesystem".to_string()]);
+                }
+                other => panic!("expected plugin selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("1", &mut session, &metadata)
+                    .await
+                    .expect("select plugin"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
+}
+
+#[test]
 fn handle_plugin_install_persists_config_and_copies_files() {
     let root = temp_dir();
     let mut session = session(root.clone());

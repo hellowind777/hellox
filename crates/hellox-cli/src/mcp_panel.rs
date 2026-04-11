@@ -16,6 +16,10 @@ pub(crate) fn render_mcp_panel(
     }
 }
 
+pub(crate) fn mcp_panel_server_names(config: &HelloxConfig) -> Vec<String> {
+    config.mcp.servers.keys().cloned().collect()
+}
+
 fn render_mcp_list_panel(config_path: &Path, config: &HelloxConfig) -> String {
     let total = config.mcp.servers.len();
     let enabled = config
@@ -215,6 +219,7 @@ fn mcp_list_cli_palette() -> Vec<String> {
 fn mcp_list_repl_palette() -> Vec<String> {
     vec![
         "- open panel: `/mcp panel [server-name]`".to_string(),
+        "- numeric open: render `/mcp panel`, then enter `1..n`".to_string(),
         "- show detail: `/mcp show <server-name>`".to_string(),
         "- list tools: `/mcp tools <server-name>`".to_string(),
         "- browse registry: `/mcp registry list [cursor] [limit]`".to_string(),

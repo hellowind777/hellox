@@ -1,6 +1,11 @@
 mod selector;
+mod workflow_dashboard;
 
 pub use selector::{render_selector, render_selector_with_start, SelectorEntry};
+pub use workflow_dashboard::{
+    parse_workflow_dashboard_command, workflow_dashboard_help_text, WorkflowDashboardCommand,
+    WorkflowDashboardOpenTarget, WorkflowDashboardState, WorkflowDashboardView,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyValueRow {

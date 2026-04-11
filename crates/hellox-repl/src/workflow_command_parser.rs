@@ -11,6 +11,9 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => WorkflowCommand::List,
         Some(action) if action == "list" => WorkflowCommand::List,
+        Some(action) if action == "dashboard" || action == "tui" => WorkflowCommand::Dashboard {
+            workflow_name: parts.next().map(ToString::to_string),
+        },
         Some(action) if action == "overview" || action == "selector" || action == "inspect" => {
             WorkflowCommand::Overview {
                 workflow_name: parts.next().map(ToString::to_string),
@@ -32,9 +35,11 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
         },
         Some(action) if action == "show-run" => WorkflowCommand::ShowRun {
             run_id: parts.next().map(ToString::to_string),
+            step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
         },
         Some(action) if action == "last-run" => WorkflowCommand::LastRun {
             workflow_name: parts.next().map(ToString::to_string),
+            step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
         },
         Some(action) if action == "show" => WorkflowCommand::Show {
             workflow_name: parts.next().map(ToString::to_string),

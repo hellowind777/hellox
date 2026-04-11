@@ -8,6 +8,12 @@ pub(crate) enum WorkflowCommands {
         #[arg(long)]
         cwd: Option<PathBuf>,
     },
+    #[command(alias = "tui")]
+    Dashboard {
+        workflow_name: Option<String>,
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+    },
     #[command(alias = "selector")]
     Overview {
         workflow_name: Option<String>,
@@ -41,10 +47,14 @@ pub(crate) enum WorkflowCommands {
     ShowRun {
         run_id: String,
         #[arg(long)]
+        step: Option<usize>,
+        #[arg(long)]
         cwd: Option<PathBuf>,
     },
     LastRun {
         workflow_name: Option<String>,
+        #[arg(long)]
+        step: Option<usize>,
         #[arg(long)]
         cwd: Option<PathBuf>,
     },

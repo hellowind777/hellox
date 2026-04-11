@@ -57,6 +57,7 @@ fn parses_config_and_plan_commands() {
         "hellox",
         "config",
         "panel",
+        "prompt.persona",
         "--config",
         "config/custom.toml",
     ])
@@ -84,13 +85,14 @@ fn parses_config_and_plan_commands() {
         "continue implementation",
     ])
     .expect("parse plan exit");
-    let plan_panel =
-        Cli::try_parse_from(["hellox", "plan", "panel", "session-123"]).expect("parse plan panel");
+    let plan_panel = Cli::try_parse_from(["hellox", "plan", "panel", "session-123", "2"])
+        .expect("parse plan panel");
 
     match config_panel.command {
         Some(Commands::Config {
-            command: ConfigCommands::Panel { config },
+            command: ConfigCommands::Panel { focus_key, config },
         }) => {
+            assert_eq!(focus_key, Some(String::from("prompt.persona")));
             assert_eq!(config, Some(PathBuf::from("config/custom.toml")));
         }
         other => panic!("unexpected config panel command: {other:?}"),
@@ -134,9 +136,14 @@ fn parses_config_and_plan_commands() {
 
     match plan_panel.command {
         Some(Commands::Plan {
-            command: PlanCommands::Panel { session_id },
+            command:
+                PlanCommands::Panel {
+                    session_id,
+                    step_number,
+                },
         }) => {
             assert_eq!(session_id, "session-123");
+            assert_eq!(step_number, Some(2));
         }
         other => panic!("unexpected plan panel command: {other:?}"),
     }
