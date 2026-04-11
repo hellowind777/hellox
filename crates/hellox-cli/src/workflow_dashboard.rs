@@ -249,7 +249,10 @@ pub(crate) fn handle_workflow_dashboard_input(
                 "Usage: show-run <run-id> [step-number]".to_string(),
             )),
         },
-        WorkflowDashboardCommand::LastRun { workflow_name } => {
+        WorkflowDashboardCommand::LastRun {
+            workflow_name,
+            step_number,
+        } => {
             let workflow_name = normalize_optional_text(workflow_name)
                 .or_else(|| active_workflow_name(root, state));
             let record = load_latest_workflow_run(root, workflow_name.as_deref())?;
@@ -258,7 +261,7 @@ pub(crate) fn handle_workflow_dashboard_input(
                 state,
                 WorkflowDashboardView::RunInspect {
                     run_id: record.run_id,
-                    step_number: None,
+                    step_number,
                 },
             )
         }
@@ -296,10 +299,22 @@ pub(crate) fn handle_workflow_dashboard_input(
         WorkflowDashboardCommand::Duplicate { to_step_number } => {
             duplicate_current_panel_step(root, state, to_step_number)
         }
+        WorkflowDashboardCommand::DuplicateStep {
+            step_number,
+            to_step_number,
+            name,
+        } => duplicate_active_workflow_step(root, state, step_number, to_step_number, name),
         WorkflowDashboardCommand::Move { to_step_number } => {
             move_current_panel_step(root, state, to_step_number)
         }
+        WorkflowDashboardCommand::MoveStep {
+            step_number,
+            to_step_number,
+        } => move_active_workflow_step(root, state, step_number, to_step_number),
         WorkflowDashboardCommand::Remove => remove_current_panel_step(root, state),
+        WorkflowDashboardCommand::RemoveStep { step_number } => {
+            remove_active_workflow_step(root, state, step_number)
+        }
     };
 
     outcome.or_else(|error| Ok(WorkflowDashboardHandleOutcome::Print(error.to_string())))
@@ -750,6 +765,36 @@ fn duplicate_current_panel_step(
     )))
 }
 
+fn duplicate_active_workflow_step(
+    root: &Path,
+    state: &mut WorkflowDashboardState,
+    step_number: Option<usize>,
+    to_step_number: Option<usize>,
+    name: Option<String>,
+) -> Result<WorkflowDashboardHandleOutcome> {
+    let workflow_name = active_workflow_name(root, state)
+        .ok_or_else(|| anyhow!("Duplicate a step from a focused workflow view first."))?;
+    let selected_step = resolve_dashboard_step_number(root, state, &workflow_name, step_number)?;
+    let path = resolve_existing_workflow_path(root, &workflow_name)?;
+    let result = duplicate_workflow_step(root, &path, selected_step, to_step_number, name)?;
+    let duplicated_name = result
+        .duplicated_step_name
+        .as_deref()
+        .unwrap_or("(unnamed)");
+    let text = replace_and_render(
+        root,
+        state,
+        WorkflowDashboardView::PanelFocus {
+            workflow_name: result.detail.summary.name.clone(),
+            step_number: Some(result.step_number),
+        },
+    )?;
+    Ok(WorkflowDashboardHandleOutcome::Print(format!(
+        "Duplicated workflow step {selected_step} into step {} (`{duplicated_name}`).\n\n{text}",
+        result.step_number
+    )))
+}
+
 fn move_current_panel_step(
     root: &Path,
     state: &mut WorkflowDashboardState,
@@ -774,11 +819,65 @@ fn move_current_panel_step(
     )))
 }
 
+fn move_active_workflow_step(
+    root: &Path,
+    state: &mut WorkflowDashboardState,
+    step_number: Option<usize>,
+    to_step_number: Option<usize>,
+) -> Result<WorkflowDashboardHandleOutcome> {
+    let workflow_name = active_workflow_name(root, state)
+        .ok_or_else(|| anyhow!("Move a step from a focused workflow view first."))?;
+    let to_step_number =
+        to_step_number.ok_or_else(|| anyhow!("Usage: move-step [step-number] --to <n>"))?;
+    let selected_step = resolve_dashboard_step_number(root, state, &workflow_name, step_number)?;
+    let path = resolve_existing_workflow_path(root, &workflow_name)?;
+    let result = move_workflow_step(root, &path, selected_step, to_step_number)?;
+    let moved_name = result.moved_step_name.as_deref().unwrap_or("(unnamed)");
+    let text = replace_and_render(
+        root,
+        state,
+        WorkflowDashboardView::PanelFocus {
+            workflow_name: result.detail.summary.name.clone(),
+            step_number: Some(result.step_number),
+        },
+    )?;
+    Ok(WorkflowDashboardHandleOutcome::Print(format!(
+        "Moved workflow step {selected_step} (`{moved_name}`) to step {}.\n\n{text}",
+        result.step_number
+    )))
+}
+
 fn remove_current_panel_step(
     root: &Path,
     state: &mut WorkflowDashboardState,
 ) -> Result<WorkflowDashboardHandleOutcome> {
     let (workflow_name, selected_step) = current_panel_focus(root, state)?;
+    let path = resolve_existing_workflow_path(root, &workflow_name)?;
+    let result = remove_workflow_step(root, &path, selected_step)?;
+    let removed_name = result.removed_step_name.as_deref().unwrap_or("(unnamed)");
+    let next_step =
+        (!result.detail.steps.is_empty()).then_some(selected_step.min(result.detail.steps.len()));
+    let text = replace_and_render(
+        root,
+        state,
+        WorkflowDashboardView::PanelFocus {
+            workflow_name: result.detail.summary.name.clone(),
+            step_number: next_step,
+        },
+    )?;
+    Ok(WorkflowDashboardHandleOutcome::Print(format!(
+        "Removed workflow step {selected_step} (`{removed_name}`).\n\n{text}"
+    )))
+}
+
+fn remove_active_workflow_step(
+    root: &Path,
+    state: &mut WorkflowDashboardState,
+    step_number: Option<usize>,
+) -> Result<WorkflowDashboardHandleOutcome> {
+    let workflow_name = active_workflow_name(root, state)
+        .ok_or_else(|| anyhow!("Remove a step from a focused workflow view first."))?;
+    let selected_step = resolve_dashboard_step_number(root, state, &workflow_name, step_number)?;
     let path = resolve_existing_workflow_path(root, &workflow_name)?;
     let result = remove_workflow_step(root, &path, selected_step)?;
     let removed_name = result.removed_step_name.as_deref().unwrap_or("(unnamed)");
@@ -838,6 +937,28 @@ fn refresh_active_workflow_view(
 fn current_panel_focus(root: &Path, state: &WorkflowDashboardState) -> Result<(String, usize)> {
     let (workflow_name, selected_step, _) = current_panel_step_context(root, state)?;
     Ok((workflow_name, selected_step))
+}
+
+fn resolve_dashboard_step_number(
+    root: &Path,
+    state: &WorkflowDashboardState,
+    workflow_name: &str,
+    step_number: Option<usize>,
+) -> Result<usize> {
+    match step_number {
+        Some(step_number) => Ok(step_number),
+        None => match state.current() {
+            WorkflowDashboardView::PanelFocus {
+                workflow_name: focused_workflow,
+                ..
+            } if focused_workflow == workflow_name => {
+                current_panel_focus(root, state).map(|(_, step)| step)
+            }
+            _ => Err(anyhow!(
+                "Provide a step number or open `panel {workflow_name} <n>` first."
+            )),
+        },
+    }
 }
 
 fn current_panel_step_context(
@@ -1108,6 +1229,56 @@ mod tests {
                 assert!(text.contains("Removed workflow step 1"));
             }
             other => panic!("expected dashboard remove output, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dashboard_explicit_step_commands_work_from_overview_focus() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+        );
+
+        let mut state = initial_workflow_dashboard_state(Some(String::from("release-review")));
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+
+        let duplicated = handle_workflow_dashboard_input(
+            &root,
+            &mut state,
+            "duplicate-step 2 --to 1 --name ship copy",
+        )
+        .expect("duplicate explicit step");
+        match duplicated {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Duplicated workflow step 2 into step 1 (`ship copy`)."));
+                assert!(text.contains("Workflow authoring panel: release-review"));
+            }
+            other => panic!("expected dashboard duplicate-step output, got {other:?}"),
+        }
+
+        let moved = handle_workflow_dashboard_input(&root, &mut state, "move-step 3 --to 2")
+            .expect("move explicit step");
+        match moved {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Moved workflow step 3 (`ship`) to step 2."));
+            }
+            other => panic!("expected dashboard move-step output, got {other:?}"),
+        }
+
+        let removed = handle_workflow_dashboard_input(&root, &mut state, "remove-step 1")
+            .expect("remove explicit step");
+        match removed {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Removed workflow step 1 (`ship copy`)."));
+            }
+            other => panic!("expected dashboard remove-step output, got {other:?}"),
         }
     }
 
@@ -1395,6 +1566,37 @@ mod tests {
             }
             other => panic!("expected last-run dashboard output, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn dashboard_last_run_supports_explicit_step_focus() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+        );
+        write_run(&root, "run-123", "release-review");
+
+        let mut state = initial_workflow_dashboard_state(Some(String::from("release-review")));
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+
+        let output = handle_workflow_dashboard_input(&root, &mut state, "last-run 2")
+            .expect("open last run with step");
+        match output {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Workflow run inspect panel: run-123"));
+                assert!(text.contains("> [1] ship"));
+            }
+            other => panic!("expected focused last-run dashboard output, got {other:?}"),
+        }
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::RunInspect {
+                run_id: String::from("run-123"),
+                step_number: Some(2),
+            }
+        );
     }
 
     #[test]

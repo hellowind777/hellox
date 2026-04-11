@@ -121,6 +121,7 @@ pub enum WorkflowDashboardCommand {
     },
     LastRun {
         workflow_name: Option<String>,
+        step_number: Option<usize>,
     },
     SetSharedContext {
         value: Option<String>,
@@ -134,10 +135,22 @@ pub enum WorkflowDashboardCommand {
     Duplicate {
         to_step_number: Option<usize>,
     },
+    DuplicateStep {
+        step_number: Option<usize>,
+        to_step_number: Option<usize>,
+        name: Option<String>,
+    },
     Move {
         to_step_number: Option<usize>,
     },
+    MoveStep {
+        step_number: Option<usize>,
+        to_step_number: Option<usize>,
+    },
     Remove,
+    RemoveStep {
+        step_number: Option<usize>,
+    },
     Back,
     Help,
     Close,
@@ -164,6 +177,11 @@ enum WorkflowStepPatchKind {
     Model,
     Backend,
     StepCwd,
+}
+
+#[derive(Clone, Copy)]
+enum WorkflowStepDuplicateKind {
+    Name,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -268,9 +286,7 @@ pub fn parse_workflow_dashboard_command(input: &str) -> Option<WorkflowDashboard
         "add-step" => parse_add_step_command(tail),
         "update-step" => parse_update_step_command(tail),
         "show-run" => parse_show_run_command(tail),
-        "last-run" => WorkflowDashboardCommand::LastRun {
-            workflow_name: joined_value(tail),
-        },
+        "last-run" => parse_last_run_command(tail),
         "set-shared-context" => WorkflowDashboardCommand::SetSharedContext {
             value: joined_value(tail),
         },
@@ -289,12 +305,14 @@ pub fn parse_workflow_dashboard_command(input: &str) -> Option<WorkflowDashboard
             Ok(to_step_number) => WorkflowDashboardCommand::Duplicate { to_step_number },
             Err(error) => WorkflowDashboardCommand::Error(error),
         },
+        "duplicate-step" => parse_duplicate_step_command(tail),
         "move" => match parse_required_index(&tail, "Usage: move <to-step-number>") {
             Ok(to_step_number) => WorkflowDashboardCommand::Move {
                 to_step_number: Some(to_step_number),
             },
             Err(error) => WorkflowDashboardCommand::Error(error),
         },
+        "move-step" => parse_move_step_command(tail),
         "rm" | "remove" | "delete" => {
             if tail.is_empty() {
                 WorkflowDashboardCommand::Remove
@@ -302,6 +320,7 @@ pub fn parse_workflow_dashboard_command(input: &str) -> Option<WorkflowDashboard
                 WorkflowDashboardCommand::Error("Usage: rm".to_string())
             }
         }
+        "remove-step" => parse_remove_step_command(tail),
         "back" => WorkflowDashboardCommand::Back,
         "help" | "?" => WorkflowDashboardCommand::Help,
         "close" => WorkflowDashboardCommand::Close,
@@ -323,11 +342,16 @@ pub fn workflow_dashboard_help_text() -> String {
         "  add-step --prompt <text> [--name <step-name>] [--index <n>] [--when <json>] [--model <name>] [--backend <name>] [--step-cwd <path>] [--background]",
         "  update-step [n] [--name <step-name>|--clear-name] [--prompt <text>] [--when <json>|--clear-when] [--model <name>|--clear-model] [--backend <name>|--clear-backend] [--step-cwd <path>|--clear-step-cwd] [--background|--foreground]",
         "  show-run <id> [n]    Inspect a recorded run and optionally focus one step",
-        "  last-run [name]      Jump to the latest recorded run",
+        "  last-run [name] [n]  Jump to the latest recorded run and optionally focus one step",
         "  set-shared-context <text> Set shared context for the active workflow",
         "  clear-shared-context Clear shared context for the active workflow",
         "  enable-continue-on-error  Enable continue_on_error for the active workflow",
         "  disable-continue-on-error Disable continue_on_error for the active workflow",
+        "  duplicate-step [n] [--to <m>] [--name <step-name>]",
+        "                       Duplicate one workflow step from the active workflow context",
+        "  move-step [n] --to <m>",
+        "                       Move one workflow step from the active workflow context",
+        "  remove-step [n]      Remove one workflow step from the active workflow context",
         "  open <n>             Open one selector entry from the current dashboard screen",
         "  1..n                 Shortcut for `open <n>`",
         "  name <text>          Rename the focused workflow step (panel view only)",
@@ -401,6 +425,37 @@ fn parse_show_run_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
             ),
         },
         _ => WorkflowDashboardCommand::Error("Usage: show-run <run-id> [step-number]".to_string()),
+    }
+}
+
+fn parse_last_run_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
+    match parts.as_slice() {
+        [] => WorkflowDashboardCommand::LastRun {
+            workflow_name: None,
+            step_number: None,
+        },
+        [value] => match value.parse::<usize>().ok().filter(|step| *step > 0) {
+            Some(step_number) => WorkflowDashboardCommand::LastRun {
+                workflow_name: None,
+                step_number: Some(step_number),
+            },
+            None => WorkflowDashboardCommand::LastRun {
+                workflow_name: Some((*value).to_string()),
+                step_number: None,
+            },
+        },
+        [workflow_name, step] => match step.parse::<usize>().ok().filter(|step| *step > 0) {
+            Some(step_number) => WorkflowDashboardCommand::LastRun {
+                workflow_name: Some((*workflow_name).to_string()),
+                step_number: Some(step_number),
+            },
+            None => WorkflowDashboardCommand::Error(
+                "Usage: last-run [workflow-name] [step-number]".to_string(),
+            ),
+        },
+        _ => WorkflowDashboardCommand::Error(
+            "Usage: last-run [workflow-name] [step-number]".to_string(),
+        ),
     }
 }
 
@@ -721,6 +776,134 @@ fn parse_update_step_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
     }
 }
 
+fn parse_duplicate_step_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
+    let usage = "Usage: duplicate-step [step-number] [--to <n>] [--name <step-name>]";
+    let mut step_number = None;
+    let mut to_step_number = None;
+    let mut name = None;
+    let mut current_kind = None;
+    let mut current_value = String::new();
+    let mut expecting_to = false;
+
+    for token in parts {
+        match token {
+            "--to" => {
+                push_duplicate_step_segment(&mut name, current_kind.take(), &mut current_value);
+                expecting_to = true;
+                continue;
+            }
+            "--name" => {
+                push_duplicate_step_segment(&mut name, current_kind.take(), &mut current_value);
+                current_kind = Some(WorkflowStepDuplicateKind::Name);
+                expecting_to = false;
+                continue;
+            }
+            _ => {}
+        }
+
+        if expecting_to {
+            match token.parse::<usize>().ok().filter(|index| *index > 0) {
+                Some(value) => {
+                    to_step_number = Some(value);
+                    expecting_to = false;
+                }
+                None => return WorkflowDashboardCommand::Error(usage.to_string()),
+            }
+            continue;
+        }
+
+        if current_kind.is_none() && step_number.is_none() {
+            match token.parse::<usize>().ok().filter(|index| *index > 0) {
+                Some(value) => {
+                    step_number = Some(value);
+                    continue;
+                }
+                None => return WorkflowDashboardCommand::Error(usage.to_string()),
+            }
+        }
+
+        if current_kind.is_none() {
+            return WorkflowDashboardCommand::Error(usage.to_string());
+        }
+
+        if !current_value.is_empty() {
+            current_value.push(' ');
+        }
+        current_value.push_str(token);
+    }
+
+    if expecting_to {
+        return WorkflowDashboardCommand::Error(usage.to_string());
+    }
+
+    push_duplicate_step_segment(&mut name, current_kind, &mut current_value);
+
+    WorkflowDashboardCommand::DuplicateStep {
+        step_number,
+        to_step_number,
+        name,
+    }
+}
+
+fn parse_move_step_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
+    let usage = "Usage: move-step [step-number] --to <n>";
+    let mut step_number = None;
+    let mut to_step_number = None;
+    let mut expecting_to = false;
+
+    for token in parts {
+        if token == "--to" {
+            expecting_to = true;
+            continue;
+        }
+
+        if expecting_to {
+            match token.parse::<usize>().ok().filter(|index| *index > 0) {
+                Some(value) => {
+                    to_step_number = Some(value);
+                    expecting_to = false;
+                }
+                None => return WorkflowDashboardCommand::Error(usage.to_string()),
+            }
+            continue;
+        }
+
+        if step_number.is_none() {
+            match token.parse::<usize>().ok().filter(|index| *index > 0) {
+                Some(value) => {
+                    step_number = Some(value);
+                    continue;
+                }
+                None => return WorkflowDashboardCommand::Error(usage.to_string()),
+            }
+        }
+
+        return WorkflowDashboardCommand::Error(usage.to_string());
+    }
+
+    if expecting_to || to_step_number.is_none() {
+        return WorkflowDashboardCommand::Error(usage.to_string());
+    }
+
+    WorkflowDashboardCommand::MoveStep {
+        step_number,
+        to_step_number,
+    }
+}
+
+fn parse_remove_step_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
+    match parts.as_slice() {
+        [] => WorkflowDashboardCommand::RemoveStep { step_number: None },
+        [value] => match value.parse::<usize>().ok().filter(|index| *index > 0) {
+            Some(step_number) => WorkflowDashboardCommand::RemoveStep {
+                step_number: Some(step_number),
+            },
+            None => WorkflowDashboardCommand::Error("Usage: remove-step [step-number]".to_string()),
+        },
+        _ => WorkflowDashboardCommand::Error("Usage: remove-step [step-number]".to_string()),
+    }
+}
+
 fn parse_required_index(parts: &[&str], usage: &str) -> Result<usize, String> {
     match parts {
         [value] => value
@@ -809,6 +992,22 @@ fn take_segment_value(current_value: &mut String) -> Option<String> {
     (!value.is_empty()).then_some(value)
 }
 
+fn push_duplicate_step_segment(
+    name: &mut Option<String>,
+    current_kind: Option<WorkflowStepDuplicateKind>,
+    current_value: &mut String,
+) {
+    let Some(current_kind) = current_kind else {
+        current_value.clear();
+        return;
+    };
+
+    let value = take_segment_value(current_value);
+    match current_kind {
+        WorkflowStepDuplicateKind::Name => *name = value,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -863,6 +1062,13 @@ mod tests {
             })
         );
         assert_eq!(
+            parse_workflow_dashboard_command("last-run release-review 2"),
+            Some(WorkflowDashboardCommand::LastRun {
+                workflow_name: Some(String::from("release-review")),
+                step_number: Some(2),
+            })
+        );
+        assert_eq!(
             parse_workflow_dashboard_command("7"),
             Some(WorkflowDashboardCommand::Open { index: 7 })
         );
@@ -892,6 +1098,14 @@ mod tests {
             parse_workflow_dashboard_command("dup 3"),
             Some(WorkflowDashboardCommand::Duplicate {
                 to_step_number: Some(3),
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("duplicate-step 2 --to 3 --name ship copy"),
+            Some(WorkflowDashboardCommand::DuplicateStep {
+                step_number: Some(2),
+                to_step_number: Some(3),
+                name: Some(String::from("ship copy")),
             })
         );
         assert_eq!(
@@ -936,8 +1150,21 @@ mod tests {
             })
         );
         assert_eq!(
+            parse_workflow_dashboard_command("move-step 2 --to 1"),
+            Some(WorkflowDashboardCommand::MoveStep {
+                step_number: Some(2),
+                to_step_number: Some(1),
+            })
+        );
+        assert_eq!(
             parse_workflow_dashboard_command("rm"),
             Some(WorkflowDashboardCommand::Remove)
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("remove-step 2"),
+            Some(WorkflowDashboardCommand::RemoveStep {
+                step_number: Some(2),
+            })
         );
     }
 
@@ -965,6 +1192,30 @@ mod tests {
             parse_workflow_dashboard_command("show-run run-1 nope"),
             Some(WorkflowDashboardCommand::Error(String::from(
                 "Usage: show-run <run-id> [step-number]"
+            )))
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("last-run release-review nope"),
+            Some(WorkflowDashboardCommand::Error(String::from(
+                "Usage: last-run [workflow-name] [step-number]"
+            )))
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("duplicate-step nope"),
+            Some(WorkflowDashboardCommand::Error(String::from(
+                "Usage: duplicate-step [step-number] [--to <n>] [--name <step-name>]"
+            )))
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("move-step 2"),
+            Some(WorkflowDashboardCommand::Error(String::from(
+                "Usage: move-step [step-number] --to <n>"
+            )))
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("remove-step nope"),
+            Some(WorkflowDashboardCommand::Error(String::from(
+                "Usage: remove-step [step-number]"
             )))
         );
         assert_eq!(
@@ -1000,6 +1251,9 @@ mod tests {
         assert!(text.contains("validate [name]"));
         assert!(text.contains("add-step --prompt <text>"));
         assert!(text.contains("update-step [n]"));
+        assert!(text.contains("duplicate-step [n] [--to <m>] [--name <step-name>]"));
+        assert!(text.contains("move-step [n] --to <m>"));
+        assert!(text.contains("remove-step [n]"));
         assert!(text.contains("set-shared-context <text>"));
         assert!(text.contains("open <n>"));
         assert!(text.contains("name <text>"));
