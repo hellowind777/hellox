@@ -207,12 +207,20 @@ fn workflow_panel_shortcuts_keep_focus_and_refresh_script() {
             assert_eq!(detail.steps[1].name.as_deref(), Some("ship"));
 
             match driver.selector_context() {
-                Some(super::SelectorContext::WorkflowPanelSteps {
+                Some(super::SelectorContext::WorkflowPanelItems {
                     workflow_name,
                     step_count,
+                    items,
                 }) => {
                     assert_eq!(workflow_name, "release-review");
                     assert_eq!(step_count, 2);
+                    assert_eq!(
+                        items,
+                        vec![
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(2),
+                        ]
+                    );
                 }
                 other => panic!("expected workflow panel selector context, got {other:?}"),
             }

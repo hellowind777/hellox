@@ -1,14 +1,25 @@
-use hellox_tui::{render_selector, status_badge, SelectorEntry};
+use hellox_tui::{render_selector, render_selector_with_start, status_badge, SelectorEntry};
 
 use super::{WorkflowRunRecord, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT};
 
 pub(super) fn render_run_selector(records: &[WorkflowRunRecord]) -> Vec<String> {
+    render_run_selector_with_start(records, 1)
+}
+
+pub(crate) fn render_run_selector_with_start(
+    records: &[WorkflowRunRecord],
+    start_index: usize,
+) -> Vec<String> {
     let entries = records
         .iter()
         .take(WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)
         .map(build_run_entry)
         .collect::<Vec<_>>();
-    render_selector(&entries)
+    if start_index <= 1 {
+        render_selector(&entries)
+    } else {
+        render_selector_with_start(&entries, start_index)
+    }
 }
 
 pub(super) fn render_step_lens(

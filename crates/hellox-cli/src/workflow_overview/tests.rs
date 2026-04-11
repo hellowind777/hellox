@@ -6,7 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::json;
 
 use super::{
-    list_workflow_overview_selection_items, render_workflow_overview, WorkflowOverviewSelectionItem,
+    list_workflow_focus_selection_items, list_workflow_overview_selection_items,
+    render_workflow_overview, WorkflowOverviewFocusSelectionItem, WorkflowOverviewSelectionItem,
 };
 
 fn temp_dir() -> PathBuf {
@@ -218,8 +219,55 @@ fn named_overview_renders_visual_map_and_latest_run_snapshot() {
     assert!(text.contains("backend=detached_process"));
     assert!(text.contains("latest_status=COMPLETED"));
     assert!(text.contains("== Step selector =="));
+    assert!(text.contains("== Recent runs =="));
+    assert!(text.contains("[2] run-300"));
     assert!(text.contains("== Latest run snapshot =="));
     assert!(text.contains("run_id: run-300"));
     assert!(text.contains("== CLI palette =="));
     assert!(text.contains("hellox workflow run release-review --shared-context \"<text>\""));
+}
+
+#[test]
+fn focused_selection_items_append_recent_runs_after_steps() {
+    let root = temp_dir();
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+    );
+    write_run(
+        &root,
+        "run-300",
+        json!({
+            "run_id": "run-300",
+            "status": "completed",
+            "workflow_name": "release-review",
+            "workflow_source": ".hellox/workflows/release-review.json",
+            "requested_script_path": null,
+            "started_at": 10,
+            "finished_at": 20,
+            "shared_context": null,
+            "continue_on_error": false,
+            "summary": {
+                "total_steps": 1,
+                "completed_steps": 1,
+                "failed_steps": 0,
+                "running_steps": 0,
+                "skipped_steps": 0
+            },
+            "steps": [],
+            "error": null,
+            "result_text": "ok"
+        }),
+    );
+
+    let items =
+        list_workflow_focus_selection_items(&root, "release-review").expect("list focus items");
+    assert_eq!(
+        items,
+        vec![
+            WorkflowOverviewFocusSelectionItem::Step(1),
+            WorkflowOverviewFocusSelectionItem::Run(String::from("run-300")),
+        ]
+    );
 }

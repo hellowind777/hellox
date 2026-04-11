@@ -19,6 +19,7 @@ pub(crate) use render::{
     render_workflow_run_inspect_panel_with_step, render_workflow_run_list,
     select_workflow_run_step_number,
 };
+pub(crate) use selector::render_run_selector_with_start;
 pub(crate) use store::{list_workflow_runs, load_latest_workflow_run, load_workflow_run};
 
 use self::render::render_recorded_workflow_output;

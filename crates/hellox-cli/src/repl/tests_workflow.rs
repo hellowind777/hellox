@@ -881,12 +881,20 @@ fn workflow_panel_selector_allows_numeric_selection() {
             );
 
             match driver.selector_context() {
-                Some(super::SelectorContext::WorkflowPanelSteps {
+                Some(super::SelectorContext::WorkflowPanelItems {
                     workflow_name,
                     step_count,
+                    items,
                 }) => {
                     assert_eq!(workflow_name, "release-review");
                     assert_eq!(step_count, 2);
+                    assert_eq!(
+                        items,
+                        vec![
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(2),
+                        ]
+                    );
                 }
                 other => panic!("expected workflow step selector context, got {other:?}"),
             }
@@ -900,12 +908,20 @@ fn workflow_panel_selector_allows_numeric_selection() {
             );
 
             match driver.selector_context() {
-                Some(super::SelectorContext::WorkflowPanelSteps {
+                Some(super::SelectorContext::WorkflowPanelItems {
                     workflow_name,
                     step_count,
+                    items,
                 }) => {
                     assert_eq!(workflow_name, "release-review");
                     assert_eq!(step_count, 2);
+                    assert_eq!(
+                        items,
+                        vec![
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(2),
+                        ]
+                    );
                 }
                 other => panic!("expected persistent workflow step selector, got {other:?}"),
             }
@@ -981,6 +997,87 @@ async fn workflow_runs_selector_allows_numeric_selection() {
     }
 }
 
+#[tokio::test]
+async fn workflow_panel_focus_allows_numeric_recent_run_selection() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow repl done").await;
+    write_config(&root, &base_url);
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    let run_text = handle_workflow_command(
+        WorkflowCommand::Run {
+            workflow_name: Some(String::from("release-review")),
+            shared_context: Some(String::from("ship carefully")),
+        },
+        &mut session,
+    )
+    .await
+    .expect("run workflow from repl");
+    let run_id = serde_json::from_str::<serde_json::Value>(&run_text)
+        .expect("parse workflow run output")
+        .get("run_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("workflow run id")
+        .to_string();
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("/workflow panel release-review", &mut session, &metadata)
+            .await
+            .expect("open workflow panel"),
+        ReplAction::Continue
+    );
+
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowPanelItems {
+            workflow_name,
+            step_count,
+            items,
+        }) => {
+            assert_eq!(workflow_name, "release-review");
+            assert_eq!(step_count, 1);
+            assert_eq!(
+                items,
+                vec![
+                    crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                    crate::workflow_panel::WorkflowPanelSelectionItem::Run(run_id.clone()),
+                ]
+            );
+        }
+        other => panic!("expected workflow panel selection items, got {other:?}"),
+    }
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("2", &mut session, &metadata)
+            .await
+            .expect("select recent run from panel"),
+        ReplAction::Continue
+    );
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowRunSteps {
+            run_id: selected_run_id,
+            step_count,
+        }) => {
+            assert_eq!(selected_run_id, run_id);
+            assert_eq!(step_count, 1);
+        }
+        other => panic!("expected workflow run selector after opening recent run, got {other:?}"),
+    }
+}
+
 #[test]
 fn workflow_overview_focus_allows_numeric_step_selection() {
     let root = temp_dir();
@@ -1017,12 +1114,18 @@ fn workflow_overview_focus_allows_numeric_step_selection() {
             );
 
             match driver.selector_context() {
-                Some(super::SelectorContext::WorkflowOverviewSteps {
+                Some(super::SelectorContext::WorkflowOverviewFocusItems {
                     workflow_name,
-                    step_count,
+                    items,
                 }) => {
                     assert_eq!(workflow_name, "release-review");
-                    assert_eq!(step_count, 2);
+                    assert_eq!(
+                        items,
+                        vec![
+                            crate::workflow_overview::WorkflowOverviewFocusSelectionItem::Step(1),
+                            crate::workflow_overview::WorkflowOverviewFocusSelectionItem::Step(2),
+                        ]
+                    );
                 }
                 other => panic!("expected workflow overview step selector, got {other:?}"),
             }
@@ -1036,16 +1139,105 @@ fn workflow_overview_focus_allows_numeric_step_selection() {
             );
 
             match driver.selector_context() {
-                Some(super::SelectorContext::WorkflowPanelSteps {
+                Some(super::SelectorContext::WorkflowPanelItems {
                     workflow_name,
                     step_count,
+                    items,
                 }) => {
                     assert_eq!(workflow_name, "release-review");
                     assert_eq!(step_count, 2);
+                    assert_eq!(
+                        items,
+                        vec![
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(2),
+                        ]
+                    );
                 }
                 other => panic!("expected workflow panel step selector, got {other:?}"),
             }
         });
+}
+
+#[tokio::test]
+async fn workflow_overview_focus_allows_numeric_recent_run_selection() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow repl done").await;
+    write_config(&root, &base_url);
+    write_workflow(
+        &root,
+        "release-review.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    let run_text = handle_workflow_command(
+        WorkflowCommand::Run {
+            workflow_name: Some(String::from("release-review")),
+            shared_context: Some(String::from("ship carefully")),
+        },
+        &mut session,
+    )
+    .await
+    .expect("run workflow from repl");
+    let run_id = serde_json::from_str::<serde_json::Value>(&run_text)
+        .expect("parse workflow run output")
+        .get("run_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("workflow run id")
+        .to_string();
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("/workflow overview release-review", &mut session, &metadata)
+            .await
+            .expect("open workflow overview focus"),
+        ReplAction::Continue
+    );
+
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowOverviewFocusItems {
+            workflow_name,
+            items,
+        }) => {
+            assert_eq!(workflow_name, "release-review");
+            assert_eq!(
+                items,
+                vec![
+                    crate::workflow_overview::WorkflowOverviewFocusSelectionItem::Step(1),
+                    crate::workflow_overview::WorkflowOverviewFocusSelectionItem::Run(
+                        run_id.clone()
+                    ),
+                ]
+            );
+        }
+        other => panic!("expected workflow overview selection items, got {other:?}"),
+    }
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("2", &mut session, &metadata)
+            .await
+            .expect("select recent run from overview"),
+        ReplAction::Continue
+    );
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowRunSteps {
+            run_id: selected_run_id,
+            step_count,
+        }) => {
+            assert_eq!(selected_run_id, run_id);
+            assert_eq!(step_count, 1);
+        }
+        other => panic!("expected workflow run selector after overview recent run, got {other:?}"),
+    }
 }
 
 #[tokio::test]

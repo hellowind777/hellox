@@ -6,7 +6,10 @@ use hellox_tui::{
     SelectorEntry, Table,
 };
 
-use crate::workflow_runs::{load_latest_workflow_run, WorkflowRunRecord};
+use crate::workflow_runs::{
+    list_workflow_runs, load_latest_workflow_run, render_run_selector_with_start,
+    WorkflowRunRecord, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+};
 use crate::workflows::{WorkflowScriptDetail, WorkflowStepSummary};
 
 use super::{
@@ -23,6 +26,11 @@ pub(super) fn render_workflow_panel_detail(
         validate_step_number(step_number, detail.steps.len())?;
     }
 
+    let recent_runs = list_workflow_runs(
+        root,
+        Some(&detail.summary.name),
+        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+    )?;
     let latest_run = load_latest_workflow_run(root, Some(&detail.summary.name)).ok();
     let metadata = vec![
         KeyValueRow::new("path", path_text(&detail.summary.path)),
@@ -47,6 +55,7 @@ pub(super) fn render_workflow_panel_detail(
             "Step selector",
             render_step_selector(detail, latest_run.as_ref(), step_number),
         ),
+        PanelSection::new("Recent runs", render_recent_runs(detail, &recent_runs)),
         PanelSection::new(
             "Focused step lens",
             render_focused_step_lens(detail, latest_run.as_ref(), step_number),
@@ -226,6 +235,17 @@ fn render_focused_step_lens(
     )
     .with_badge(selector_status_badge(step, latest_run))
     .selected(true)])
+}
+
+fn render_recent_runs(
+    detail: &WorkflowScriptDetail,
+    recent_runs: &[WorkflowRunRecord],
+) -> Vec<String> {
+    if recent_runs.is_empty() {
+        return vec!["(none recorded yet)".to_string()];
+    }
+
+    render_run_selector_with_start(recent_runs, detail.steps.len() + 1)
 }
 
 fn render_action_palette(

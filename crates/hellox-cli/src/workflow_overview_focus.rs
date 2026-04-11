@@ -5,7 +5,10 @@ use hellox_tui::{
     render_panel, render_selector, status_badge, KeyValueRow, PanelSection, SelectorEntry,
 };
 
-use crate::workflow_runs::{WorkflowRunRecord, WorkflowRunStepRecord};
+use crate::workflow_runs::{
+    list_workflow_runs, render_run_selector_with_start, WorkflowRunRecord, WorkflowRunStepRecord,
+    WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+};
 use crate::workflows::{
     load_workflow_detail_from_path, WorkflowScriptDetail, WorkflowScriptSummary,
 };
@@ -32,6 +35,11 @@ pub(super) fn render_workflow_focus(
         })?;
 
     let latest_run = find_latest_run(runs, &workflow.name);
+    let recent_runs = list_workflow_runs(
+        root,
+        Some(&workflow.name),
+        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+    )?;
     let metadata = vec![
         KeyValueRow::new("path", path_text(&workflow.path)),
         KeyValueRow::new("status", status_badge(script_state_label(workflow))),
@@ -48,6 +56,12 @@ pub(super) fn render_workflow_focus(
 
     if let Some(error) = &workflow.validation_error {
         sections.push(PanelSection::new("Validation", vec![preview_text(error)]));
+        if !recent_runs.is_empty() {
+            sections.push(PanelSection::new(
+                "Recent runs",
+                render_run_selector_with_start(&recent_runs, 1),
+            ));
+        }
     } else {
         let detail =
             load_workflow_detail_from_path(root, &workflow.path, Some(workflow.name.clone()))?;
@@ -59,6 +73,12 @@ pub(super) fn render_workflow_focus(
             "Step selector",
             render_focus_step_selector(&detail, latest_run),
         ));
+        if !recent_runs.is_empty() {
+            sections.push(PanelSection::new(
+                "Recent runs",
+                render_run_selector_with_start(&recent_runs, detail.steps.len() + 1),
+            ));
+        }
         sections.push(PanelSection::new(
             "Latest run snapshot",
             render_latest_run_snapshot(latest_run),

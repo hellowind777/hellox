@@ -87,6 +87,8 @@ fn focused_panel_renders_action_palette_and_step_status() {
     assert!(text.contains("> | 2 | summarize"));
     assert!(text.contains("== Step selector =="));
     assert!(text.contains("focus: `/workflow panel release-review 2`"));
+    assert!(text.contains("== Recent runs =="));
+    assert!(text.contains("[3] run-100"));
     assert!(text.contains("== Focused step lens =="));
     assert!(text.contains("> [1] summarize"));
     assert!(text.contains("latest_status: completed"));

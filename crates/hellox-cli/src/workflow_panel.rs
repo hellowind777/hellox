@@ -9,10 +9,17 @@ use hellox_tui::{
 mod focus;
 
 use crate::workflow_runs::WorkflowRunRecord;
+use crate::workflow_runs::{list_workflow_runs, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT};
 use crate::workflows::{
     list_workflows, load_named_workflow_detail, render_workflow_list, WorkflowScriptDetail,
     WorkflowScriptSummary, WorkflowStepSummary,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum WorkflowPanelSelectionItem {
+    Step(usize),
+    Run(String),
+}
 
 pub(crate) fn render_workflow_panel(
     root: &Path,
@@ -36,6 +43,26 @@ pub(crate) fn render_workflow_panel_detail(
     step_number: Option<usize>,
 ) -> Result<String> {
     focus::render_workflow_panel_detail(root, detail, step_number)
+}
+
+pub(crate) fn list_workflow_panel_selection_items(
+    root: &Path,
+    workflow_name: &str,
+) -> Result<Vec<WorkflowPanelSelectionItem>> {
+    let detail = load_named_workflow_detail(root, workflow_name)?;
+    let mut items = (1..=detail.steps.len())
+        .map(WorkflowPanelSelectionItem::Step)
+        .collect::<Vec<_>>();
+    let runs = list_workflow_runs(
+        root,
+        Some(&detail.summary.name),
+        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+    )?;
+    items.extend(
+        runs.into_iter()
+            .map(|record| WorkflowPanelSelectionItem::Run(record.run_id)),
+    );
+    Ok(items)
 }
 
 fn render_workflow_panel_selector(root: &Path) -> Result<String> {

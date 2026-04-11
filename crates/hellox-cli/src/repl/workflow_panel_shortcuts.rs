@@ -2,6 +2,7 @@ use anyhow::Result;
 use hellox_agent::AgentSession;
 
 use super::*;
+use crate::workflow_panel::list_workflow_panel_selection_items;
 use crate::workflow_panel::render_workflow_panel_detail;
 use crate::workflow_runs::{
     load_workflow_run, render_workflow_run_inspect_panel_with_step,
@@ -26,9 +27,10 @@ impl CliReplDriver {
             return Ok(true);
         }
 
-        let Some(SelectorContext::WorkflowPanelSteps {
+        let Some(SelectorContext::WorkflowPanelItems {
             workflow_name,
             step_count,
+            ..
         }) = self.selector_context()
         else {
             return Ok(false);
@@ -79,10 +81,14 @@ impl CliReplDriver {
         };
 
         match self.selector_context() {
-            Some(SelectorContext::WorkflowPanelSteps { workflow_name, .. }) => {
+            Some(SelectorContext::WorkflowPanelItems {
+                workflow_name,
+                step_count,
+                ..
+            }) => {
                 let detail =
                     load_named_workflow_detail(session.working_directory(), &workflow_name)?;
-                if detail.steps.is_empty() {
+                if step_count == 0 || detail.steps.is_empty() {
                     println!(
                         "workflow `{}` has no steps to focus yet.",
                         detail.summary.name
@@ -160,14 +166,23 @@ impl CliReplDriver {
         detail: &WorkflowScriptDetail,
         selected_step: Option<usize>,
     ) -> Result<String> {
-        if let Some(selected_step) = selected_step {
-            self.set_selector_context(SelectorContext::WorkflowPanelSteps {
-                workflow_name: detail.summary.name.clone(),
-                step_count: detail.steps.len(),
-            });
-            self.set_workflow_panel_focus(detail.summary.name.clone(), selected_step);
-        } else {
+        if let Ok(items) = list_workflow_panel_selection_items(root, &detail.summary.name) {
+            if !items.is_empty() {
+                self.set_selector_context(SelectorContext::WorkflowPanelItems {
+                    workflow_name: detail.summary.name.clone(),
+                    step_count: detail.steps.len(),
+                    items,
+                });
+            } else {
+                self.clear_selector_context();
+            }
+        } else if selected_step.is_none() {
             self.clear_selector_context();
+        }
+        if let Some(selected_step) = selected_step {
+            self.set_workflow_panel_focus(detail.summary.name.clone(), selected_step);
+        } else if detail.steps.is_empty() {
+            self.clear_workflow_panel_focus();
         }
         render_workflow_panel_detail(root, detail, selected_step)
     }

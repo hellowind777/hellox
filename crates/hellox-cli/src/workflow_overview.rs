@@ -5,7 +5,9 @@ use hellox_tui::status_badge;
 
 use crate::workflow_runs::{
     derive_workflow_name_from_source, list_workflow_runs, WorkflowRunRecord, WorkflowRunSummary,
+    WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
+use crate::workflows::load_workflow_detail_from_path;
 use crate::workflows::{list_workflows, WorkflowScriptSummary};
 
 const CUSTOM_RUN_PREVIEW_LIMIT: usize = 5;
@@ -19,6 +21,12 @@ mod selector;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum WorkflowOverviewSelectionItem {
     Workflow(String),
+    Run(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum WorkflowOverviewFocusSelectionItem {
+    Step(usize),
     Run(String),
 }
 
@@ -37,6 +45,37 @@ pub(crate) fn list_workflow_overview_selection_items(
     let workflows = list_workflows(root)?;
     let runs = list_workflow_runs(root, None, usize::MAX)?;
     Ok(build_workflow_overview_selection_items(&workflows, &runs))
+}
+
+pub(crate) fn list_workflow_focus_selection_items(
+    root: &Path,
+    workflow_name: &str,
+) -> Result<Vec<WorkflowOverviewFocusSelectionItem>> {
+    let workflows = list_workflows(root)?;
+    let Some(workflow) = workflows
+        .iter()
+        .find(|workflow| workflow.name.eq_ignore_ascii_case(workflow_name))
+    else {
+        return Ok(Vec::new());
+    };
+
+    let mut items = Vec::new();
+    if workflow.validation_error.is_none() {
+        let detail =
+            load_workflow_detail_from_path(root, &workflow.path, Some(workflow.name.clone()))?;
+        items.extend((1..=detail.steps.len()).map(WorkflowOverviewFocusSelectionItem::Step));
+    }
+
+    let runs = list_workflow_runs(
+        root,
+        Some(&workflow.name),
+        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+    )?;
+    items.extend(
+        runs.into_iter()
+            .map(|record| WorkflowOverviewFocusSelectionItem::Run(record.run_id)),
+    );
+    Ok(items)
 }
 
 fn build_workflow_overview_selection_items(

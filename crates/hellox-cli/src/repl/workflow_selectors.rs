@@ -3,8 +3,10 @@ use hellox_agent::AgentSession;
 
 use super::{commands::WorkflowCommand, *};
 use crate::workflow_overview::{
-    list_workflow_overview_selection_items, WorkflowOverviewSelectionItem,
+    list_workflow_focus_selection_items, list_workflow_overview_selection_items,
+    WorkflowOverviewFocusSelectionItem, WorkflowOverviewSelectionItem,
 };
+use crate::workflow_panel::{list_workflow_panel_selection_items, WorkflowPanelSelectionItem};
 use crate::workflow_runs::{
     list_workflow_runs, load_latest_workflow_run, load_workflow_run,
     render_workflow_run_inspect_panel_with_step, select_workflow_run_step_number,
@@ -89,13 +91,13 @@ impl CliReplDriver {
             WorkflowCommand::Overview {
                 workflow_name: Some(workflow_name),
             } => {
-                if let Ok(detail) =
-                    load_named_workflow_detail(session.working_directory(), workflow_name)
+                if let Ok(items) =
+                    list_workflow_focus_selection_items(session.working_directory(), workflow_name)
                 {
-                    if !detail.steps.is_empty() {
-                        self.set_selector_context(SelectorContext::WorkflowOverviewSteps {
-                            workflow_name: detail.summary.name,
-                            step_count: detail.steps.len(),
+                    if !items.is_empty() {
+                        self.set_selector_context(SelectorContext::WorkflowOverviewFocusItems {
+                            workflow_name: workflow_name.clone(),
+                            items,
                         });
                     }
                 }
@@ -123,13 +125,21 @@ impl CliReplDriver {
                 if let Ok(detail) =
                     load_named_workflow_detail(session.working_directory(), workflow_name)
                 {
+                    if let Ok(items) = list_workflow_panel_selection_items(
+                        session.working_directory(),
+                        &detail.summary.name,
+                    ) {
+                        if !items.is_empty() {
+                            self.set_selector_context(SelectorContext::WorkflowPanelItems {
+                                workflow_name: detail.summary.name.clone(),
+                                step_count: detail.steps.len(),
+                                items,
+                            });
+                        }
+                    }
                     if let Some(selected_step) =
                         normalize_selected_step(*step_number, detail.steps.len())
                     {
-                        self.set_selector_context(SelectorContext::WorkflowPanelSteps {
-                            workflow_name: detail.summary.name.clone(),
-                            step_count: detail.steps.len(),
-                        });
                         self.set_workflow_panel_focus(detail.summary.name, selected_step);
                     }
                 }
@@ -228,21 +238,30 @@ impl CliReplDriver {
                 }
                 Ok(true)
             }
-            SelectorContext::WorkflowOverviewSteps {
+            SelectorContext::WorkflowOverviewFocusItems {
                 workflow_name,
-                step_count,
+                items,
             } => {
-                if index == 0 || index > *step_count {
+                if index == 0 || index > items.len() {
                     println!(
                         "Invalid selection. Choose 1..{} or re-run `/workflow overview {}`.",
-                        step_count, workflow_name
+                        items.len(),
+                        workflow_name
                     );
                     return Ok(true);
                 }
 
-                let command = WorkflowCommand::Panel {
-                    workflow_name: Some(workflow_name.clone()),
-                    step_number: Some(index),
+                let command = match &items[index - 1] {
+                    WorkflowOverviewFocusSelectionItem::Step(step_number) => {
+                        WorkflowCommand::Panel {
+                            workflow_name: Some(workflow_name.clone()),
+                            step_number: Some(*step_number),
+                        }
+                    }
+                    WorkflowOverviewFocusSelectionItem::Run(run_id) => WorkflowCommand::ShowRun {
+                        run_id: Some(run_id.clone()),
+                        step_number: None,
+                    },
                 };
                 self.clear_selector_context();
                 self.prepare_workflow_selector_context(session, &command);
@@ -267,30 +286,45 @@ impl CliReplDriver {
                 println!("{}", handle_workflow_command(command, session).await?);
                 Ok(true)
             }
-            SelectorContext::WorkflowPanelSteps {
+            SelectorContext::WorkflowPanelItems {
                 workflow_name,
-                step_count,
+                step_count: _,
+                items,
             } => {
-                if index == 0 || index > *step_count {
+                if index == 0 || index > items.len() {
                     println!(
                         "Invalid selection. Choose 1..{} or re-run `/workflow panel {}`.",
-                        step_count, workflow_name
+                        items.len(),
+                        workflow_name
                     );
                     return Ok(true);
                 }
 
-                self.set_workflow_panel_focus(workflow_name.clone(), index);
-                println!(
-                    "{}",
-                    handle_workflow_command(
-                        WorkflowCommand::Panel {
-                            workflow_name: Some(workflow_name.clone()),
-                            step_number: Some(index),
-                        },
-                        session,
-                    )
-                    .await?
-                );
+                match &items[index - 1] {
+                    WorkflowPanelSelectionItem::Step(step_number) => {
+                        self.set_workflow_panel_focus(workflow_name.clone(), *step_number);
+                        println!(
+                            "{}",
+                            handle_workflow_command(
+                                WorkflowCommand::Panel {
+                                    workflow_name: Some(workflow_name.clone()),
+                                    step_number: Some(*step_number),
+                                },
+                                session,
+                            )
+                            .await?
+                        );
+                    }
+                    WorkflowPanelSelectionItem::Run(run_id) => {
+                        let command = WorkflowCommand::ShowRun {
+                            run_id: Some(run_id.clone()),
+                            step_number: None,
+                        };
+                        self.clear_selector_context();
+                        self.prepare_workflow_selector_context(session, &command);
+                        println!("{}", handle_workflow_command(command, session).await?);
+                    }
+                }
                 Ok(true)
             }
             SelectorContext::WorkflowRunList { run_ids } => {

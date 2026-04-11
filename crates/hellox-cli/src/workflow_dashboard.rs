@@ -17,9 +17,12 @@ use crate::workflow_command_support::{
     build_workflow_session, merge_optional_field, path_text, preferred_workflow_config_path,
 };
 use crate::workflow_overview::{
-    list_workflow_overview_selection_items, render_workflow_overview, WorkflowOverviewSelectionItem,
+    list_workflow_focus_selection_items, list_workflow_overview_selection_items,
+    render_workflow_overview, WorkflowOverviewFocusSelectionItem, WorkflowOverviewSelectionItem,
 };
-use crate::workflow_panel::render_workflow_panel;
+use crate::workflow_panel::{
+    list_workflow_panel_selection_items, render_workflow_panel, WorkflowPanelSelectionItem,
+};
 use crate::workflow_runs::{
     execute_and_record_workflow, list_workflow_runs, load_latest_workflow_run, load_workflow_run,
     render_workflow_run_inspect_panel_with_step, render_workflow_run_list,
@@ -414,17 +417,13 @@ fn render_workflow_dashboard_view(
                 .collect(),
         }),
         WorkflowDashboardView::OverviewFocus { workflow_name } => {
-            let detail = load_named_workflow_detail(root, workflow_name)?;
+            let _detail = load_named_workflow_detail(root, workflow_name)?;
+            let items = list_workflow_focus_selection_items(root, workflow_name)?;
             Ok(RenderedWorkflowDashboard {
                 text: render_workflow_overview(root, Some(workflow_name))?,
-                open_targets: detail
-                    .steps
-                    .iter()
-                    .enumerate()
-                    .map(|(index, _)| WorkflowDashboardOpenTarget::PanelStep {
-                        workflow_name: detail.summary.name.clone(),
-                        step_number: index + 1,
-                    })
+                open_targets: items
+                    .into_iter()
+                    .map(|item| map_focus_overview_selection_item(workflow_name, item))
                     .collect(),
             })
         }
@@ -442,17 +441,13 @@ fn render_workflow_dashboard_view(
             workflow_name,
             step_number,
         } => {
-            let detail = load_named_workflow_detail(root, workflow_name)?;
+            let _detail = load_named_workflow_detail(root, workflow_name)?;
+            let items = list_workflow_panel_selection_items(root, workflow_name)?;
             Ok(RenderedWorkflowDashboard {
                 text: render_workflow_panel(root, Some(workflow_name), *step_number)?,
-                open_targets: detail
-                    .steps
-                    .iter()
-                    .enumerate()
-                    .map(|(index, _)| WorkflowDashboardOpenTarget::PanelStep {
-                        workflow_name: detail.summary.name.clone(),
-                        step_number: index + 1,
-                    })
+                open_targets: items
+                    .into_iter()
+                    .map(|item| map_panel_selection_item(workflow_name, item))
                     .collect(),
             })
         }
@@ -1046,6 +1041,34 @@ fn map_overview_selection_item(item: WorkflowOverviewSelectionItem) -> WorkflowD
         WorkflowOverviewSelectionItem::Run(run_id) => {
             WorkflowDashboardOpenTarget::OverviewRun(run_id)
         }
+    }
+}
+
+fn map_focus_overview_selection_item(
+    workflow_name: &str,
+    item: WorkflowOverviewFocusSelectionItem,
+) -> WorkflowDashboardOpenTarget {
+    match item {
+        WorkflowOverviewFocusSelectionItem::Step(step_number) => {
+            WorkflowDashboardOpenTarget::PanelStep {
+                workflow_name: workflow_name.to_string(),
+                step_number,
+            }
+        }
+        WorkflowOverviewFocusSelectionItem::Run(run_id) => WorkflowDashboardOpenTarget::Run(run_id),
+    }
+}
+
+fn map_panel_selection_item(
+    workflow_name: &str,
+    item: WorkflowPanelSelectionItem,
+) -> WorkflowDashboardOpenTarget {
+    match item {
+        WorkflowPanelSelectionItem::Step(step_number) => WorkflowDashboardOpenTarget::PanelStep {
+            workflow_name: workflow_name.to_string(),
+            step_number,
+        },
+        WorkflowPanelSelectionItem::Run(run_id) => WorkflowDashboardOpenTarget::Run(run_id),
     }
 }
 

@@ -52,16 +52,17 @@ pub(super) enum SelectorContext {
     WorkflowOverviewList {
         items: Vec<crate::workflow_overview::WorkflowOverviewSelectionItem>,
     },
-    WorkflowOverviewSteps {
+    WorkflowOverviewFocusItems {
         workflow_name: String,
-        step_count: usize,
+        items: Vec<crate::workflow_overview::WorkflowOverviewFocusSelectionItem>,
     },
     WorkflowPanelList {
         workflow_names: Vec<String>,
     },
-    WorkflowPanelSteps {
+    WorkflowPanelItems {
         workflow_name: String,
         step_count: usize,
+        items: Vec<crate::workflow_panel::WorkflowPanelSelectionItem>,
     },
     WorkflowRunList {
         run_ids: Vec<String>,
@@ -109,7 +110,7 @@ impl CliReplDriver {
 
     pub(super) fn set_selector_context(&self, context: SelectorContext) {
         let keep_workflow_panel_focus =
-            matches!(context, SelectorContext::WorkflowPanelSteps { .. });
+            matches!(context, SelectorContext::WorkflowPanelItems { .. });
         let keep_workflow_run_focus = matches!(context, SelectorContext::WorkflowRunSteps { .. });
         if let Ok(mut guard) = self.selector_context.lock() {
             *guard = Some(context);
