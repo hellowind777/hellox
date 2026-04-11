@@ -1645,9 +1645,9 @@ mod tests {
     #[test]
     fn dashboard_explicit_step_commands_work_from_overview_focus() {
         let root = temp_dir();
-        write_workflow(
+        write_explicit_workflow(
             &root,
-            "release-review.json",
+            "scripts/custom-release.json",
             r#"{
   "steps": [
     { "name": "review", "prompt": "review release" },
@@ -1656,8 +1656,10 @@ mod tests {
 }"#,
         );
 
-        let mut state =
-            initial_workflow_dashboard_state(Some(String::from("release-review")), None);
+        let mut state = initial_workflow_dashboard_state(
+            None,
+            Some(String::from("scripts/custom-release.json")),
+        );
         let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
 
         let duplicated = handle_workflow_dashboard_input(
@@ -1669,7 +1671,7 @@ mod tests {
         match duplicated {
             WorkflowDashboardHandleOutcome::Print(text) => {
                 assert!(text.contains("Duplicated workflow step 2 into step 1 (`ship copy`)."));
-                assert!(text.contains("Workflow authoring panel: release-review"));
+                assert!(text.contains("Workflow authoring panel: scripts/custom-release"));
             }
             other => panic!("expected dashboard duplicate-step output, got {other:?}"),
         }
@@ -1691,6 +1693,30 @@ mod tests {
             }
             other => panic!("expected dashboard remove-step output, got {other:?}"),
         }
+
+        let raw = fs::read_to_string(root.join("scripts").join("custom-release.json"))
+            .expect("read script");
+        let value = serde_json::from_str::<serde_json::Value>(&raw).expect("parse workflow json");
+        let steps = value
+            .get("steps")
+            .and_then(serde_json::Value::as_array)
+            .expect("workflow steps");
+        assert_eq!(steps.len(), 2);
+        assert_eq!(
+            steps[0].get("name").and_then(serde_json::Value::as_str),
+            Some("ship")
+        );
+        assert_eq!(
+            steps[1].get("name").and_then(serde_json::Value::as_str),
+            Some("review")
+        );
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::PanelPathFocus {
+                script_path: path_text(&root.join("scripts").join("custom-release.json")),
+                step_number: Some(1),
+            }
+        );
     }
 
     #[test]
@@ -1869,6 +1895,123 @@ mod tests {
             }
             other => panic!("expected dashboard bounded navigation output, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn dashboard_navigation_shortcuts_switch_explicit_panel_steps() {
+        let root = temp_dir();
+        write_explicit_workflow(
+            &root,
+            "scripts/custom-release.json",
+            r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+        );
+
+        let mut state = initial_workflow_dashboard_state(
+            None,
+            Some(String::from("scripts/custom-release.json")),
+        );
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+        let _ = handle_workflow_dashboard_input(&root, &mut state, "panel 1")
+            .expect("focus explicit panel step");
+
+        let moved = handle_workflow_dashboard_input(&root, &mut state, "next")
+            .expect("focus next explicit step");
+        match moved {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Focused workflow step 2 of 2."));
+                assert!(text.contains("> | 2 | ship"));
+                assert!(text.contains("--script-path"));
+            }
+            other => panic!("expected explicit dashboard navigation output, got {other:?}"),
+        }
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::PanelPathFocus {
+                script_path: path_text(&root.join("scripts").join("custom-release.json")),
+                step_number: Some(2),
+            }
+        );
+
+        let bounded = handle_workflow_dashboard_input(&root, &mut state, "last")
+            .expect("keep explicit last focused step");
+        match bounded {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Already on the last workflow step (2 of 2)."));
+            }
+            other => panic!("expected explicit dashboard bounded navigation output, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dashboard_panel_shortcuts_support_explicit_script_field_edits() {
+        let root = temp_dir();
+        write_explicit_workflow(
+            &root,
+            "scripts/custom-release.json",
+            r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" }
+  ]
+}"#,
+        );
+
+        let mut state = initial_workflow_dashboard_state(
+            None,
+            Some(String::from("scripts/custom-release.json")),
+        );
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+        let _ = handle_workflow_dashboard_input(&root, &mut state, "panel 1")
+            .expect("focus explicit panel step");
+
+        let renamed = handle_workflow_dashboard_input(&root, &mut state, "name ship review")
+            .expect("rename explicit step");
+        match renamed {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Updated workflow step 1 name."));
+                assert!(text.contains("Workflow authoring panel: scripts/custom-release"));
+            }
+            other => panic!("expected explicit dashboard rename output, got {other:?}"),
+        }
+
+        let mode = handle_workflow_dashboard_input(&root, &mut state, "background")
+            .expect("set explicit background mode");
+        match mode {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Set workflow step 1 to background mode."));
+                assert!(text.contains("--script-path"));
+            }
+            other => panic!("expected explicit dashboard background output, got {other:?}"),
+        }
+
+        let raw = fs::read_to_string(root.join("scripts").join("custom-release.json"))
+            .expect("read script");
+        let value = serde_json::from_str::<serde_json::Value>(&raw).expect("parse workflow json");
+        let step = value
+            .get("steps")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|steps| steps.first())
+            .expect("workflow step");
+        assert_eq!(
+            step.get("name").and_then(serde_json::Value::as_str),
+            Some("ship review")
+        );
+        assert_eq!(
+            step.get("run_in_background")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::PanelPathFocus {
+                script_path: path_text(&root.join("scripts").join("custom-release.json")),
+                step_number: Some(1),
+            }
+        );
     }
 
     #[test]
