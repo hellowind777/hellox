@@ -265,10 +265,12 @@ Hellox keeps those concerns in one Rust workspace:
 
 | Document | Purpose |
 |------|------|
+| `docs/README.md` | AI-oriented documentation map and reading order |
+| `docs/AI_DEVELOPMENT_WORKFLOW.md` | AI development workflow and source comparison rules |
 | `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` | Current local feature coverage and remaining gaps |
 | `docs/HELLOX_LOCAL_FIRST_BOUNDARIES.md` | Product boundary: local-first, remote-capable |
 | `docs/HELLOX_FEATURE_MATRIX.md` | Feature mapping from Claude Code to Rust crates |
-| `docs/ARCHITECTURE.md` | Source architecture analysis baseline |
+| `docs/reference/claude-code/ARCHITECTURE.md` | Archived source architecture analysis baseline |
 | `docs/HELLOX_PANE_HOST_RECORD_REPLAY.md` | Pane-host replay harness design |
 
 ### Workspace structure
@@ -301,7 +303,7 @@ Hellox keeps those concerns in one Rust workspace:
 <details>
 <summary><strong>Q: Does Hellox require a server?</strong></summary>
 
-**A:** Not on the primary path. The project explicitly treats remote/cloud features as optional seams, not blockers for the local product.
+**A:** Not on the primary path. The project supports user-managed remote targets as optional seams, but does not target hosted cloud services.
 </details>
 
 <details>
@@ -325,7 +327,7 @@ Hellox keeps those concerns in one Rust workspace:
 <details>
 <summary><strong>Q: Where should I look first if I want to contribute?</strong></summary>
 
-**A:** Start with `docs/HELLOX_LOCAL_FEATURE_AUDIT.md`, then inspect `crates/hellox-cli`, `crates/hellox-agent`, and the `hellox-tools-*` crates depending on your target area.
+**A:** Start with `docs/README.md` and `docs/AI_DEVELOPMENT_WORKFLOW.md`, then compare `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` with the relevant source crates.
 </details>
 
 ## 🛠️ Troubleshooting

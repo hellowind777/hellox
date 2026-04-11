@@ -265,10 +265,12 @@ Hellox 用一个 Rust workspace 把这些组合起来：
 
 | 文档 | 作用 |
 |------|------|
+| `docs/README.md` | 面向 AI 开发的文档地图和阅读顺序 |
+| `docs/AI_DEVELOPMENT_WORKFLOW.md` | AI 开发流程与源码对照规则 |
 | `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` | 当前本地能力覆盖度与剩余缺口 |
 | `docs/HELLOX_LOCAL_FIRST_BOUNDARIES.md` | local-first / remote-capable 产品边界 |
 | `docs/HELLOX_FEATURE_MATRIX.md` | 从 Claude Code 到 Rust crates 的能力映射 |
-| `docs/ARCHITECTURE.md` | 原始源码结构分析基线 |
+| `docs/reference/claude-code/ARCHITECTURE.md` | 已归档的原始源码结构分析基线 |
 | `docs/HELLOX_PANE_HOST_RECORD_REPLAY.md` | pane-host 回放夹具设计 |
 
 ### Workspace 结构
@@ -301,7 +303,7 @@ Hellox 用一个 Rust workspace 把这些组合起来：
 <details>
 <summary><strong>Q：Hellox 运行必须依赖服务器吗？</strong></summary>
 
-**A：** 主路径不需要。项目明确把远程/云端能力当成可替换 seam，而不是当前里程碑阻塞项。
+**A：** 主路径不需要。项目只保留用户自定义远程目标作为可选 seam，不把托管云端服务作为目标。
 </details>
 
 <details>
@@ -325,7 +327,7 @@ Hellox 用一个 Rust workspace 把这些组合起来：
 <details>
 <summary><strong>Q：如果我要贡献，从哪里开始最合适？</strong></summary>
 
-**A：** 建议先读 `docs/HELLOX_LOCAL_FEATURE_AUDIT.md`，然后按目标领域进入 `crates/hellox-cli`、`crates/hellox-agent` 或对应的 `hellox-tools-*` crate。
+**A：** 建议先读 `docs/README.md` 和 `docs/AI_DEVELOPMENT_WORKFLOW.md`，再把 `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` 与相关源码 crate 对照起来看。
 </details>
 
 ## 🛠️ 故障排除
