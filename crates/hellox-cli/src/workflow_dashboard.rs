@@ -148,15 +148,33 @@ pub(crate) fn render_workflow_dashboard_state(
 ) -> Result<String> {
     let rendered = render_workflow_dashboard_view(root, state.current())?;
     state.set_open_targets(rendered.open_targets);
-    let footer = match state.current() {
-        WorkflowDashboardView::PanelFocus { .. }
-        | WorkflowDashboardView::PanelPathFocus { .. }
-        | WorkflowDashboardView::RunInspect { .. } => {
-            "open <n> | next | prev | first | last | back | help | quit"
-        }
-        _ => "open <n> | back | help | quit",
-    };
+    let footer = workflow_dashboard_footer(state.current());
     Ok(format!("{}\n\n== Dashboard ==\n{footer}", rendered.text,))
+}
+
+fn workflow_dashboard_footer(view: &WorkflowDashboardView) -> String {
+    let lines: &[&str] = match view {
+        WorkflowDashboardView::OverviewFocus { .. }
+        | WorkflowDashboardView::OverviewPathFocus { .. } => &[
+            "open <n> | run [shared_context] | panel [n] | runs | last-run [n] | show | validate | back | help | quit",
+        ],
+        WorkflowDashboardView::PanelFocus { .. } | WorkflowDashboardView::PanelPathFocus { .. } => &[
+            "open <n> | next | prev | first | last | back | help | quit",
+            "step edit: name <text> | prompt <text> | when <json> | model <name> | backend <name> | step-cwd <path>",
+            "step clear/action: clear-name | clear-when | clear-model | clear-backend | clear-step-cwd | background | foreground | dup [to] | move <to> | rm",
+        ],
+        WorkflowDashboardView::Runs { .. } | WorkflowDashboardView::RunsPath { .. } => &[
+            "open <n> | show-run <id> [n] | last-run [n] | back | help | quit",
+        ],
+        WorkflowDashboardView::RunInspect { .. } => &[
+            "open <n> | next | prev | first | last | back | help | quit",
+            "run jump: show-run <id> [n] | last-run [n]",
+        ],
+        WorkflowDashboardView::OverviewList | WorkflowDashboardView::PanelList => {
+            &["open <n> | back | help | quit"]
+        }
+    };
+    lines.join("\n")
 }
 
 pub(crate) fn handle_workflow_dashboard_input(
@@ -1486,6 +1504,8 @@ mod tests {
         let text = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
         assert!(text.contains("Workflow overview: release-review"));
         assert!(text.contains("== Dashboard =="));
+        assert!(text
+            .contains("run [shared_context] | panel [n] | runs | last-run [n] | show | validate"));
     }
 
     #[test]
@@ -1510,6 +1530,8 @@ mod tests {
         assert!(text.contains("Workflow overview: scripts/custom-release"));
         assert!(text.contains("focus: `/workflow panel --script-path"));
         assert!(text.contains("scripts/custom-release.json"));
+        assert!(text
+            .contains("run [shared_context] | panel [n] | runs | last-run [n] | show | validate"));
         assert_eq!(
             state.current(),
             &hellox_tui::WorkflowDashboardView::OverviewPathFocus {
@@ -2012,6 +2034,63 @@ mod tests {
                 step_number: Some(1),
             }
         );
+    }
+
+    #[test]
+    fn dashboard_panel_footer_mentions_shortcuts() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" }
+  ]
+}"#,
+        );
+
+        let mut state =
+            initial_workflow_dashboard_state(Some(String::from("release-review")), None);
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+
+        let focused = handle_workflow_dashboard_input(&root, &mut state, "panel 1")
+            .expect("focus workflow panel");
+        match focused {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("step edit: name <text> | prompt <text> | when <json>"));
+                assert!(text.contains("step clear/action: clear-name | clear-when | clear-model"));
+                assert!(text.contains("dup [to] | move <to> | rm"));
+            }
+            other => panic!("expected focused panel output, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dashboard_runs_footer_mentions_run_jump_commands() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" }
+  ]
+}"#,
+        );
+        write_run(&root, "run-123", "release-review");
+
+        let mut state =
+            initial_workflow_dashboard_state(Some(String::from("release-review")), None);
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+
+        let runs = handle_workflow_dashboard_input(&root, &mut state, "runs").expect("open runs");
+        match runs {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text
+                    .contains("open <n> | show-run <id> [n] | last-run [n] | back | help | quit"));
+            }
+            other => panic!("expected workflow runs output, got {other:?}"),
+        }
     }
 
     #[test]

@@ -153,7 +153,33 @@ fn help_text_lists_project_workflow_commands() {
     assert!(text.contains("/workflow disable-continue-on-error --script-path <path>"));
     assert!(text.contains("/workflow run --script-path <path> [shared_context]"));
     assert!(text.contains("/workflow run <name> [shared_context]"));
+    assert!(text.contains("focused workflow panel/dashboard: `name <text>`"));
+    assert!(text.contains("focused workflow panel/dashboard: `clear-name`"));
+    assert!(text.contains("focused workflow panel/dashboard: `background` / `foreground`"));
+    assert!(text.contains("focused workflow dashboard: `open <n>` / `back`"));
+    assert!(text
+        .contains("focused workflow panel/show-run/dashboard: `first` / `prev` / `next` / `last`"));
     assert!(text.contains("/release-review [shared_context]"));
+}
+
+#[test]
+fn workflow_help_command_mentions_dashboard_shortcuts() {
+    let root = temp_dir();
+    let mut session = session_in(root);
+
+    let text = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build runtime")
+        .block_on(handle_workflow_command(WorkflowCommand::Help, &mut session))
+        .expect("workflow help");
+
+    assert!(text.contains("focused workflow panel/dashboard: `name <text>`"));
+    assert!(text.contains("focused workflow panel/dashboard: `clear-name`"));
+    assert!(text.contains("focused workflow panel/dashboard: `background` / `foreground`"));
+    assert!(text.contains("focused workflow dashboard: `open <n>` / `back`"));
+    assert!(text
+        .contains("focused workflow panel/show-run/dashboard: `first` / `prev` / `next` / `last`"));
 }
 
 #[test]

@@ -32,6 +32,10 @@ pub(super) fn workflow_help_text() -> String {
         "  /workflow run <name> [shared_context] Run a workflow script locally",
         "  /workflow run --script-path <path> [shared_context] Run one explicit workflow script",
         "  /workflow <name> [shared_context] Shortcut for `/workflow run ...`",
+        "  focused workflow panel/dashboard: `name <text>` / `prompt <text>` / `when <json>` / `model <name>` / `backend <name>` / `step-cwd <path>`",
+        "  focused workflow panel/dashboard: `clear-name` / `clear-when` / `clear-model` / `clear-backend` / `clear-step-cwd`",
+        "  focused workflow panel/dashboard: `background` / `foreground` / `dup [to]` / `move <to>` / `rm`",
+        "  focused workflow dashboard: `open <n>` / `back`",
         "  focused workflow panel/show-run/dashboard: `first` / `prev` / `next` / `last`",
     ]
     .join("\n")
