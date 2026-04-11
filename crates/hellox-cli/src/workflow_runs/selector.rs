@@ -74,7 +74,7 @@ fn build_run_entry(record: &WorkflowRunRecord) -> SelectorEntry {
         .as_deref()
         .or(record.requested_script_path.as_deref())
         .unwrap_or("(inline)");
-    let lines = vec![
+    let mut lines = vec![
         format!("workflow: {workflow}"),
         format!("finished_at: {}", record.finished_at),
         format!(
@@ -84,13 +84,36 @@ fn build_run_entry(record: &WorkflowRunRecord) -> SelectorEntry {
             record.summary.running_steps,
             record.summary.skipped_steps
         ),
-        format!(
-            "shared_context: {}",
-            preview_text(record.shared_context.as_deref().unwrap_or("(none)"))
-        ),
-        format!("source: {}", preview_text(source)),
-        format!("open: `hellox workflow show-run {}`", record.run_id),
     ];
+
+    if let Some((index, step)) = select_step(record, None) {
+        lines.push(format!(
+            "primary_step: [{}] {} — {}",
+            index + 1,
+            step.name,
+            status_badge(&step.status)
+        ));
+        lines.push(format!(
+            "focus: `hellox workflow show-run {} {}`",
+            record.run_id,
+            index + 1
+        ));
+    } else {
+        if let Some(error) = &record.error {
+            lines.push(format!("error: {}", preview_text(error)));
+        }
+        lines.push(format!(
+            "focus: `hellox workflow show-run {}`",
+            record.run_id
+        ));
+    }
+
+    lines.push(format!(
+        "shared_context: {}",
+        preview_text(record.shared_context.as_deref().unwrap_or("(none)"))
+    ));
+    lines.push(format!("source: {}", preview_text(source)));
+    lines.push(format!("next: `{}`", next_follow_up_hint(record)));
 
     SelectorEntry::new(record.run_id.clone(), lines).with_badge(status_badge(&record.status))
 }
@@ -127,6 +150,16 @@ fn preview_text(value: &str) -> String {
         compact
     } else {
         format!("{}...", compact.chars().take(117).collect::<String>())
+    }
+}
+
+fn next_follow_up_hint(record: &WorkflowRunRecord) -> String {
+    if let Some(workflow_name) = record.workflow_name.as_deref() {
+        format!("hellox workflow last-run {workflow_name}")
+    } else if let Some(script_path) = record.requested_script_path.as_deref() {
+        format!("hellox workflow run --script-path {script_path}")
+    } else {
+        format!("hellox workflow show-run {}", record.run_id)
     }
 }
 

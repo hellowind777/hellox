@@ -60,7 +60,9 @@ fn run_list_renders_history_panel_cards() {
     assert!(text.contains("COMPLETED"));
     assert!(text.contains("== Recent run selector =="));
     assert!(text.contains("[1] run-123 — COMPLETED"));
-    assert!(text.contains("hellox workflow show-run run-123"));
+    assert!(text.contains("primary_step: [2] summarize — FAILED"));
+    assert!(text.contains("focus: `hellox workflow show-run run-123 2`"));
+    assert!(text.contains("next: `hellox workflow last-run release-review`"));
     assert!(text.contains("hellox workflow last-run release-review"));
 }
 

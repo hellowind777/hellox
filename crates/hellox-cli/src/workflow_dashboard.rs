@@ -1623,6 +1623,72 @@ mod tests {
     }
 
     #[test]
+    fn dashboard_overview_focus_numeric_recent_run_opens_recorded_run() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+        );
+        write_run(&root, "run-123", "release-review");
+
+        let mut state = initial_workflow_dashboard_state(Some(String::from("release-review")));
+        let text = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+        assert!(text.contains("== Recent runs =="));
+        assert!(text.contains("[2] run-123"));
+
+        let output =
+            handle_workflow_dashboard_input(&root, &mut state, "2").expect("open recent run");
+        match output {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Workflow run inspect panel: run-123"));
+                assert!(text.contains("== Primary step lens =="));
+            }
+            other => panic!("expected recent-run dashboard output, got {other:?}"),
+        }
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::RunInspect {
+                run_id: String::from("run-123"),
+                step_number: None,
+            }
+        );
+    }
+
+    #[test]
+    fn dashboard_panel_focus_open_recent_run_uses_same_selector_order() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+        );
+        write_run(&root, "run-123", "release-review");
+
+        let mut state = initial_workflow_dashboard_state(Some(String::from("release-review")));
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+        let _ = handle_workflow_dashboard_input(&root, &mut state, "panel 1")
+            .expect("focus panel step");
+
+        let output =
+            handle_workflow_dashboard_input(&root, &mut state, "open 2").expect("open run");
+        match output {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Workflow run inspect panel: run-123"));
+                assert!(text.contains("== Primary step lens =="));
+            }
+            other => panic!("expected panel recent-run dashboard output, got {other:?}"),
+        }
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::RunInspect {
+                run_id: String::from("run-123"),
+                step_number: None,
+            }
+        );
+    }
+
+    #[test]
     fn dashboard_supports_show_validate_and_init_commands() {
         let root = temp_dir();
         write_workflow(

@@ -221,6 +221,9 @@ fn named_overview_renders_visual_map_and_latest_run_snapshot() {
     assert!(text.contains("== Step selector =="));
     assert!(text.contains("== Recent runs =="));
     assert!(text.contains("[2] run-300"));
+    assert!(text.contains("primary_step: [1] review — COMPLETED"));
+    assert!(text.contains("focus: `hellox workflow show-run run-300 1`"));
+    assert!(text.contains("next: `hellox workflow last-run release-review`"));
     assert!(text.contains("== Latest run snapshot =="));
     assert!(text.contains("run_id: run-300"));
     assert!(text.contains("== CLI palette =="));

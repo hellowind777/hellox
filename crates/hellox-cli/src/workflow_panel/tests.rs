@@ -89,6 +89,9 @@ fn focused_panel_renders_action_palette_and_step_status() {
     assert!(text.contains("focus: `/workflow panel release-review 2`"));
     assert!(text.contains("== Recent runs =="));
     assert!(text.contains("[3] run-100"));
+    assert!(text.contains("primary_step: [1] review — COMPLETED"));
+    assert!(text.contains("focus: `hellox workflow show-run run-100 1`"));
+    assert!(text.contains("next: `hellox workflow last-run release-review`"));
     assert!(text.contains("== Focused step lens =="));
     assert!(text.contains("> [1] summarize"));
     assert!(text.contains("latest_status: completed"));
