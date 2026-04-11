@@ -4,7 +4,7 @@ use anyhow::Result;
 use hellox_agent::AgentSession;
 
 use super::{commands::WorkflowCommand, *};
-use crate::repl::selectors::WorkflowOverviewFocusTarget;
+use crate::repl::selectors::{WorkflowOverviewFocusTarget, WorkflowRunListTarget};
 use crate::workflow_command_support::{
     path_text, resolve_optional_lookup_run_target, resolve_script_path,
 };
@@ -23,7 +23,7 @@ use crate::workflow_runs::{
     WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
 use crate::workflows::{
-    list_workflows, load_named_workflow_detail, load_workflow_detail_from_path,
+    list_workflows, load_named_workflow_detail, load_workflow_detail_from_path, WorkflowRunTarget,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -241,7 +241,17 @@ impl CliReplDriver {
                             .map(|record| record.run_id)
                             .collect::<Vec<_>>();
                         if !run_ids.is_empty() {
-                            self.set_selector_context(SelectorContext::WorkflowRunList { run_ids });
+                            self.set_selector_context(SelectorContext::WorkflowRunList {
+                                target: filter.as_ref().map(|target| match target {
+                                    WorkflowRunTarget::Named(workflow_name) => {
+                                        WorkflowRunListTarget::Named(workflow_name.clone())
+                                    }
+                                    WorkflowRunTarget::Path(script_path) => {
+                                        WorkflowRunListTarget::Path(path_text(script_path))
+                                    }
+                                }),
+                                run_ids,
+                            });
                         }
                     }
                 }
@@ -485,11 +495,21 @@ impl CliReplDriver {
                 }
                 Ok(true)
             }
-            SelectorContext::WorkflowRunList { run_ids } => {
+            SelectorContext::WorkflowRunList { target, run_ids } => {
+                let rerun_hint = match target {
+                    Some(WorkflowRunListTarget::Named(workflow_name)) => {
+                        format!("/workflow runs {workflow_name}")
+                    }
+                    Some(WorkflowRunListTarget::Path(script_path)) => {
+                        format!("/workflow runs --script-path {script_path}")
+                    }
+                    None => "/workflow runs".to_string(),
+                };
                 if index == 0 || index > run_ids.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `/workflow runs`.",
-                        run_ids.len()
+                        "Invalid selection. Choose 1..{} or re-run `{}`.",
+                        run_ids.len(),
+                        rerun_hint
                     );
                     return Ok(true);
                 }

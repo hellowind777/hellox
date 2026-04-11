@@ -19,6 +19,12 @@ pub(super) enum WorkflowOverviewFocusTarget {
     Path(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum WorkflowRunListTarget {
+    Named(String),
+    Path(String),
+}
+
 #[derive(Debug, Clone)]
 pub(super) enum SelectorContext {
     ConfigPanelList {
@@ -77,6 +83,7 @@ pub(super) enum SelectorContext {
         items: Vec<crate::workflow_panel::WorkflowPanelSelectionItem>,
     },
     WorkflowRunList {
+        target: Option<WorkflowRunListTarget>,
         run_ids: Vec<String>,
     },
     WorkflowRunSteps {

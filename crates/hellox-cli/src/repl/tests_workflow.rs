@@ -14,7 +14,7 @@ use super::commands::WorkflowCommand;
 use super::format::help_text_for_workdir;
 use super::workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_invocation};
 use super::{ReplAction, ReplMetadata};
-use crate::repl::selectors::WorkflowOverviewFocusTarget;
+use crate::repl::selectors::{WorkflowOverviewFocusTarget, WorkflowRunListTarget};
 use crate::workflow_overview::WorkflowOverviewSelectionItem;
 
 fn temp_dir() -> PathBuf {
@@ -1425,7 +1425,11 @@ async fn workflow_runs_selector_allows_numeric_selection() {
     );
 
     match driver.selector_context() {
-        Some(super::SelectorContext::WorkflowRunList { run_ids }) => {
+        Some(super::SelectorContext::WorkflowRunList { target, run_ids }) => {
+            assert_eq!(
+                target,
+                Some(WorkflowRunListTarget::Named(String::from("release-review")))
+            );
             assert_eq!(run_ids, vec![run_id.clone()]);
         }
         other => panic!("expected workflow run selector context, got {other:?}"),
@@ -1499,7 +1503,17 @@ async fn workflow_runs_selector_supports_explicit_script_path() {
     );
 
     match driver.selector_context() {
-        Some(super::SelectorContext::WorkflowRunList { run_ids }) => {
+        Some(super::SelectorContext::WorkflowRunList { target, run_ids }) => {
+            assert_eq!(
+                target,
+                Some(WorkflowRunListTarget::Path(
+                    root.join("scripts")
+                        .join("custom-release.json")
+                        .display()
+                        .to_string()
+                        .replace('\\', "/")
+                ))
+            );
             assert_eq!(run_ids, vec![run_id.clone()]);
         }
         other => panic!("expected explicit workflow run selector context, got {other:?}"),

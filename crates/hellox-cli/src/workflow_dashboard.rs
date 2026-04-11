@@ -271,7 +271,8 @@ pub(crate) fn handle_workflow_dashboard_input(
                 },
             ),
             None if step_number.is_some() => Ok(WorkflowDashboardHandleOutcome::Print(
-                "Usage: panel <workflow-name> [step-number]".to_string(),
+                "Usage: panel <workflow-name> [step-number] | panel --script-path <path> [step-number]"
+                    .to_string(),
             )),
             None => navigate_and_render(root, state, WorkflowDashboardView::PanelList),
         },
@@ -1545,6 +1546,24 @@ mod tests {
                 script_path: path_text(&root.join("scripts").join("custom-release.json")),
             }
         );
+    }
+
+    #[test]
+    fn dashboard_panel_usage_mentions_explicit_script_path() {
+        let root = temp_dir();
+        let mut state = initial_workflow_dashboard_state(None, None);
+
+        let output =
+            handle_workflow_dashboard_input(&root, &mut state, "panel 2").expect("panel usage");
+        match output {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert_eq!(
+                    text,
+                    "Usage: panel <workflow-name> [step-number] | panel --script-path <path> [step-number]"
+                );
+            }
+            other => panic!("expected dashboard panel usage output, got {other:?}"),
+        }
     }
 
     #[test]
