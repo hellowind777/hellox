@@ -13,6 +13,12 @@ use crate::style_panels::{
 };
 use hellox_memory::{list_archived_memories, list_memories};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum WorkflowOverviewFocusTarget {
+    Named(String),
+    Path(String),
+}
+
 #[derive(Debug, Clone)]
 pub(super) enum SelectorContext {
     ConfigPanelList {
@@ -53,13 +59,19 @@ pub(super) enum SelectorContext {
         items: Vec<crate::workflow_overview::WorkflowOverviewSelectionItem>,
     },
     WorkflowOverviewFocusItems {
-        workflow_name: String,
+        target: WorkflowOverviewFocusTarget,
         items: Vec<crate::workflow_overview::WorkflowOverviewFocusSelectionItem>,
     },
     WorkflowPanelList {
         workflow_names: Vec<String>,
     },
     WorkflowPanelItems {
+        workflow_name: String,
+        step_count: usize,
+        items: Vec<crate::workflow_panel::WorkflowPanelSelectionItem>,
+    },
+    WorkflowPanelPathItems {
+        script_path: String,
         workflow_name: String,
         step_count: usize,
         items: Vec<crate::workflow_panel::WorkflowPanelSelectionItem>,
@@ -109,8 +121,11 @@ impl CliReplDriver {
     }
 
     pub(super) fn set_selector_context(&self, context: SelectorContext) {
-        let keep_workflow_panel_focus =
-            matches!(context, SelectorContext::WorkflowPanelItems { .. });
+        let keep_workflow_panel_focus = matches!(
+            context,
+            SelectorContext::WorkflowPanelItems { .. }
+                | SelectorContext::WorkflowPanelPathItems { .. }
+        );
         let keep_workflow_run_focus = matches!(context, SelectorContext::WorkflowRunSteps { .. });
         if let Ok(mut guard) = self.selector_context.lock() {
             *guard = Some(context);

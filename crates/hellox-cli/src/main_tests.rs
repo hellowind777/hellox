@@ -589,6 +589,14 @@ fn parses_workflow_commands() {
         "workspace/app",
     ])
     .expect("parse workflow overview");
+    let overview_by_path = Cli::try_parse_from([
+        "hellox",
+        "workflow",
+        "overview",
+        "--script-path",
+        "scripts/custom-release.json",
+    ])
+    .expect("parse workflow overview by script path");
     let panel = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -712,12 +720,37 @@ fn parses_workflow_commands() {
 
     match overview.command {
         Some(Commands::Workflow {
-            command: WorkflowCommands::Overview { workflow_name, cwd },
+            command:
+                WorkflowCommands::Overview {
+                    workflow_name,
+                    script_path,
+                    cwd,
+                },
         }) => {
             assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(script_path, None);
             assert_eq!(cwd, Some(PathBuf::from("workspace/app")));
         }
         other => panic!("unexpected workflow overview command: {other:?}"),
+    }
+
+    match overview_by_path.command {
+        Some(Commands::Workflow {
+            command:
+                WorkflowCommands::Overview {
+                    workflow_name,
+                    script_path,
+                    cwd,
+                },
+        }) => {
+            assert_eq!(workflow_name, None);
+            assert_eq!(
+                script_path,
+                Some(PathBuf::from("scripts/custom-release.json"))
+            );
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected workflow overview-by-path command: {other:?}"),
     }
 
     match panel.command {

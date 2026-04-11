@@ -1,9 +1,13 @@
+use std::path::Path;
+
 use anyhow::Result;
 use hellox_agent::AgentSession;
 
 use super::*;
-use crate::workflow_panel::list_workflow_panel_selection_items;
-use crate::workflow_panel::render_workflow_panel_detail;
+use crate::workflow_panel::{
+    list_workflow_panel_selection_items, list_workflow_panel_selection_items_for_path,
+    render_workflow_panel_detail, render_workflow_panel_detail_with_target,
+};
 use crate::workflow_runs::{
     load_workflow_run, render_workflow_run_inspect_panel_with_step,
     select_workflow_run_step_number, WorkflowRunRecord,
@@ -13,9 +17,13 @@ use crate::workflow_step_navigation::{
     WorkflowStepNavigationShortcut,
 };
 use crate::workflow_step_shortcuts::{
-    execute_workflow_step_shortcut, parse_workflow_step_shortcut,
+    execute_workflow_step_shortcut, execute_workflow_step_shortcut_for_path,
+    parse_workflow_step_shortcut,
 };
-use crate::workflows::{load_named_workflow_detail, WorkflowScriptDetail};
+use crate::workflows::{
+    load_named_workflow_detail, load_workflow_detail_from_path, WorkflowRunTarget,
+    WorkflowScriptDetail,
+};
 
 impl CliReplDriver {
     pub(super) async fn handle_workflow_panel_shortcut(
@@ -27,13 +35,20 @@ impl CliReplDriver {
             return Ok(true);
         }
 
-        let Some(SelectorContext::WorkflowPanelItems {
-            workflow_name,
-            step_count,
-            ..
-        }) = self.selector_context()
-        else {
-            return Ok(false);
+        let context = self.selector_context();
+        let (workflow_name, step_count, explicit_script_path) = match context {
+            Some(SelectorContext::WorkflowPanelItems {
+                workflow_name,
+                step_count,
+                ..
+            }) => (workflow_name, step_count, None),
+            Some(SelectorContext::WorkflowPanelPathItems {
+                script_path,
+                workflow_name,
+                step_count,
+                ..
+            }) => (workflow_name, step_count, Some(script_path)),
+            _ => return Ok(false),
         };
 
         let Some(shortcut) = parse_workflow_step_shortcut(input) else {
@@ -54,11 +69,33 @@ impl CliReplDriver {
             .filter(|selected_step| *selected_step <= step_count)
             .unwrap_or(1);
         let root = session.working_directory();
-        let result = execute_workflow_step_shortcut(root, &workflow_name, selected_step, shortcut)?;
+        let result = match explicit_script_path.as_deref() {
+            Some(script_path) => execute_workflow_step_shortcut_for_path(
+                root,
+                Path::new(script_path),
+                selected_step,
+                shortcut,
+            )?,
+            None => execute_workflow_step_shortcut(root, &workflow_name, selected_step, shortcut)?,
+        };
         println!(
             "{}\n\n{}",
             result.message,
-            self.render_workflow_panel_after_change(root, &result.detail, result.selected_step)?
+            match explicit_script_path.as_deref() {
+                Some(script_path) => self.render_workflow_panel_after_change_for_path(
+                    root,
+                    Path::new(script_path),
+                    &result.detail,
+                    result.selected_step,
+                )?,
+                None => {
+                    self.render_workflow_panel_after_change(
+                        root,
+                        &result.detail,
+                        result.selected_step,
+                    )?
+                }
+            }
         );
 
         Ok(true)
@@ -116,6 +153,49 @@ impl CliReplDriver {
                     navigation_message(shortcut, "workflow step", step_count, result),
                     self.render_workflow_panel_after_change(
                         session.working_directory(),
+                        &detail,
+                        Some(result.step_number),
+                    )?
+                );
+                Ok(true)
+            }
+            Some(SelectorContext::WorkflowPanelPathItems {
+                script_path,
+                workflow_name,
+                step_count,
+                ..
+            }) => {
+                let detail = load_workflow_detail_from_path(
+                    session.working_directory(),
+                    Path::new(&script_path),
+                    None,
+                )?;
+                if step_count == 0 || detail.steps.is_empty() {
+                    println!("workflow `{}` has no steps to focus yet.", workflow_name);
+                    return Ok(true);
+                }
+
+                let step_count = detail.steps.len();
+                let selected_step = self
+                    .workflow_panel_focus()
+                    .filter(|focus| focus.workflow_name == detail.summary.name)
+                    .map(|focus| focus.selected_step)
+                    .filter(|selected_step| *selected_step <= step_count)
+                    .unwrap_or(1);
+                let result =
+                    match execute_workflow_step_navigation(selected_step, step_count, shortcut) {
+                        Ok(result) => result,
+                        Err(message) => {
+                            println!("{message}");
+                            return Ok(true);
+                        }
+                    };
+                println!(
+                    "{}\n\n{}",
+                    navigation_message(shortcut, "workflow step", step_count, result),
+                    self.render_workflow_panel_after_change_for_path(
+                        session.working_directory(),
+                        Path::new(&script_path),
                         &detail,
                         Some(result.step_number),
                     )?
@@ -185,6 +265,40 @@ impl CliReplDriver {
             self.clear_workflow_panel_focus();
         }
         render_workflow_panel_detail(root, detail, selected_step)
+    }
+
+    fn render_workflow_panel_after_change_for_path(
+        &self,
+        root: &std::path::Path,
+        script_path: &Path,
+        detail: &WorkflowScriptDetail,
+        selected_step: Option<usize>,
+    ) -> Result<String> {
+        if let Ok(items) = list_workflow_panel_selection_items_for_path(root, script_path) {
+            if !items.is_empty() {
+                self.set_selector_context(SelectorContext::WorkflowPanelPathItems {
+                    script_path: script_path.display().to_string().replace('\\', "/"),
+                    workflow_name: detail.summary.name.clone(),
+                    step_count: detail.steps.len(),
+                    items,
+                });
+            } else {
+                self.clear_selector_context();
+            }
+        } else if selected_step.is_none() {
+            self.clear_selector_context();
+        }
+        if let Some(selected_step) = selected_step {
+            self.set_workflow_panel_focus(detail.summary.name.clone(), selected_step);
+        } else if detail.steps.is_empty() {
+            self.clear_workflow_panel_focus();
+        }
+        render_workflow_panel_detail_with_target(
+            root,
+            detail,
+            &WorkflowRunTarget::Path(script_path.to_path_buf()),
+            selected_step,
+        )
     }
 
     fn render_workflow_run_after_navigation(

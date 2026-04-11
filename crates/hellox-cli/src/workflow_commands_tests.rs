@@ -106,6 +106,14 @@ fn parses_workflow_duplicate_and_move_commands() {
         "ship copy",
     ])
     .expect("parse workflow duplicate-step");
+    let overview_by_path = Cli::try_parse_from([
+        "hellox",
+        "workflow",
+        "overview",
+        "--script-path",
+        "scripts/custom-release.json",
+    ])
+    .expect("parse workflow overview by script path");
     let moved = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -151,6 +159,25 @@ fn parses_workflow_duplicate_and_move_commands() {
             assert_eq!(cwd, None);
         }
         other => panic!("unexpected workflow dashboard-by-path command: {other:?}"),
+    }
+
+    match overview_by_path.command {
+        Some(Commands::Workflow {
+            command:
+                WorkflowCommands::Overview {
+                    workflow_name,
+                    script_path,
+                    cwd,
+                },
+        }) => {
+            assert_eq!(workflow_name, None);
+            assert_eq!(
+                script_path,
+                Some(PathBuf::from("scripts/custom-release.json"))
+            );
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected workflow overview-by-path command: {other:?}"),
     }
 
     match duplicate.command {
@@ -374,4 +401,29 @@ async fn workflow_dashboard_command_supports_explicit_script_path() {
     assert!(text.contains("Workflow overview: scripts/custom-release"));
     assert!(text.contains("focus: `/workflow panel --script-path"));
     assert!(text.contains("scripts/custom-release.json"));
+}
+
+#[tokio::test]
+async fn workflow_overview_command_supports_explicit_script_path() {
+    let root = temp_dir();
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release notes" }
+  ]
+}"#,
+    );
+
+    let text = workflow_command_text(WorkflowCommands::Overview {
+        workflow_name: None,
+        script_path: Some(PathBuf::from("scripts/custom-release.json")),
+        cwd: Some(root),
+    })
+    .await
+    .expect("render workflow overview by script path");
+
+    assert!(text.contains("Workflow overview: scripts/custom-release"));
+    assert!(text.contains("/workflow panel --script-path"));
 }

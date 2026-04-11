@@ -23,8 +23,14 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
             }
         }
         Some(action) if action == "overview" || action == "selector" || action == "inspect" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
             WorkflowCommand::Overview {
-                workflow_name: parts.next().map(ToString::to_string),
+                workflow_name,
+                script_path,
             }
         }
         Some(action) if action == "panel" || action == "edit" || action == "board" => {

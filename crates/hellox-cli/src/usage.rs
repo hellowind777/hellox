@@ -53,7 +53,7 @@ pub fn print_usage() {
             "hellox tasks clear (--completed | --all) [--cwd <path>]",
             "hellox workflow list [--cwd <path>]",
             "hellox workflow dashboard [workflow-name] [--script-path <path>] [--cwd <path>]",
-            "hellox workflow overview [workflow-name] [--cwd <path>]",
+            "hellox workflow overview [workflow-name] [--script-path <path>] [--cwd <path>]",
             "hellox workflow runs [workflow-name] [--script-path <path>] [--limit <n>] [--cwd <path>]",
             "hellox workflow validate [workflow-name] [--script-path <path>] [--cwd <path>]",
             "hellox workflow show-run <run-id> [--step <n>] [--cwd <path>]",

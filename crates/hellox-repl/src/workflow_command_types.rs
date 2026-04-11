@@ -7,6 +7,7 @@ pub enum WorkflowCommand {
     },
     Overview {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Panel {
         workflow_name: Option<String>,

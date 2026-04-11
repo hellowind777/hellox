@@ -14,6 +14,7 @@ use super::commands::WorkflowCommand;
 use super::format::help_text_for_workdir;
 use super::workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_invocation};
 use super::{ReplAction, ReplMetadata};
+use crate::repl::selectors::WorkflowOverviewFocusTarget;
 use crate::workflow_overview::WorkflowOverviewSelectionItem;
 
 fn temp_dir() -> PathBuf {
@@ -129,6 +130,7 @@ fn help_text_lists_project_workflow_commands() {
     assert!(text.contains("/workflow dashboard [name]"));
     assert!(text.contains("/workflow dashboard --script-path <path>"));
     assert!(text.contains("/workflow overview [name]"));
+    assert!(text.contains("/workflow overview --script-path <path>"));
     assert!(text.contains("/workflow panel [name] [n]"));
     assert!(text.contains("/workflow panel --script-path <path> [n]"));
     assert!(text.contains("/workflow runs [name]"));
@@ -263,6 +265,18 @@ fn parse_workflow_authoring_commands() {
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::Overview {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow overview --script-path scripts/custom-release.json"
+        ),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Overview {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             }
         ))
     );
@@ -870,6 +884,15 @@ async fn handle_workflow_run_command_executes_local_script() {
   ]
 }"#,
     );
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review explicit release" }
+  ]
+}"#,
+    );
 
     let mut session = session_in(root.clone());
     let text = handle_workflow_command(
@@ -939,6 +962,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let overview = handle_workflow_command(
         WorkflowCommand::Overview {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
         },
         &mut session,
     )
@@ -947,6 +971,18 @@ async fn handle_workflow_run_command_executes_local_script() {
     assert!(overview.contains("Workflow overview: release-review"));
     assert!(overview.contains("== Latest run snapshot =="));
     assert!(overview.contains(&run_id));
+
+    let explicit_overview = handle_workflow_command(
+        WorkflowCommand::Overview {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
+        },
+        &mut session,
+    )
+    .await
+    .expect("show explicit workflow overview from repl");
+    assert!(explicit_overview.contains("Workflow overview: scripts/custom-release"));
+    assert!(explicit_overview.contains("/workflow panel --script-path"));
 
     let panel = handle_workflow_command(
         WorkflowCommand::Panel {
@@ -1608,11 +1644,11 @@ fn workflow_overview_focus_allows_numeric_step_selection() {
             );
 
             match driver.selector_context() {
-                Some(super::SelectorContext::WorkflowOverviewFocusItems {
-                    workflow_name,
-                    items,
-                }) => {
-                    assert_eq!(workflow_name, "release-review");
+                Some(super::SelectorContext::WorkflowOverviewFocusItems { target, items }) => {
+                    assert_eq!(
+                        target,
+                        WorkflowOverviewFocusTarget::Named(String::from("release-review"))
+                    );
                     assert_eq!(
                         items,
                         vec![
@@ -1698,11 +1734,11 @@ async fn workflow_overview_focus_allows_numeric_recent_run_selection() {
     );
 
     match driver.selector_context() {
-        Some(super::SelectorContext::WorkflowOverviewFocusItems {
-            workflow_name,
-            items,
-        }) => {
-            assert_eq!(workflow_name, "release-review");
+        Some(super::SelectorContext::WorkflowOverviewFocusItems { target, items }) => {
+            assert_eq!(
+                target,
+                WorkflowOverviewFocusTarget::Named(String::from("release-review"))
+            );
             assert_eq!(
                 items,
                 vec![
@@ -1732,6 +1768,116 @@ async fn workflow_overview_focus_allows_numeric_recent_run_selection() {
             assert_eq!(step_count, 1);
         }
         other => panic!("expected workflow run selector after overview recent run, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn workflow_overview_focus_supports_explicit_script_path_selection() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow repl done").await;
+    write_config(&root, &base_url);
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    let run_text = handle_workflow_command(
+        WorkflowCommand::Run {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
+            shared_context: Some(String::from("ship carefully")),
+        },
+        &mut session,
+    )
+    .await
+    .expect("run explicit workflow from repl");
+    let run_id = serde_json::from_str::<serde_json::Value>(&run_text)
+        .expect("parse explicit workflow run output")
+        .get("run_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("explicit workflow run id")
+        .to_string();
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async(
+                "/workflow overview --script-path scripts/custom-release.json",
+                &mut session,
+                &metadata
+            )
+            .await
+            .expect("open explicit workflow overview focus"),
+        ReplAction::Continue
+    );
+
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowOverviewFocusItems { target, items }) => {
+            assert_eq!(
+                target,
+                WorkflowOverviewFocusTarget::Path(
+                    root.join("scripts")
+                        .join("custom-release.json")
+                        .display()
+                        .to_string()
+                        .replace('\\', "/")
+                )
+            );
+            assert_eq!(
+                items,
+                vec![
+                    crate::workflow_overview::WorkflowOverviewFocusSelectionItem::Step(1),
+                    crate::workflow_overview::WorkflowOverviewFocusSelectionItem::Run(
+                        run_id.clone(),
+                    ),
+                ]
+            );
+        }
+        other => panic!("expected explicit workflow overview selection items, got {other:?}"),
+    }
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("1", &mut session, &metadata)
+            .await
+            .expect("focus explicit workflow step from overview"),
+        ReplAction::Continue
+    );
+
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowPanelPathItems {
+            script_path,
+            workflow_name,
+            step_count,
+            items,
+        }) => {
+            assert_eq!(
+                script_path,
+                root.join("scripts")
+                    .join("custom-release.json")
+                    .display()
+                    .to_string()
+                    .replace('\\', "/")
+            );
+            assert_eq!(workflow_name, "scripts/custom-release");
+            assert_eq!(step_count, 1);
+            assert_eq!(
+                items,
+                vec![
+                    crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                    crate::workflow_panel::WorkflowPanelSelectionItem::Run(run_id),
+                ]
+            );
+        }
+        other => panic!("expected explicit workflow panel selector, got {other:?}"),
     }
 }
 

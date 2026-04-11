@@ -10,7 +10,7 @@ use crate::workflow_command_support::{
 use crate::workflow_dashboard::{
     initial_workflow_dashboard_state, render_workflow_dashboard_state, run_workflow_dashboard_loop,
 };
-use crate::workflow_overview::render_workflow_overview;
+use crate::workflow_overview::{render_workflow_overview, render_workflow_overview_for_path};
 use crate::workflow_panel::{render_workflow_panel, render_workflow_panel_detail_with_target};
 use crate::workflow_runs::{
     execute_and_record_workflow, list_workflow_runs, load_latest_workflow_run, load_workflow_run,
@@ -77,9 +77,19 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
             let mut state = initial_workflow_dashboard_state(workflow_name, script_path);
             render_workflow_dashboard_state(&root, &mut state)
         }
-        WorkflowCommands::Overview { workflow_name, .. } => {
-            render_workflow_overview(&root, workflow_name.as_deref())
-        }
+        WorkflowCommands::Overview {
+            workflow_name,
+            script_path,
+            ..
+        } => match resolve_optional_lookup_target(workflow_name, script_path, "workflow overview")?
+        {
+            Some(WorkflowLookupTarget::Named(name)) => render_workflow_overview(&root, Some(&name)),
+            Some(WorkflowLookupTarget::Path(path)) => {
+                let resolved_path = resolve_script_path(&root, path);
+                render_workflow_overview_for_path(&root, &resolved_path)
+            }
+            None => render_workflow_overview(&root, None),
+        },
         WorkflowCommands::Panel {
             workflow_name,
             script_path,

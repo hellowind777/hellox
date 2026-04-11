@@ -42,6 +42,13 @@ mod tests {
             }))
         );
         assert_eq!(
+            parse_command("/workflow overview --script-path scripts/custom-release.json"),
+            Some(ReplCommand::Workflow(WorkflowCommand::Overview {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+            }))
+        );
+        assert_eq!(
             parse_command("/workflow runs --script-path scripts/custom-release.json"),
             Some(ReplCommand::Workflow(WorkflowCommand::Runs {
                 workflow_name: None,

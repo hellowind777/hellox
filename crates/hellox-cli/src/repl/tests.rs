@@ -312,6 +312,15 @@ fn parse_known_and_unknown_commands() {
         }))
     );
     assert_eq!(
+        super::commands::parse_command(
+            "/workflow overview --script-path scripts/custom-release.json"
+        ),
+        Some(ReplCommand::Workflow(WorkflowCommand::Overview {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
+        }))
+    );
+    assert_eq!(
         super::commands::parse_command("/workflow validate release-review"),
         Some(ReplCommand::Workflow(WorkflowCommand::Validate {
             workflow_name: Some(String::from("release-review")),
@@ -355,6 +364,7 @@ fn help_text_lists_core_commands() {
     assert!(text.contains("/upgrade"));
     assert!(text.contains("/workflow dashboard [name]"));
     assert!(text.contains("/workflow dashboard --script-path <path>"));
+    assert!(text.contains("/workflow overview --script-path <path>"));
     assert!(text.contains("/output-style panel [name]"));
     assert!(text.contains("/model list"));
     assert!(text.contains("/model panel [name]"));

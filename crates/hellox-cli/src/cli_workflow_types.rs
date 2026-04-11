@@ -20,6 +20,8 @@ pub(crate) enum WorkflowCommands {
     Overview {
         workflow_name: Option<String>,
         #[arg(long)]
+        script_path: Option<PathBuf>,
+        #[arg(long)]
         cwd: Option<PathBuf>,
     },
     #[command(alias = "edit", alias = "board")]

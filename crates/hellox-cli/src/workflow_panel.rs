@@ -11,8 +11,9 @@ mod focus;
 use crate::workflow_runs::WorkflowRunRecord;
 use crate::workflow_runs::{list_workflow_runs, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT};
 use crate::workflows::{
-    list_workflows, load_named_workflow_detail, render_workflow_list, WorkflowRunTarget,
-    WorkflowScriptDetail, WorkflowScriptSummary, WorkflowStepSummary,
+    list_workflows, load_named_workflow_detail, load_workflow_detail_from_path,
+    render_workflow_list, WorkflowRunTarget, WorkflowScriptDetail, WorkflowScriptSummary,
+    WorkflowStepSummary,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +66,23 @@ pub(crate) fn list_workflow_panel_selection_items(
         .map(WorkflowPanelSelectionItem::Step)
         .collect::<Vec<_>>();
     let run_target = WorkflowRunTarget::Named(detail.summary.name.clone());
+    let runs = list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
+    items.extend(
+        runs.into_iter()
+            .map(|record| WorkflowPanelSelectionItem::Run(record.run_id)),
+    );
+    Ok(items)
+}
+
+pub(crate) fn list_workflow_panel_selection_items_for_path(
+    root: &Path,
+    script_path: &Path,
+) -> Result<Vec<WorkflowPanelSelectionItem>> {
+    let detail = load_workflow_detail_from_path(root, script_path, None)?;
+    let mut items = (1..=detail.steps.len())
+        .map(WorkflowPanelSelectionItem::Step)
+        .collect::<Vec<_>>();
+    let run_target = WorkflowRunTarget::Path(script_path.to_path_buf());
     let runs = list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
     items.extend(
         runs.into_iter()
