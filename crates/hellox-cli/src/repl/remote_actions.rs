@@ -1,9 +1,6 @@
 use anyhow::Result;
 use hellox_auth::load_auth_store;
-use hellox_bridge::{
-    format_bridge_session_detail, format_bridge_session_list, list_bridge_sessions,
-    load_bridge_session, BridgeRuntimePaths,
-};
+use hellox_bridge::{list_bridge_sessions, load_bridge_session, BridgeRuntimePaths};
 use hellox_config::{load_or_default, save_config};
 use hellox_remote::{
     add_remote_environment, build_remote_environment, build_teleport_plan,
@@ -11,11 +8,12 @@ use hellox_remote::{
     format_teleport_plan, list_remote_environments, list_remote_sessions, load_remote_session,
     remove_remote_environment, set_remote_environment_enabled, TeleportOverrides,
 };
-use hellox_server::{
-    format_direct_connect_config, format_server_session_detail, format_server_session_list,
-    DirectConnectRequest,
-};
+use hellox_server::{format_direct_connect_config, DirectConnectRequest};
 
+use crate::assistant_panel::{
+    render_local_assistant_detail_panel, render_local_assistant_list_panel,
+    render_remote_assistant_detail_panel, render_remote_assistant_list_panel,
+};
 use crate::sessions::load_session;
 
 use super::commands::{AssistantCommand, RemoteEnvCommand, TeleportCommand};
@@ -198,17 +196,19 @@ pub(super) fn handle_assistant_command(
         AssistantCommand::Help => Ok(assistant_help_text()),
         AssistantCommand::List {
             environment_name: None,
-        } => Ok(format_bridge_session_list(&list_bridge_sessions(&paths)?)),
+        } => Ok(render_local_assistant_list_panel(
+            &paths.sessions_root,
+            &list_bridge_sessions(&paths)?,
+        )),
         AssistantCommand::List {
             environment_name: Some(environment_name),
         } => {
             let config = load_or_default(Some(metadata.config_path.clone()))?;
             let auth_store = load_auth_store(None, None)?;
-            Ok(format_server_session_list(&list_remote_sessions(
-                &config,
-                &auth_store,
+            Ok(render_remote_assistant_list_panel(
                 &environment_name,
-            )?))
+                &list_remote_sessions(&config, &auth_store, &environment_name)?,
+            ))
         }
         AssistantCommand::Show {
             session_id: None, ..
@@ -216,22 +216,20 @@ pub(super) fn handle_assistant_command(
         AssistantCommand::Show {
             session_id: Some(session_id),
             environment_name: None,
-        } => Ok(format_bridge_session_detail(&load_bridge_session(
-            &paths,
-            &session_id,
-        )?)),
+        } => Ok(render_local_assistant_detail_panel(
+            &paths.sessions_root,
+            &load_bridge_session(&paths, &session_id)?,
+        )),
         AssistantCommand::Show {
             session_id: Some(session_id),
             environment_name: Some(environment_name),
         } => {
             let config = load_or_default(Some(metadata.config_path.clone()))?;
             let auth_store = load_auth_store(None, None)?;
-            Ok(format_server_session_detail(&load_remote_session(
-                &config,
-                &auth_store,
+            Ok(render_remote_assistant_detail_panel(
                 &environment_name,
-                &session_id,
-            )?))
+                &load_remote_session(&config, &auth_store, &environment_name, &session_id)?,
+            ))
         }
     }
 }
@@ -261,9 +259,9 @@ fn teleport_help_text() -> String {
 fn assistant_help_text() -> String {
     [
         "Usage (optional remote capability):",
-        "  /assistant",
-        "  /assistant list [environment-name]",
-        "  /assistant show <session-id> [environment-name]",
+        "  /assistant                     Open the local assistant viewer panel",
+        "  /assistant list [environment-name] Show the local/remote assistant session viewer",
+        "  /assistant show <session-id> [environment-name] Inspect one assistant-viewable session",
     ]
     .join("\n")
 }

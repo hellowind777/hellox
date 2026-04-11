@@ -1,3 +1,4 @@
+mod assistant_panel;
 mod auth_commands;
 mod auto_compact;
 mod auto_memory;

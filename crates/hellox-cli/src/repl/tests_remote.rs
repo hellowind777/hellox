@@ -8,6 +8,7 @@ use hellox_config::{load_or_default, HelloxConfig, PermissionMode};
 
 use super::commands::{AssistantCommand, RemoteEnvCommand, ReplCommand, TeleportCommand};
 use super::format::help_text;
+use super::remote_actions::handle_assistant_command;
 use super::{handle_repl_input, ReplAction, ReplMetadata};
 
 fn temp_dir() -> PathBuf {
@@ -146,4 +147,34 @@ fn handle_remote_commands_stay_in_repl() {
             .expect("assistant show"),
         ReplAction::Continue
     );
+}
+
+#[test]
+fn assistant_command_renders_local_viewer_panels() {
+    let root = temp_dir();
+    let metadata = metadata(&root);
+    write_session(&metadata.sessions_root, "remote-session");
+
+    let list = handle_assistant_command(
+        AssistantCommand::List {
+            environment_name: None,
+        },
+        &metadata,
+    )
+    .expect("assistant list");
+    assert!(list.contains("Assistant viewer panel"));
+    assert!(list.contains("remote-session"));
+    assert!(list.contains("hellox assistant show remote-session"));
+
+    let detail = handle_assistant_command(
+        AssistantCommand::Show {
+            session_id: Some(String::from("remote-session")),
+            environment_name: None,
+        },
+        &metadata,
+    )
+    .expect("assistant detail");
+    assert!(detail.contains("Assistant viewer: remote-session"));
+    assert!(detail.contains("Transcript preview"));
+    assert!(detail.contains("system_prompt_preview: system"));
 }

@@ -133,7 +133,7 @@ pub fn print_usage() {
             "hellox remote-env add <name> --url <url> [--token-env <env>]",
             "hellox remote-env enable|disable|remove <name>",
             "hellox teleport plan <environment-name> [--session-id <id>]",
-            "hellox assistant list|show <session-id>",
+            "hellox assistant list [--environment <name>] | show <session-id> [--environment <name>]",
         ],
     );
 }

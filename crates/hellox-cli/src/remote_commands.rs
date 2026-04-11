@@ -1,9 +1,6 @@
 use anyhow::Result;
 use hellox_auth::LocalAuthStoreBackend;
-use hellox_bridge::{
-    format_bridge_session_detail, format_bridge_session_list, list_bridge_sessions,
-    load_bridge_session, BridgeRuntimePaths,
-};
+use hellox_bridge::{list_bridge_sessions, load_bridge_session, BridgeRuntimePaths};
 use hellox_config::{
     default_config_path, load_or_default, plugins_root, save_config, sessions_root,
 };
@@ -14,11 +11,12 @@ use hellox_remote::{
     set_remote_environment_enabled, HttpRemoteSessionTransport, RemoteSessionTransport,
     TeleportOverrides,
 };
-use hellox_server::{
-    format_direct_connect_config, format_server_session_detail, format_server_session_list,
-    DirectConnectRequest,
-};
+use hellox_server::{format_direct_connect_config, DirectConnectRequest};
 
+use crate::assistant_panel::{
+    render_local_assistant_detail_panel, render_local_assistant_list_panel,
+    render_remote_assistant_detail_panel, render_remote_assistant_list_panel,
+};
 use crate::cli_types::{AssistantCommands, RemoteEnvCommands, TeleportCommands};
 use crate::sessions::load_session;
 
@@ -148,12 +146,18 @@ pub fn handle_assistant_command(command: AssistantCommands) -> Result<()> {
                 let transport = build_remote_transport(&config, &environment_name)?;
                 println!(
                     "{}",
-                    format_server_session_list(&transport.list_sessions()?)
+                    render_remote_assistant_list_panel(
+                        &environment_name,
+                        &transport.list_sessions()?
+                    )
                 );
             } else {
                 println!(
                     "{}",
-                    format_bridge_session_list(&list_bridge_sessions(&paths)?)
+                    render_local_assistant_list_panel(
+                        &paths.sessions_root,
+                        &list_bridge_sessions(&paths)?,
+                    )
                 );
             }
         }
@@ -165,12 +169,18 @@ pub fn handle_assistant_command(command: AssistantCommands) -> Result<()> {
                 let transport = build_remote_transport(&config, &environment_name)?;
                 println!(
                     "{}",
-                    format_server_session_detail(&transport.load_session_detail(&session_id)?)
+                    render_remote_assistant_detail_panel(
+                        &environment_name,
+                        &transport.load_session_detail(&session_id)?,
+                    )
                 );
             } else {
                 println!(
                     "{}",
-                    format_bridge_session_detail(&load_bridge_session(&paths, &session_id)?)
+                    render_local_assistant_detail_panel(
+                        &paths.sessions_root,
+                        &load_bridge_session(&paths, &session_id)?,
+                    )
                 );
             }
         }
