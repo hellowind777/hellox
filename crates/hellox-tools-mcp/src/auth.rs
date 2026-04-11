@@ -57,7 +57,7 @@ pub fn set_bearer_token(
 ) -> Result<()> {
     if !supports_bearer_token(server) {
         return Err(anyhow!(
-            "MCP bearer-token helper only supports streamable HTTP or WebSocket servers configured with `transport = \"sse\"` or `transport = \"ws\"`."
+            "MCP bearer-token helper only supports HTTP/SSE or WebSocket servers configured with `transport = \"sse\"` or `transport = \"ws\"`."
         ));
     }
 
@@ -177,7 +177,7 @@ pub fn format_auth_status(
         );
     } else {
         lines.push(
-            "note: streamable HTTP transports prefer config headers, then linked OAuth access tokens, then the stored bearer token helper."
+            "note: HTTP/SSE transports prefer config headers, then linked OAuth access tokens, then the stored bearer token helper."
                 .to_string(),
         );
     }
@@ -327,7 +327,7 @@ mod tests {
             .expect_err("stdio transport must reject bearer token helper");
         assert!(error
             .to_string()
-            .contains("only supports streamable HTTP or WebSocket servers"));
+            .contains("only supports HTTP/SSE or WebSocket servers"));
     }
 
     #[test]

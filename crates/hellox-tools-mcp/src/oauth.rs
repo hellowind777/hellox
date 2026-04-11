@@ -157,7 +157,7 @@ pub fn resolve_oauth_client_config(
         .ok_or_else(|| anyhow!("MCP server `{server_name}` does not have OAuth configured"))?;
     if matches!(server.transport, McpTransportConfig::Stdio { .. }) {
         return Err(anyhow!(
-            "MCP OAuth is only supported for streamable HTTP or WebSocket servers."
+            "MCP OAuth is only supported for HTTP/SSE or WebSocket servers."
         ));
     }
 
@@ -199,7 +199,7 @@ fn resource_for_server(server: &McpServerConfig) -> Result<String> {
             canonical_resource(url)
         }
         McpTransportConfig::Stdio { .. } => Err(anyhow!(
-            "MCP OAuth resource URIs are only available for streamable HTTP or WebSocket servers."
+            "MCP OAuth resource URIs are only available for HTTP/SSE or WebSocket servers."
         )),
     }
 }

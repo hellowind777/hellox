@@ -183,7 +183,7 @@ pub fn set_server_oauth(
         .ok_or_else(|| anyhow!("MCP server `{server_name}` was not found"))?;
     if matches!(server.transport, McpTransportConfig::Stdio { .. }) {
         return Err(anyhow!(
-            "MCP OAuth is only supported for streamable HTTP or WebSocket servers."
+            "MCP OAuth is only supported for HTTP/SSE or WebSocket servers."
         ));
     }
 
