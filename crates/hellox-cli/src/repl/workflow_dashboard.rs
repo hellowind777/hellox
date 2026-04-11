@@ -10,7 +10,6 @@ use crate::workflow_dashboard::{
     WorkflowDashboardHandleOutcome,
 };
 use crate::workflow_runs::execute_and_record_workflow;
-use crate::workflows::WorkflowRunTarget;
 
 impl CliReplDriver {
     pub(super) fn workflow_dashboard_state(&self) -> Option<WorkflowDashboardState> {
@@ -34,8 +33,9 @@ impl CliReplDriver {
         &self,
         session: &AgentSession,
         workflow_name: Option<String>,
+        script_path: Option<String>,
     ) -> Result<String> {
-        let mut state = initial_workflow_dashboard_state(workflow_name);
+        let mut state = initial_workflow_dashboard_state(workflow_name, script_path);
         let text = render_workflow_dashboard_state(session.working_directory(), &mut state)?;
         self.clear_selector_context();
         self.set_workflow_dashboard_state(Some(state));
@@ -59,23 +59,20 @@ impl CliReplDriver {
                 Ok(true)
             }
             WorkflowDashboardHandleOutcome::RunActiveWorkflow {
-                workflow_name,
+                target,
+                target_label,
                 shared_context,
             } => {
-                match execute_and_record_workflow(
-                    session,
-                    WorkflowRunTarget::Named(workflow_name.clone()),
-                    shared_context,
-                    None,
-                )
-                .await
+                match execute_and_record_workflow(session, target.clone(), shared_context, None)
+                    .await
                 {
                     Ok(result_text) => println!(
                         "{}",
                         complete_workflow_dashboard_run(
                             session.working_directory(),
                             &mut state,
-                            &workflow_name,
+                            &target,
+                            &target_label,
                             &result_text
                         )?
                     ),

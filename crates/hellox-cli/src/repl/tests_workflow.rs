@@ -127,6 +127,7 @@ fn help_text_lists_project_workflow_commands() {
 
     let text = help_text_for_workdir(&root);
     assert!(text.contains("/workflow dashboard [name]"));
+    assert!(text.contains("/workflow dashboard --script-path <path>"));
     assert!(text.contains("/workflow overview [name]"));
     assert!(text.contains("/workflow panel [name] [n]"));
     assert!(text.contains("/workflow panel --script-path <path> [n]"));
@@ -220,6 +221,18 @@ fn parse_workflow_authoring_commands() {
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::Dashboard {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow dashboard --script-path scripts/custom-release.json"
+        ),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Dashboard {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             }
         ))
     );
@@ -704,6 +717,147 @@ async fn workflow_dashboard_mode_runs_active_workflow() {
         }
         other => panic!("expected workflow run inspect view, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn workflow_dashboard_mode_supports_explicit_script_path() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow dashboard explicit path done").await;
+    write_config(&root, &base_url);
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+    );
+
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async(
+                "/workflow dashboard --script-path scripts/custom-release.json",
+                &mut session,
+                &metadata
+            )
+            .await
+            .expect("open explicit workflow dashboard"),
+        ReplAction::Continue
+    );
+
+    match driver
+        .workflow_dashboard_state()
+        .expect("workflow dashboard state")
+        .current()
+    {
+        hellox_tui::WorkflowDashboardView::PanelPathFocus {
+            script_path,
+            step_number,
+        } => {
+            assert!(script_path.ends_with("scripts/custom-release.json"));
+            assert_eq!(*step_number, None);
+        }
+        other => panic!("expected explicit workflow panel focus, got {other:?}"),
+    }
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("panel 2", &mut session, &metadata)
+            .await
+            .expect("focus explicit workflow panel step"),
+        ReplAction::Continue
+    );
+    match driver
+        .workflow_dashboard_state()
+        .expect("workflow dashboard state")
+        .current()
+    {
+        hellox_tui::WorkflowDashboardView::PanelPathFocus {
+            script_path,
+            step_number,
+        } => {
+            assert!(script_path.ends_with("scripts/custom-release.json"));
+            assert_eq!(*step_number, Some(2));
+        }
+        other => panic!("expected explicit workflow step focus, got {other:?}"),
+    }
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("name ship release", &mut session, &metadata)
+            .await
+            .expect("rename explicit workflow step"),
+        ReplAction::Continue
+    );
+
+    let raw =
+        fs::read_to_string(root.join("scripts").join("custom-release.json")).expect("read script");
+    let value = serde_json::from_str::<serde_json::Value>(&raw).expect("parse workflow json");
+    let steps = value
+        .get("steps")
+        .and_then(serde_json::Value::as_array)
+        .expect("workflow steps");
+    assert_eq!(
+        steps[1].get("name").and_then(serde_json::Value::as_str),
+        Some("ship release")
+    );
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("run ship carefully", &mut session, &metadata)
+            .await
+            .expect("run explicit workflow from dashboard"),
+        ReplAction::Continue
+    );
+
+    let run_id = fs::read_dir(root.join(".hellox").join("workflow-runs"))
+        .expect("read workflow runs dir")
+        .map(|entry| {
+            entry
+                .expect("workflow run entry")
+                .path()
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .expect("workflow run id")
+                .to_string()
+        })
+        .next()
+        .expect("explicit workflow run id");
+
+    match driver
+        .workflow_dashboard_state()
+        .expect("workflow dashboard state")
+        .current()
+    {
+        hellox_tui::WorkflowDashboardView::RunInspect {
+            run_id: selected_run_id,
+            step_number,
+        } => {
+            assert_eq!(selected_run_id, &run_id);
+            assert_eq!(*step_number, None);
+        }
+        other => panic!("expected explicit workflow run inspect, got {other:?}"),
+    }
+
+    let record = fs::read_to_string(
+        root.join(".hellox")
+            .join("workflow-runs")
+            .join(format!("{run_id}.json")),
+    )
+    .expect("read explicit workflow run");
+    let record =
+        serde_json::from_str::<serde_json::Value>(&record).expect("parse explicit workflow run");
+    let requested_script_path = record
+        .get("requested_script_path")
+        .and_then(serde_json::Value::as_str)
+        .expect("requested script path");
+    assert!(requested_script_path.ends_with("scripts/custom-release.json"));
 }
 
 #[tokio::test]

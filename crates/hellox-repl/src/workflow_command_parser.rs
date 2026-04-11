@@ -11,9 +11,17 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => WorkflowCommand::List,
         Some(action) if action == "list" => WorkflowCommand::List,
-        Some(action) if action == "dashboard" || action == "tui" => WorkflowCommand::Dashboard {
-            workflow_name: parts.next().map(ToString::to_string),
-        },
+        Some(action) if action == "dashboard" || action == "tui" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
+            WorkflowCommand::Dashboard {
+                workflow_name,
+                script_path,
+            }
+        }
         Some(action) if action == "overview" || action == "selector" || action == "inspect" => {
             WorkflowCommand::Overview {
                 workflow_name: parts.next().map(ToString::to_string),

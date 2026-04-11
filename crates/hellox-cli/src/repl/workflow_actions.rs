@@ -17,7 +17,7 @@ use crate::workflow_dashboard::{
     initial_workflow_dashboard_state, render_workflow_dashboard_state,
 };
 use crate::workflow_overview::render_workflow_overview;
-use crate::workflow_panel::{render_workflow_panel, render_workflow_panel_detail};
+use crate::workflow_panel::{render_workflow_panel, render_workflow_panel_detail_with_target};
 use crate::workflow_runs::{
     execute_and_record_workflow, list_workflow_runs, load_latest_workflow_run, load_workflow_run,
     render_workflow_run_inspect_panel_with_step, render_workflow_run_list,
@@ -26,7 +26,7 @@ use crate::workflows::{
     initialize_workflow, list_workflows, load_named_workflow_detail,
     load_workflow_detail_from_path, render_workflow_detail, render_workflow_list,
     render_workflow_validation, resolve_named_workflow, validate_explicit_workflow_path,
-    validate_named_workflow, validate_workflows,
+    validate_named_workflow, validate_workflows, WorkflowRunTarget,
 };
 
 use super::commands::WorkflowCommand;
@@ -44,8 +44,20 @@ pub(super) async fn handle_workflow_command(
                 &workflows,
             ))
         }
-        WorkflowCommand::Dashboard { workflow_name } => {
-            let mut state = initial_workflow_dashboard_state(workflow_name);
+        WorkflowCommand::Dashboard {
+            workflow_name,
+            script_path,
+        } => {
+            let (workflow_name, script_path) = match resolve_optional_lookup_target(
+                workflow_name,
+                script_path.map(PathBuf::from),
+                "workflow dashboard",
+            )? {
+                Some(WorkflowLookupTarget::Named(workflow_name)) => (Some(workflow_name), None),
+                Some(WorkflowLookupTarget::Path(path)) => (None, Some(path.display().to_string().replace('\\', "/"))),
+                None => (None, None),
+            };
+            let mut state = initial_workflow_dashboard_state(workflow_name, script_path);
             render_workflow_dashboard_state(session.working_directory(), &mut state)
         }
         WorkflowCommand::Overview { workflow_name } => {
@@ -66,12 +78,18 @@ pub(super) async fn handle_workflow_command(
                 step_number,
             ),
             Some(WorkflowLookupTarget::Path(path)) => {
+                let resolved_path = resolve_script_path(session.working_directory(), path);
                 let detail = load_workflow_detail_from_path(
                     session.working_directory(),
-                    &resolve_script_path(session.working_directory(), path),
+                    &resolved_path,
                     None,
                 )?;
-                render_workflow_panel_detail(session.working_directory(), &detail, step_number)
+                render_workflow_panel_detail_with_target(
+                    session.working_directory(),
+                    &detail,
+                    &WorkflowRunTarget::Path(resolved_path),
+                    step_number,
+                )
             }
             None => render_workflow_panel(session.working_directory(), None, step_number),
         },

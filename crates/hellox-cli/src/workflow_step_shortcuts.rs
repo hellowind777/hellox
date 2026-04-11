@@ -105,7 +105,15 @@ pub(crate) fn execute_workflow_step_shortcut(
     shortcut: WorkflowStepShortcut,
 ) -> Result<WorkflowStepShortcutResult> {
     let path = resolve_existing_workflow_path(root, workflow_name)?;
+    execute_workflow_step_shortcut_for_path(root, &path, selected_step, shortcut)
+}
 
+pub(crate) fn execute_workflow_step_shortcut_for_path(
+    root: &Path,
+    path: &Path,
+    selected_step: usize,
+    shortcut: WorkflowStepShortcut,
+) -> Result<WorkflowStepShortcutResult> {
     Ok(match shortcut {
         WorkflowStepShortcut::Duplicate { to_step_number } => {
             let result = duplicate_workflow_step(root, &path, selected_step, to_step_number, None)?;

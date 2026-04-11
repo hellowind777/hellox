@@ -9,8 +9,15 @@ pub enum WorkflowDashboardView {
         workflow_name: String,
         step_number: Option<usize>,
     },
+    PanelPathFocus {
+        script_path: String,
+        step_number: Option<usize>,
+    },
     Runs {
         workflow_name: Option<String>,
+    },
+    RunsPath {
+        script_path: String,
     },
     RunInspect {
         run_id: String,
@@ -25,6 +32,10 @@ pub enum WorkflowDashboardOpenTarget {
     PanelWorkflow(String),
     PanelStep {
         workflow_name: String,
+        step_number: usize,
+    },
+    PanelPathStep {
+        script_path: String,
         step_number: usize,
     },
     Run(String),
@@ -55,6 +66,13 @@ impl WorkflowDashboardOpenTarget {
                 workflow_name,
                 step_number: Some(step_number),
             },
+            Self::PanelPathStep {
+                script_path,
+                step_number,
+            } => WorkflowDashboardView::PanelPathFocus {
+                script_path,
+                step_number: Some(step_number),
+            },
             Self::RunStep {
                 run_id,
                 step_number,
@@ -73,19 +91,23 @@ pub enum WorkflowDashboardCommand {
     },
     Show {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Run {
         shared_context: Option<String>,
     },
     Panel {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
     },
     Runs {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Validate {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Init {
         workflow_name: Option<String>,
@@ -121,6 +143,7 @@ pub enum WorkflowDashboardCommand {
     },
     LastRun {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
     },
     SetSharedContext {
@@ -267,19 +290,31 @@ pub fn parse_workflow_dashboard_command(input: &str) -> Option<WorkflowDashboard
         "overview" | "ov" => WorkflowDashboardCommand::Overview {
             workflow_name: joined_value(tail),
         },
-        "show" => WorkflowDashboardCommand::Show {
-            workflow_name: joined_value(tail),
-        },
+        "show" => {
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&tail);
+            WorkflowDashboardCommand::Show {
+                workflow_name,
+                script_path,
+            }
+        }
         "run" => WorkflowDashboardCommand::Run {
             shared_context: joined_value(tail),
         },
         "panel" | "edit" | "board" => parse_panel_command(tail),
-        "runs" | "history" => WorkflowDashboardCommand::Runs {
-            workflow_name: joined_value(tail),
-        },
-        "validate" => WorkflowDashboardCommand::Validate {
-            workflow_name: joined_value(tail),
-        },
+        "runs" | "history" => {
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&tail);
+            WorkflowDashboardCommand::Runs {
+                workflow_name,
+                script_path,
+            }
+        }
+        "validate" => {
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&tail);
+            WorkflowDashboardCommand::Validate {
+                workflow_name,
+                script_path,
+            }
+        }
         "init" => WorkflowDashboardCommand::Init {
             workflow_name: joined_value(tail),
         },
@@ -334,15 +369,20 @@ pub fn workflow_dashboard_help_text() -> String {
         "Workflow dashboard commands:",
         "  overview [name]      Show the global workflow overview or focus one workflow",
         "  show [name]          Show the raw workflow definition for the current or named workflow",
+        "  show --script-path <path> Show one explicit workflow script",
         "  run [shared_context] Run the active workflow and open the recorded run",
         "  panel [name] [n]     Open the authoring panel or focus one workflow step",
+        "  panel --script-path <path> [n] Open an explicit workflow script panel",
         "  runs [name]          Show recorded run history",
+        "  runs --script-path <path> Show recorded run history for one explicit script",
         "  validate [name]      Validate the current or named workflow, or all workflows",
+        "  validate --script-path <path> Validate one explicit workflow script",
         "  init <name>          Scaffold a new workflow and jump into it",
         "  add-step --prompt <text> [--name <step-name>] [--index <n>] [--when <json>] [--model <name>] [--backend <name>] [--step-cwd <path>] [--background]",
         "  update-step [n] [--name <step-name>|--clear-name] [--prompt <text>] [--when <json>|--clear-when] [--model <name>|--clear-model] [--backend <name>|--clear-backend] [--step-cwd <path>|--clear-step-cwd] [--background|--foreground]",
         "  show-run <id> [n]    Inspect a recorded run and optionally focus one step",
         "  last-run [name] [n]  Jump to the latest recorded run and optionally focus one step",
+        "  last-run --script-path <path> [n] Jump to the latest explicit-script run",
         "  set-shared-context <text> Set shared context for the active workflow",
         "  clear-shared-context Clear shared context for the active workflow",
         "  enable-continue-on-error  Enable continue_on_error for the active workflow",
@@ -375,24 +415,41 @@ pub fn workflow_dashboard_help_text() -> String {
 }
 
 fn parse_panel_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
+    let (workflow_name, script_path, consumed) = parse_workflow_lookup(&parts);
+    if script_path.is_some() {
+        let step_number = parts
+            .get(consumed)
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|step| *step > 0);
+        return WorkflowDashboardCommand::Panel {
+            workflow_name,
+            script_path,
+            step_number,
+        };
+    }
+
     match parts.as_slice() {
         [] => WorkflowDashboardCommand::Panel {
             workflow_name: None,
+            script_path: None,
             step_number: None,
         },
         [step] => match step.parse::<usize>() {
             Ok(step_number) if step_number > 0 => WorkflowDashboardCommand::Panel {
                 workflow_name: None,
+                script_path: None,
                 step_number: Some(step_number),
             },
             _ => WorkflowDashboardCommand::Panel {
                 workflow_name: Some((*step).to_string()),
+                script_path: None,
                 step_number: None,
             },
         },
         [workflow_name, step] => match step.parse::<usize>() {
             Ok(step_number) if step_number > 0 => WorkflowDashboardCommand::Panel {
                 workflow_name: Some((*workflow_name).to_string()),
+                script_path: None,
                 step_number: Some(step_number),
             },
             _ => WorkflowDashboardCommand::Error(
@@ -429,24 +486,41 @@ fn parse_show_run_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
 }
 
 fn parse_last_run_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
+    let (workflow_name, script_path, consumed) = parse_workflow_lookup(&parts);
+    if script_path.is_some() {
+        let step_number = parts
+            .get(consumed)
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|step| *step > 0);
+        return WorkflowDashboardCommand::LastRun {
+            workflow_name,
+            script_path,
+            step_number,
+        };
+    }
+
     match parts.as_slice() {
         [] => WorkflowDashboardCommand::LastRun {
             workflow_name: None,
+            script_path: None,
             step_number: None,
         },
         [value] => match value.parse::<usize>().ok().filter(|step| *step > 0) {
             Some(step_number) => WorkflowDashboardCommand::LastRun {
                 workflow_name: None,
+                script_path: None,
                 step_number: Some(step_number),
             },
             None => WorkflowDashboardCommand::LastRun {
                 workflow_name: Some((*value).to_string()),
+                script_path: None,
                 step_number: None,
             },
         },
         [workflow_name, step] => match step.parse::<usize>().ok().filter(|step| *step > 0) {
             Some(step_number) => WorkflowDashboardCommand::LastRun {
                 workflow_name: Some((*workflow_name).to_string()),
+                script_path: None,
                 step_number: Some(step_number),
             },
             None => WorkflowDashboardCommand::Error(
@@ -456,6 +530,14 @@ fn parse_last_run_command(parts: Vec<&str>) -> WorkflowDashboardCommand {
         _ => WorkflowDashboardCommand::Error(
             "Usage: last-run [workflow-name] [step-number]".to_string(),
         ),
+    }
+}
+
+fn parse_workflow_lookup(values: &[&str]) -> (Option<String>, Option<String>, usize) {
+    match values {
+        ["--script-path", path, ..] => (None, Some((*path).to_string()), 2),
+        [workflow_name, ..] => (Some((*workflow_name).to_string()), None, 1),
+        [] => (None, None, 0),
     }
 }
 
@@ -1027,6 +1109,14 @@ mod tests {
             parse_workflow_dashboard_command("show release-review"),
             Some(WorkflowDashboardCommand::Show {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("show --script-path scripts/custom-release.json"),
+            Some(WorkflowDashboardCommand::Show {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             })
         );
         assert_eq!(
@@ -1039,13 +1129,37 @@ mod tests {
             parse_workflow_dashboard_command("panel release-review 2"),
             Some(WorkflowDashboardCommand::Panel {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
                 step_number: Some(2),
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("panel --script-path scripts/custom-release.json 2"),
+            Some(WorkflowDashboardCommand::Panel {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+                step_number: Some(2),
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("runs --script-path scripts/custom-release.json"),
+            Some(WorkflowDashboardCommand::Runs {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             })
         );
         assert_eq!(
             parse_workflow_dashboard_command("validate"),
             Some(WorkflowDashboardCommand::Validate {
                 workflow_name: None,
+                script_path: None,
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("validate --script-path scripts/custom-release.json"),
+            Some(WorkflowDashboardCommand::Validate {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             })
         );
         assert_eq!(
@@ -1065,6 +1179,17 @@ mod tests {
             parse_workflow_dashboard_command("last-run release-review 2"),
             Some(WorkflowDashboardCommand::LastRun {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+                step_number: Some(2),
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command(
+                "last-run --script-path scripts/custom-release.json 2"
+            ),
+            Some(WorkflowDashboardCommand::LastRun {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
                 step_number: Some(2),
             })
         );

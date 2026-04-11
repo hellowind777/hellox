@@ -82,6 +82,7 @@ fn render_help_text(workflow_names: Option<&[String]>) -> String {
         "  /hooks [name]        List hooks or show a hook definition",
         "  /workflow            List project workflow scripts",
         "  /workflow dashboard [name] Open the interactive workflow dashboard shell",
+        "  /workflow dashboard --script-path <path> Open one explicit workflow dashboard shell",
         "  /workflow overview [name] Show a selector-style workflow overview",
         "  /workflow panel [name] [n] Show an authoring panel with copyable edit actions",
         "  /workflow panel --script-path <path> [n] Open an explicit workflow script",

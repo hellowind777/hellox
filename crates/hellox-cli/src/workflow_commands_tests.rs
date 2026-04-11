@@ -85,6 +85,14 @@ async fn spawn_mock_gateway(response_text: &str) -> String {
 fn parses_workflow_duplicate_and_move_commands() {
     let dashboard = Cli::try_parse_from(["hellox", "workflow", "dashboard", "release-review"])
         .expect("parse workflow dashboard");
+    let dashboard_by_path = Cli::try_parse_from([
+        "hellox",
+        "workflow",
+        "dashboard",
+        "--script-path",
+        "scripts/custom-release.json",
+    ])
+    .expect("parse workflow dashboard by script path");
     let duplicate = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -112,12 +120,37 @@ fn parses_workflow_duplicate_and_move_commands() {
 
     match dashboard.command {
         Some(Commands::Workflow {
-            command: WorkflowCommands::Dashboard { workflow_name, cwd },
+            command:
+                WorkflowCommands::Dashboard {
+                    workflow_name,
+                    script_path,
+                    cwd,
+                },
         }) => {
             assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(script_path, None);
             assert_eq!(cwd, None);
         }
         other => panic!("unexpected workflow dashboard command: {other:?}"),
+    }
+
+    match dashboard_by_path.command {
+        Some(Commands::Workflow {
+            command:
+                WorkflowCommands::Dashboard {
+                    workflow_name,
+                    script_path,
+                    cwd,
+                },
+        }) => {
+            assert_eq!(workflow_name, None);
+            assert_eq!(
+                script_path,
+                Some(PathBuf::from("scripts/custom-release.json"))
+            );
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected workflow dashboard-by-path command: {other:?}"),
     }
 
     match duplicate.command {
@@ -306,6 +339,7 @@ async fn workflow_dashboard_command_renders_initial_view() {
 
     let text = workflow_command_text(WorkflowCommands::Dashboard {
         workflow_name: Some("release-review".to_string()),
+        script_path: None,
         cwd: Some(root),
     })
     .await
@@ -313,4 +347,30 @@ async fn workflow_dashboard_command_renders_initial_view() {
 
     assert!(text.contains("Workflow overview: release-review"));
     assert!(text.contains("== Dashboard =="));
+}
+
+#[tokio::test]
+async fn workflow_dashboard_command_supports_explicit_script_path() {
+    let root = temp_dir();
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release notes" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+    );
+
+    let text = workflow_command_text(WorkflowCommands::Dashboard {
+        workflow_name: None,
+        script_path: Some(PathBuf::from("scripts/custom-release.json")),
+        cwd: Some(root),
+    })
+    .await
+    .expect("render workflow dashboard by script path");
+
+    assert!(text.contains("Workflow authoring panel: scripts/custom-release"));
+    assert!(text.contains("scripts/custom-release.json"));
 }

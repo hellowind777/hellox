@@ -34,7 +34,8 @@ pub(crate) fn render_workflow_panel(
     };
 
     let detail = load_named_workflow_detail(root, workflow_name)?;
-    focus::render_workflow_panel_detail(root, &detail, step_number)
+    let target = WorkflowRunTarget::Named(detail.summary.name.clone());
+    focus::render_workflow_panel_detail(root, &detail, &target, step_number)
 }
 
 pub(crate) fn render_workflow_panel_detail(
@@ -42,7 +43,17 @@ pub(crate) fn render_workflow_panel_detail(
     detail: &WorkflowScriptDetail,
     step_number: Option<usize>,
 ) -> Result<String> {
-    focus::render_workflow_panel_detail(root, detail, step_number)
+    let target = crate::workflows::WorkflowRunTarget::Named(detail.summary.name.clone());
+    focus::render_workflow_panel_detail(root, detail, &target, step_number)
+}
+
+pub(crate) fn render_workflow_panel_detail_with_target(
+    root: &Path,
+    detail: &WorkflowScriptDetail,
+    target: &crate::workflows::WorkflowRunTarget,
+    step_number: Option<usize>,
+) -> Result<String> {
+    focus::render_workflow_panel_detail(root, detail, target, step_number)
 }
 
 pub(crate) fn list_workflow_panel_selection_items(

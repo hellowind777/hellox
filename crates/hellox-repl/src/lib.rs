@@ -31,6 +31,14 @@ mod tests {
             parse_command("/workflow dashboard release-review"),
             Some(ReplCommand::Workflow(WorkflowCommand::Dashboard {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+            }))
+        );
+        assert_eq!(
+            parse_command("/workflow dashboard --script-path scripts/custom-release.json"),
+            Some(ReplCommand::Workflow(WorkflowCommand::Dashboard {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             }))
         );
         assert_eq!(

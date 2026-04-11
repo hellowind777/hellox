@@ -3,6 +3,7 @@ pub enum WorkflowCommand {
     List,
     Dashboard {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Overview {
         workflow_name: Option<String>,

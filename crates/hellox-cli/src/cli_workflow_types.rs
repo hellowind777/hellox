@@ -12,6 +12,8 @@ pub(crate) enum WorkflowCommands {
     Dashboard {
         workflow_name: Option<String>,
         #[arg(long)]
+        script_path: Option<PathBuf>,
+        #[arg(long)]
         cwd: Option<PathBuf>,
     },
     #[command(alias = "selector")]

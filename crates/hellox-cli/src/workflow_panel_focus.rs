@@ -20,16 +20,15 @@ use super::{
 pub(super) fn render_workflow_panel_detail(
     root: &Path,
     detail: &WorkflowScriptDetail,
+    target: &WorkflowRunTarget,
     step_number: Option<usize>,
 ) -> Result<String> {
     if let Some(step_number) = step_number {
         validate_step_number(step_number, detail.steps.len())?;
     }
 
-    let run_target = WorkflowRunTarget::Named(detail.summary.name.clone());
-    let recent_runs =
-        list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
-    let latest_run = load_latest_workflow_run(root, Some(&run_target)).ok();
+    let recent_runs = list_workflow_runs(root, Some(target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
+    let latest_run = load_latest_workflow_run(root, Some(target)).ok();
     let metadata = vec![
         KeyValueRow::new("path", path_text(&detail.summary.path)),
         KeyValueRow::new("steps", detail.summary.step_count.to_string()),
@@ -51,20 +50,20 @@ pub(super) fn render_workflow_panel_detail(
         ),
         PanelSection::new(
             "Step selector",
-            render_step_selector(detail, latest_run.as_ref(), step_number),
+            render_step_selector(detail, target, latest_run.as_ref(), step_number),
         ),
         PanelSection::new("Recent runs", render_recent_runs(detail, &recent_runs)),
         PanelSection::new(
             "Focused step lens",
-            render_focused_step_lens(detail, latest_run.as_ref(), step_number),
+            render_focused_step_lens(detail, target, latest_run.as_ref(), step_number),
         ),
         PanelSection::new(
             "Action palette",
-            render_action_palette(&detail.summary.name, detail.steps.len(), step_number),
+            render_action_palette(target, detail.steps.len(), step_number),
         ),
         PanelSection::new(
             "REPL palette",
-            render_repl_palette(&detail.summary.name, detail.steps.len(), step_number),
+            render_repl_palette(target, detail.steps.len(), step_number),
         ),
     ];
 
@@ -127,6 +126,7 @@ fn build_step_table(
 
 fn render_step_selector(
     detail: &WorkflowScriptDetail,
+    target: &WorkflowRunTarget,
     latest_run: Option<&WorkflowRunRecord>,
     step_number: Option<usize>,
 ) -> Vec<String> {
@@ -158,11 +158,7 @@ fn render_step_selector(
                     }
                 ),
                 format!("latest_status: {}", latest_step_status(step, latest_run)),
-                format!(
-                    "focus: `/workflow panel {} {}`",
-                    detail.summary.name,
-                    index + 1
-                ),
+                format!("focus: `{}`", repl_panel_focus_command(target, index + 1)),
             ];
 
             SelectorEntry::new(step.name.as_deref().unwrap_or("(unnamed)"), lines)
@@ -175,6 +171,7 @@ fn render_step_selector(
 
 fn render_focused_step_lens(
     detail: &WorkflowScriptDetail,
+    target: &WorkflowRunTarget,
     latest_run: Option<&WorkflowRunRecord>,
     step_number: Option<usize>,
 ) -> Vec<String> {
@@ -204,26 +201,24 @@ fn render_focused_step_lens(
         ),
         format!("latest_status: {}", latest_step_status(step, latest_run)),
         format!(
-            "edit: `hellox workflow update-step --workflow {} {} --prompt \"<text>\"`",
-            detail.summary.name,
-            selected_index + 1
+            "edit: `{}`",
+            cli_update_step_command(target, selected_index + 1)
         ),
         format!(
-            "duplicate: `hellox workflow duplicate-step --workflow {} {} --to {} --name \"<copy-name>\"`",
-            detail.summary.name,
-            selected_index + 1,
-            selected_index + 2
+            "duplicate: `{}`",
+            cli_duplicate_step_command(target, selected_index + 1, selected_index + 2)
         ),
         format!(
-            "move: `hellox workflow move-step --workflow {} {} --to {}`",
-            detail.summary.name,
-            selected_index + 1,
-            suggested_move_target(selected_index + 1, detail.steps.len())
+            "move: `{}`",
+            cli_move_step_command(
+                target,
+                selected_index + 1,
+                suggested_move_target(selected_index + 1, detail.steps.len())
+            )
         ),
         format!(
-            "remove: `hellox workflow remove-step --workflow {} {}`",
-            detail.summary.name,
-            selected_index + 1
+            "remove: `{}`",
+            cli_remove_step_command(target, selected_index + 1)
         ),
     ];
 
@@ -247,40 +242,44 @@ fn render_recent_runs(
 }
 
 fn render_action_palette(
-    workflow_name: &str,
+    target: &WorkflowRunTarget,
     step_count: usize,
     step_number: Option<usize>,
 ) -> Vec<String> {
     let mut lines = vec![
+        format!("- add step: `{}`", cli_add_step_command(target)),
         format!(
-            "- add step: `hellox workflow add-step --workflow {workflow_name} --prompt \"<text>\" --name \"<step-name>\"`"
+            "- set shared context: `{}`",
+            cli_set_shared_context_command(target)
         ),
-        format!(
-            "- set shared context: `hellox workflow set-shared-context --workflow {workflow_name} \"<text>\"`"
-        ),
-        format!(
-            "- run: `hellox workflow run {workflow_name} --shared-context \"<text>\"`"
-        ),
-        format!("- inspect history: `hellox workflow runs {workflow_name}`"),
+        format!("- run: `{}`", cli_run_command(target)),
+        format!("- inspect history: `{}`", cli_runs_command(target)),
     ];
 
     if let Some(step_number) = step_number.or_else(|| (step_count > 0).then_some(1)) {
         lines.push(format!(
-            "- edit step {step_number}: `hellox workflow update-step --workflow {workflow_name} {step_number} --prompt \"<text>\"`"
+            "- edit step {step_number}: `{}`",
+            cli_update_step_command(target, step_number)
         ));
         lines.push(format!(
-            "- duplicate step {step_number}: `hellox workflow duplicate-step --workflow {workflow_name} {step_number} --to {} --name \"<copy-name>\"`",
-            step_number + 1
+            "- duplicate step {step_number}: `{}`",
+            cli_duplicate_step_command(target, step_number, step_number + 1)
         ));
         lines.push(format!(
-            "- move step {step_number}: `hellox workflow move-step --workflow {workflow_name} {step_number} --to {}`",
-            suggested_move_target(step_number, step_count)
+            "- move step {step_number}: `{}`",
+            cli_move_step_command(
+                target,
+                step_number,
+                suggested_move_target(step_number, step_count)
+            )
         ));
         lines.push(format!(
-            "- remove step {step_number}: `hellox workflow remove-step --workflow {workflow_name} {step_number}`"
+            "- remove step {step_number}: `{}`",
+            cli_remove_step_command(target, step_number)
         ));
         lines.push(format!(
-            "- focus step {step_number}: `hellox workflow panel {workflow_name} --step {step_number}`"
+            "- focus step {step_number}: `{}`",
+            cli_panel_focus_command(target, step_number)
         ));
     }
 
@@ -288,22 +287,24 @@ fn render_action_palette(
 }
 
 fn render_repl_palette(
-    workflow_name: &str,
+    target: &WorkflowRunTarget,
     step_count: usize,
     step_number: Option<usize>,
 ) -> Vec<String> {
     let mut lines = vec![
+        format!("- add step: `{}`", repl_add_step_command(target)),
         format!(
-            "- add step: `/workflow add-step {workflow_name} --prompt <text> --name <step-name>`"
+            "- set shared context: `{}`",
+            repl_set_shared_context_command(target)
         ),
-        format!("- set shared context: `/workflow set-shared-context {workflow_name} <text>`"),
-        format!("- run: `/workflow run {workflow_name} <shared_context>`"),
-        format!("- inspect history: `/workflow runs {workflow_name}`"),
+        format!("- run: `{}`", repl_run_command(target)),
+        format!("- inspect history: `{}`", repl_runs_command(target)),
     ];
 
     if let Some(step_number) = step_number.or_else(|| (step_count > 0).then_some(1)) {
         lines.push(format!(
-            "- edit step {step_number}: `/workflow update-step {workflow_name} {step_number} --prompt <text>`"
+            "- edit step {step_number}: `{}`",
+            repl_update_step_command(target, step_number)
         ));
         lines.push(
             "- quick field edit in focused panel/dashboard: `name <text>` / `prompt <text>` / `when <json>` / `model <name>` / `backend <name>` / `step-cwd <path>`".to_string(),
@@ -318,18 +319,24 @@ fn render_repl_palette(
             "- move focused lens in REPL/dashboard: `first` / `prev` / `next` / `last`".to_string(),
         );
         lines.push(format!(
-            "- duplicate step {step_number}: `/workflow duplicate-step {workflow_name} {step_number} --to {} --name <copy-name>`",
-            step_number + 1
+            "- duplicate step {step_number}: `{}`",
+            repl_duplicate_step_command(target, step_number, step_number + 1)
         ));
         lines.push(format!(
-            "- move step {step_number}: `/workflow move-step {workflow_name} {step_number} --to {}`",
-            suggested_move_target(step_number, step_count)
+            "- move step {step_number}: `{}`",
+            repl_move_step_command(
+                target,
+                step_number,
+                suggested_move_target(step_number, step_count)
+            )
         ));
         lines.push(format!(
-            "- remove step {step_number}: `/workflow remove-step {workflow_name} {step_number}`"
+            "- remove step {step_number}: `{}`",
+            repl_remove_step_command(target, step_number)
         ));
         lines.push(format!(
-            "- focus step {step_number}: `/workflow panel {workflow_name} {step_number}`"
+            "- focus step {step_number}: `{}`",
+            repl_panel_focus_command(target, step_number)
         ));
     }
 
@@ -361,5 +368,216 @@ fn suggested_move_target(step_number: usize, step_count: usize) -> usize {
         2
     } else {
         1
+    }
+}
+
+fn cli_target_arg(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => format!("--workflow {workflow_name}"),
+        WorkflowRunTarget::Path(path) => format!("--script-path {}", path_text(path)),
+    }
+}
+
+fn cli_add_step_command(target: &WorkflowRunTarget) -> String {
+    format!(
+        "hellox workflow add-step {} --prompt \"<text>\" --name \"<step-name>\"",
+        cli_target_arg(target)
+    )
+}
+
+fn cli_set_shared_context_command(target: &WorkflowRunTarget) -> String {
+    format!(
+        "hellox workflow set-shared-context {} \"<text>\"",
+        cli_target_arg(target)
+    )
+}
+
+fn cli_run_command(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("hellox workflow run {workflow_name} --shared-context \"<text>\"")
+        }
+        WorkflowRunTarget::Path(path) => format!(
+            "hellox workflow run --script-path {} --shared-context \"<text>\"",
+            path_text(path)
+        ),
+    }
+}
+
+fn cli_runs_command(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => format!("hellox workflow runs {workflow_name}"),
+        WorkflowRunTarget::Path(path) => {
+            format!("hellox workflow runs --script-path {}", path_text(path))
+        }
+    }
+}
+
+fn cli_update_step_command(target: &WorkflowRunTarget, step_number: usize) -> String {
+    format!(
+        "hellox workflow update-step {} {step_number} --prompt \"<text>\"",
+        cli_target_arg(target)
+    )
+}
+
+fn cli_duplicate_step_command(
+    target: &WorkflowRunTarget,
+    step_number: usize,
+    to_step_number: usize,
+) -> String {
+    format!(
+        "hellox workflow duplicate-step {} {step_number} --to {to_step_number} --name \"<copy-name>\"",
+        cli_target_arg(target)
+    )
+}
+
+fn cli_move_step_command(
+    target: &WorkflowRunTarget,
+    step_number: usize,
+    to_step_number: usize,
+) -> String {
+    format!(
+        "hellox workflow move-step {} {step_number} --to {to_step_number}",
+        cli_target_arg(target)
+    )
+}
+
+fn cli_remove_step_command(target: &WorkflowRunTarget, step_number: usize) -> String {
+    format!(
+        "hellox workflow remove-step {} {step_number}",
+        cli_target_arg(target)
+    )
+}
+
+fn cli_panel_focus_command(target: &WorkflowRunTarget, step_number: usize) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("hellox workflow panel {workflow_name} --step {step_number}")
+        }
+        WorkflowRunTarget::Path(path) => format!(
+            "hellox workflow panel --script-path {} --step {step_number}",
+            path_text(path)
+        ),
+    }
+}
+
+fn repl_add_step_command(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow add-step {workflow_name} --prompt <text> --name <step-name>")
+        }
+        WorkflowRunTarget::Path(path) => format!(
+            "/workflow add-step --script-path {} --prompt <text> --name <step-name>",
+            path_text(path)
+        ),
+    }
+}
+
+fn repl_set_shared_context_command(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow set-shared-context {workflow_name} <text>")
+        }
+        WorkflowRunTarget::Path(path) => {
+            format!(
+                "/workflow set-shared-context --script-path {} <text>",
+                path_text(path)
+            )
+        }
+    }
+}
+
+fn repl_run_command(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow run {workflow_name} <shared_context>")
+        }
+        WorkflowRunTarget::Path(path) => {
+            format!(
+                "/workflow run --script-path {} <shared_context>",
+                path_text(path)
+            )
+        }
+    }
+}
+
+fn repl_runs_command(target: &WorkflowRunTarget) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => format!("/workflow runs {workflow_name}"),
+        WorkflowRunTarget::Path(path) => {
+            format!("/workflow runs --script-path {}", path_text(path))
+        }
+    }
+}
+
+fn repl_update_step_command(target: &WorkflowRunTarget, step_number: usize) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow update-step {workflow_name} {step_number} --prompt <text>")
+        }
+        WorkflowRunTarget::Path(path) => format!(
+            "/workflow update-step --script-path {} {step_number} --prompt <text>",
+            path_text(path)
+        ),
+    }
+}
+
+fn repl_duplicate_step_command(
+    target: &WorkflowRunTarget,
+    step_number: usize,
+    to_step_number: usize,
+) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => format!(
+            "/workflow duplicate-step {workflow_name} {step_number} --to {to_step_number} --name <copy-name>"
+        ),
+        WorkflowRunTarget::Path(path) => format!(
+            "/workflow duplicate-step --script-path {} {step_number} --to {to_step_number} --name <copy-name>",
+            path_text(path)
+        ),
+    }
+}
+
+fn repl_move_step_command(
+    target: &WorkflowRunTarget,
+    step_number: usize,
+    to_step_number: usize,
+) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow move-step {workflow_name} {step_number} --to {to_step_number}")
+        }
+        WorkflowRunTarget::Path(path) => format!(
+            "/workflow move-step --script-path {} {step_number} --to {to_step_number}",
+            path_text(path)
+        ),
+    }
+}
+
+fn repl_remove_step_command(target: &WorkflowRunTarget, step_number: usize) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow remove-step {workflow_name} {step_number}")
+        }
+        WorkflowRunTarget::Path(path) => {
+            format!(
+                "/workflow remove-step --script-path {} {step_number}",
+                path_text(path)
+            )
+        }
+    }
+}
+
+fn repl_panel_focus_command(target: &WorkflowRunTarget, step_number: usize) -> String {
+    match target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow panel {workflow_name} {step_number}")
+        }
+        WorkflowRunTarget::Path(path) => {
+            format!(
+                "/workflow panel --script-path {} {step_number}",
+                path_text(path)
+            )
+        }
     }
 }

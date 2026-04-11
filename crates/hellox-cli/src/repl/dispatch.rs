@@ -142,10 +142,18 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Workflow(command) => {
-            if let WorkflowCommand::Dashboard { workflow_name } = &command {
+            if let WorkflowCommand::Dashboard {
+                workflow_name,
+                script_path,
+            } = &command
+            {
                 println!(
                     "{}",
-                    driver.open_workflow_dashboard(session, workflow_name.clone())?
+                    driver.open_workflow_dashboard(
+                        session,
+                        workflow_name.clone(),
+                        script_path.clone(),
+                    )?
                 );
                 return Ok(ReplAction::Continue);
             }
