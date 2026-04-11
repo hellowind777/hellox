@@ -188,6 +188,7 @@ pub enum PromptFragmentCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BridgeCommand {
     Status,
+    Panel { session_id: Option<String> },
     Sessions,
     Show { session_id: Option<String> },
     Help,
@@ -196,6 +197,7 @@ pub enum BridgeCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IdeCommand {
     Status,
+    Panel,
     Help,
 }
 

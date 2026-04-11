@@ -73,8 +73,8 @@ pub fn print_usage() {
     print_section(
         "Local integration commands:",
         &[
-            "hellox bridge status|sessions|show-session <session-id>|stdio",
-            "hellox ide status",
+            "hellox bridge status|panel [session-id]|sessions|show-session <session-id>|stdio",
+            "hellox ide status|panel",
             "hellox mcp list|show <server-name>",
             "hellox mcp tools|resources|prompts <server-name>",
             "hellox mcp call <server-name> <tool-name> [--input <json-object>]",

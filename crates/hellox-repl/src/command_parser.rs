@@ -242,6 +242,9 @@ fn parse_bridge_command(remainder: &str) -> BridgeCommand {
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => BridgeCommand::Status,
         Some(action) if action == "status" => BridgeCommand::Status,
+        Some(action) if action == "panel" => BridgeCommand::Panel {
+            session_id: parts.next().map(ToString::to_string),
+        },
         Some(action) if action == "sessions" => BridgeCommand::Sessions,
         Some(action) if action == "show" => BridgeCommand::Show {
             session_id: parts.next().map(ToString::to_string),
@@ -254,6 +257,7 @@ fn parse_ide_command(remainder: &str) -> IdeCommand {
     match remainder.split_whitespace().next() {
         None => IdeCommand::Status,
         Some(action) if action.eq_ignore_ascii_case("status") => IdeCommand::Status,
+        Some(action) if action.eq_ignore_ascii_case("panel") => IdeCommand::Panel,
         Some(_) => IdeCommand::Help,
     }
 }

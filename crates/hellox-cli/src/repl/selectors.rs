@@ -1,8 +1,9 @@
 use super::commands::{
-    ConfigCommand, McpCommand, ModelCommand, OutputStyleCommand, PersonaCommand, PlanCommand,
-    PluginCommand, PromptFragmentCommand,
+    BridgeCommand, ConfigCommand, McpCommand, ModelCommand, OutputStyleCommand, PersonaCommand,
+    PlanCommand, PluginCommand, PromptFragmentCommand,
 };
 use super::*;
+use crate::bridge_panel::bridge_panel_session_ids;
 use crate::config_panel::config_selector_keys;
 use crate::mcp_panel::mcp_panel_server_names;
 use crate::model_panel::model_panel_profile_names;
@@ -29,6 +30,9 @@ pub(super) enum WorkflowRunListTarget {
 pub(super) enum SelectorContext {
     ConfigPanelList {
         focus_keys: Vec<String>,
+    },
+    BridgePanelList {
+        session_ids: Vec<String>,
     },
     PlanPanelSteps {
         step_count: usize,
@@ -102,6 +106,25 @@ impl CliReplDriver {
             let keys = config_selector_keys(&metadata.config);
             if !keys.is_empty() {
                 self.set_selector_context(SelectorContext::ConfigPanelList { focus_keys: keys });
+            }
+        }
+    }
+
+    pub(super) fn prepare_bridge_selector_context(
+        &self,
+        command: &BridgeCommand,
+        metadata: &ReplMetadata,
+    ) {
+        if let BridgeCommand::Panel { session_id: None } = command {
+            let paths = hellox_bridge::BridgeRuntimePaths::new(
+                metadata.config_path.clone(),
+                metadata.sessions_root.clone(),
+                metadata.plugins_root.clone(),
+            );
+            if let Ok(session_ids) = bridge_panel_session_ids(&paths) {
+                if !session_ids.is_empty() {
+                    self.set_selector_context(SelectorContext::BridgePanelList { session_ids });
+                }
             }
         }
     }
@@ -347,6 +370,28 @@ impl CliReplDriver {
                     handle_config_command(
                         ConfigCommand::Panel {
                             focus_key: Some(focus_key),
+                        },
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::BridgePanelList { session_ids } => {
+                if index == 0 || index > session_ids.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/bridge panel`.",
+                        session_ids.len()
+                    );
+                    return Ok(true);
+                }
+
+                let session_id = session_ids[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    crate::repl::bridge_actions::handle_bridge_command(
+                        BridgeCommand::Panel {
+                            session_id: Some(session_id),
                         },
                         metadata,
                     )?

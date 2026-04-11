@@ -1511,7 +1511,10 @@ fn parses_skills_and_hooks_commands() {
 fn parses_bridge_and_ide_commands() {
     let bridge = Cli::try_parse_from(["hellox", "bridge", "show-session", "session-123"])
         .expect("parse bridge show-session");
+    let bridge_panel = Cli::try_parse_from(["hellox", "bridge", "panel", "session-123"])
+        .expect("parse bridge panel");
     let ide = Cli::try_parse_from(["hellox", "ide", "status"]).expect("parse ide status");
+    let ide_panel = Cli::try_parse_from(["hellox", "ide", "panel"]).expect("parse ide panel");
 
     match bridge.command {
         Some(Commands::Bridge {
@@ -1520,11 +1523,25 @@ fn parses_bridge_and_ide_commands() {
         other => panic!("unexpected bridge command: {other:?}"),
     }
 
+    match bridge_panel.command {
+        Some(Commands::Bridge {
+            command: BridgeCommands::Panel { session_id },
+        }) => assert_eq!(session_id, Some(String::from("session-123"))),
+        other => panic!("unexpected bridge panel command: {other:?}"),
+    }
+
     match ide.command {
         Some(Commands::Ide {
             command: IdeCommands::Status,
         }) => {}
         other => panic!("unexpected ide command: {other:?}"),
+    }
+
+    match ide_panel.command {
+        Some(Commands::Ide {
+            command: IdeCommands::Panel,
+        }) => {}
+        other => panic!("unexpected ide panel command: {other:?}"),
     }
 }
 

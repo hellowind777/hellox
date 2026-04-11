@@ -3,6 +3,7 @@ mod auth_commands;
 mod auto_compact;
 mod auto_memory;
 mod bridge_commands;
+mod bridge_panel;
 mod cli_auth_types;
 mod cli_bridge_types;
 mod cli_commands;

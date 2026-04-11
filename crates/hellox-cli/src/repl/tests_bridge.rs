@@ -84,8 +84,18 @@ fn parse_bridge_and_ide_commands() {
         }))
     );
     assert_eq!(
+        super::commands::parse_command("/bridge panel abc"),
+        Some(ReplCommand::Bridge(BridgeCommand::Panel {
+            session_id: Some(String::from("abc"))
+        }))
+    );
+    assert_eq!(
         super::commands::parse_command("/ide"),
         Some(ReplCommand::Ide(IdeCommand::Status))
+    );
+    assert_eq!(
+        super::commands::parse_command("/ide panel"),
+        Some(ReplCommand::Ide(IdeCommand::Panel))
     );
 }
 
@@ -93,8 +103,10 @@ fn parse_bridge_and_ide_commands() {
 fn help_text_lists_bridge_commands() {
     let text = help_text();
     assert!(text.contains("/bridge"));
+    assert!(text.contains("/bridge panel [id]"));
     assert!(text.contains("/bridge sessions"));
     assert!(text.contains("/ide"));
+    assert!(text.contains("/ide panel"));
 }
 
 #[test]
@@ -113,6 +125,10 @@ fn handle_bridge_and_ide_commands_stay_in_repl() {
         ReplAction::Continue
     );
     assert_eq!(
+        handle_repl_input("/bridge panel", &mut session, &metadata).expect("bridge panel"),
+        ReplAction::Continue
+    );
+    assert_eq!(
         handle_repl_input("/bridge show bridge-session", &mut session, &metadata)
             .expect("bridge show"),
         ReplAction::Continue
@@ -121,4 +137,48 @@ fn handle_bridge_and_ide_commands_stay_in_repl() {
         handle_repl_input("/ide", &mut session, &metadata).expect("ide status"),
         ReplAction::Continue
     );
+    assert_eq!(
+        handle_repl_input("/ide panel", &mut session, &metadata).expect("ide panel"),
+        ReplAction::Continue
+    );
+}
+
+#[test]
+fn bridge_panel_selector_allows_numeric_selection() {
+    let root = temp_dir();
+    let metadata = metadata(&root);
+    write_session(&metadata.sessions_root, "bbb");
+    write_session(&metadata.sessions_root, "aaa");
+    let mut session = session(root);
+    let driver = super::CliReplDriver::new();
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/bridge panel", &mut session, &metadata)
+                    .await
+                    .expect("open bridge panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::BridgePanelList { session_ids }) => {
+                    assert_eq!(session_ids, vec!["aaa".to_string(), "bbb".to_string()]);
+                }
+                other => panic!("expected bridge selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("1", &mut session, &metadata)
+                    .await
+                    .expect("select bridge session"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
 }

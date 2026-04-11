@@ -8,6 +8,7 @@ use hellox_bridge::{
 };
 use hellox_config::{default_config_path, plugins_root, sessions_root};
 
+use crate::bridge_panel::{render_bridge_panel, render_ide_panel};
 use crate::cli_types::{BridgeCommands, IdeCommands};
 
 pub fn handle_bridge_command(command: BridgeCommands) -> Result<()> {
@@ -16,6 +17,9 @@ pub fn handle_bridge_command(command: BridgeCommands) -> Result<()> {
     match command {
         BridgeCommands::Status => {
             println!("{}", format_bridge_status(&inspect_bridge_status(&paths)?));
+        }
+        BridgeCommands::Panel { session_id } => {
+            println!("{}", render_bridge_panel(&paths, session_id.as_deref())?);
         }
         BridgeCommands::Sessions => {
             println!(
@@ -45,6 +49,9 @@ pub fn handle_ide_command(command: IdeCommands) -> Result<()> {
     match command {
         IdeCommands::Status => {
             println!("{}", format_ide_status(&inspect_ide_status(&paths)?));
+        }
+        IdeCommands::Panel => {
+            println!("{}", render_ide_panel(&paths)?);
         }
     }
 

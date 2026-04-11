@@ -109,6 +109,7 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Bridge(command) => {
+            driver.prepare_bridge_selector_context(&command, metadata);
             println!("{}", handle_bridge_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }

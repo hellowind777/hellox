@@ -262,7 +262,7 @@ fn remote_detail_lines(detail: &ServerSessionDetail) -> Vec<String> {
 fn local_list_cli_palette() -> Vec<String> {
     vec![
         "- inspect session: `hellox assistant show <session-id>`".to_string(),
-        "- bridge detail: `hellox bridge show <session-id>`".to_string(),
+        "- bridge panel: `hellox bridge panel <session-id>`".to_string(),
         "- session panel: `hellox session panel <session-id>`".to_string(),
     ]
 }
@@ -270,7 +270,7 @@ fn local_list_cli_palette() -> Vec<String> {
 fn local_list_repl_palette() -> Vec<String> {
     vec![
         "- inspect session: `/assistant show <session-id>`".to_string(),
-        "- bridge detail: `/bridge show <session-id>`".to_string(),
+        "- bridge panel: `/bridge panel <session-id>`".to_string(),
         "- resume session: `/resume <session-id>`".to_string(),
     ]
 }
@@ -278,7 +278,7 @@ fn local_list_repl_palette() -> Vec<String> {
 fn local_detail_cli_palette(session_id: &str) -> Vec<String> {
     vec![
         "- back to list: `hellox assistant list`".to_string(),
-        format!("- bridge detail: `hellox bridge show {session_id}`"),
+        format!("- bridge panel: `hellox bridge panel {session_id}`"),
         format!("- session panel: `hellox session panel {session_id}`"),
     ]
 }
@@ -286,7 +286,7 @@ fn local_detail_cli_palette(session_id: &str) -> Vec<String> {
 fn local_detail_repl_palette(session_id: &str) -> Vec<String> {
     vec![
         "- back to list: `/assistant`".to_string(),
-        format!("- bridge detail: `/bridge show {session_id}`"),
+        format!("- bridge panel: `/bridge panel {session_id}`"),
         format!("- resume session: `/resume {session_id}`"),
     ]
 }
