@@ -180,6 +180,13 @@ fn workflow_help_command_mentions_dashboard_shortcuts() {
     assert!(text.contains("focused workflow dashboard: `open <n>` / `back`"));
     assert!(text
         .contains("focused workflow panel/show-run/dashboard: `first` / `prev` / `next` / `last`"));
+    assert!(text.contains("/workflow duplicate-step --script-path <path> <n> [--to <m>]"));
+    assert!(text.contains("/workflow move-step --script-path <path> <n> --to <m>"));
+    assert!(text.contains("/workflow remove-step --script-path <path> <n>"));
+    assert!(text.contains("/workflow set-shared-context --script-path <path> <text>"));
+    assert!(text.contains("/workflow clear-shared-context --script-path <path>"));
+    assert!(text.contains("/workflow enable-continue-on-error --script-path <path>"));
+    assert!(text.contains("/workflow disable-continue-on-error --script-path <path>"));
 }
 
 #[test]

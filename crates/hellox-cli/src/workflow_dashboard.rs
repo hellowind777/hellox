@@ -157,6 +157,8 @@ fn workflow_dashboard_footer(view: &WorkflowDashboardView) -> String {
         WorkflowDashboardView::OverviewFocus { .. }
         | WorkflowDashboardView::OverviewPathFocus { .. } => &[
             "open <n> | run [shared_context] | panel [n] | runs | last-run [n] | show | validate | back | help | quit",
+            "author: add-step --prompt <text> | update-step [n] | duplicate-step [n] [--to <m>] [--name <step-name>] | move-step [n] --to <m> | remove-step [n]",
+            "workflow: set-shared-context <text> | clear-shared-context | enable-continue-on-error | disable-continue-on-error",
         ],
         WorkflowDashboardView::PanelFocus { .. } | WorkflowDashboardView::PanelPathFocus { .. } => &[
             "open <n> | next | prev | first | last | back | help | quit",
@@ -1506,6 +1508,12 @@ mod tests {
         assert!(text.contains("== Dashboard =="));
         assert!(text
             .contains("run [shared_context] | panel [n] | runs | last-run [n] | show | validate"));
+        assert!(text.contains(
+            "author: add-step --prompt <text> | update-step [n] | duplicate-step [n] [--to <m>] [--name <step-name>] | move-step [n] --to <m> | remove-step [n]"
+        ));
+        assert!(text.contains(
+            "workflow: set-shared-context <text> | clear-shared-context | enable-continue-on-error | disable-continue-on-error"
+        ));
     }
 
     #[test]
@@ -1532,6 +1540,12 @@ mod tests {
         assert!(text.contains("scripts/custom-release.json"));
         assert!(text
             .contains("run [shared_context] | panel [n] | runs | last-run [n] | show | validate"));
+        assert!(text.contains(
+            "author: add-step --prompt <text> | update-step [n] | duplicate-step [n] [--to <m>] [--name <step-name>] | move-step [n] --to <m> | remove-step [n]"
+        ));
+        assert!(text.contains(
+            "workflow: set-shared-context <text> | clear-shared-context | enable-continue-on-error | disable-continue-on-error"
+        ));
         assert_eq!(
             state.current(),
             &hellox_tui::WorkflowDashboardView::OverviewPathFocus {
