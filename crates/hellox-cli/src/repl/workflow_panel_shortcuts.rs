@@ -64,7 +64,10 @@ impl CliReplDriver {
 
         let selected_step = self
             .workflow_panel_focus()
-            .filter(|focus| focus.workflow_name == workflow_name)
+            .filter(|focus| {
+                focus.workflow_name == workflow_name
+                    && focus.script_path.as_deref() == explicit_script_path.as_deref()
+            })
             .map(|focus| focus.selected_step)
             .filter(|selected_step| *selected_step <= step_count)
             .unwrap_or(1);
@@ -136,7 +139,9 @@ impl CliReplDriver {
                 let step_count = detail.steps.len();
                 let selected_step = self
                     .workflow_panel_focus()
-                    .filter(|focus| focus.workflow_name == detail.summary.name)
+                    .filter(|focus| {
+                        focus.workflow_name == detail.summary.name && focus.script_path.is_none()
+                    })
                     .map(|focus| focus.selected_step)
                     .filter(|selected_step| *selected_step <= step_count)
                     .unwrap_or(1);
@@ -178,7 +183,10 @@ impl CliReplDriver {
                 let step_count = detail.steps.len();
                 let selected_step = self
                     .workflow_panel_focus()
-                    .filter(|focus| focus.workflow_name == detail.summary.name)
+                    .filter(|focus| {
+                        focus.workflow_name == detail.summary.name
+                            && focus.script_path.as_deref() == Some(script_path.as_str())
+                    })
                     .map(|focus| focus.selected_step)
                     .filter(|selected_step| *selected_step <= step_count)
                     .unwrap_or(1);
@@ -260,7 +268,7 @@ impl CliReplDriver {
             self.clear_selector_context();
         }
         if let Some(selected_step) = selected_step {
-            self.set_workflow_panel_focus(detail.summary.name.clone(), selected_step);
+            self.set_workflow_panel_focus(detail.summary.name.clone(), None, selected_step);
         } else if detail.steps.is_empty() {
             self.clear_workflow_panel_focus();
         }
@@ -289,7 +297,11 @@ impl CliReplDriver {
             self.clear_selector_context();
         }
         if let Some(selected_step) = selected_step {
-            self.set_workflow_panel_focus(detail.summary.name.clone(), selected_step);
+            self.set_workflow_panel_focus(
+                detail.summary.name.clone(),
+                Some(script_path.display().to_string().replace('\\', "/")),
+                selected_step,
+            );
         } else if detail.steps.is_empty() {
             self.clear_workflow_panel_focus();
         }

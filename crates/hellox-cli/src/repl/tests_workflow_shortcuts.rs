@@ -52,6 +52,13 @@ fn write_workflow(root: &Path, relative: &str, raw: &str) {
     fs::write(path, raw).expect("write workflow");
 }
 
+fn write_explicit_workflow(root: &Path, relative: &str, raw: &str) {
+    let path = root.join(relative);
+    fs::create_dir_all(path.parent().expect("explicit workflow dir"))
+        .expect("create explicit workflow dir");
+    fs::write(path, raw).expect("write explicit workflow");
+}
+
 fn write_run(root: &Path, run_id: &str, workflow_name: &str) {
     let path = root
         .join(".hellox")
@@ -145,6 +152,7 @@ fn workflow_panel_shortcuts_keep_focus_and_refresh_script() {
                 driver.workflow_panel_focus(),
                 Some(super::workflow_selectors::WorkflowPanelFocus {
                     workflow_name: String::from("release-review"),
+                    script_path: None,
                     selected_step: 2,
                 })
             );
@@ -160,6 +168,7 @@ fn workflow_panel_shortcuts_keep_focus_and_refresh_script() {
                 driver.workflow_panel_focus(),
                 Some(super::workflow_selectors::WorkflowPanelFocus {
                     workflow_name: String::from("release-review"),
+                    script_path: None,
                     selected_step: 3,
                 })
             );
@@ -179,6 +188,7 @@ fn workflow_panel_shortcuts_keep_focus_and_refresh_script() {
                 driver.workflow_panel_focus(),
                 Some(super::workflow_selectors::WorkflowPanelFocus {
                     workflow_name: String::from("release-review"),
+                    script_path: None,
                     selected_step: 1,
                 })
             );
@@ -197,6 +207,7 @@ fn workflow_panel_shortcuts_keep_focus_and_refresh_script() {
                 driver.workflow_panel_focus(),
                 Some(super::workflow_selectors::WorkflowPanelFocus {
                     workflow_name: String::from("release-review"),
+                    script_path: None,
                     selected_step: 1,
                 })
             );
@@ -317,6 +328,7 @@ fn workflow_panel_shortcuts_support_field_edits() {
         driver.workflow_panel_focus(),
         Some(super::workflow_selectors::WorkflowPanelFocus {
             workflow_name: String::from("release-review"),
+            script_path: None,
             selected_step: 1,
         })
     );
@@ -368,6 +380,7 @@ fn workflow_step_navigation_shortcuts_keep_focus_in_panel_and_run_views() {
                 driver.workflow_panel_focus(),
                 Some(super::workflow_selectors::WorkflowPanelFocus {
                     workflow_name: String::from("release-review"),
+                    script_path: None,
                     selected_step: 2,
                 })
             );
@@ -456,6 +469,7 @@ fn workflow_panel_shortcut_usage_keeps_context() {
                 driver.workflow_panel_focus(),
                 Some(super::workflow_selectors::WorkflowPanelFocus {
                     workflow_name: String::from("release-review"),
+                    script_path: None,
                     selected_step: 1,
                 })
             );
@@ -463,5 +477,141 @@ fn workflow_panel_shortcut_usage_keeps_context() {
                 .expect("load unchanged workflow");
             assert_eq!(detail.steps.len(), 1);
             assert_eq!(detail.steps[0].name.as_deref(), Some("review"));
+        });
+}
+
+#[test]
+fn workflow_panel_shortcuts_support_explicit_script_path_focus() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+    let absolute_script_path = root
+        .join("scripts")
+        .join("custom-release.json")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" },
+    { "name": "ship", "prompt": "ship release" }
+  ]
+}"#,
+    );
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async(
+                        "/workflow panel --script-path scripts/custom-release.json 2",
+                        &mut session,
+                        &metadata
+                    )
+                    .await
+                    .expect("open explicit workflow panel"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_panel_focus(),
+                Some(super::workflow_selectors::WorkflowPanelFocus {
+                    workflow_name: String::from("scripts/custom-release"),
+                    script_path: Some(absolute_script_path.clone()),
+                    selected_step: 2,
+                })
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("dup", &mut session, &metadata)
+                    .await
+                    .expect("duplicate explicit focused step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_panel_focus(),
+                Some(super::workflow_selectors::WorkflowPanelFocus {
+                    workflow_name: String::from("scripts/custom-release"),
+                    script_path: Some(absolute_script_path.clone()),
+                    selected_step: 3,
+                })
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("move 1", &mut session, &metadata)
+                    .await
+                    .expect("move explicit focused step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_panel_focus(),
+                Some(super::workflow_selectors::WorkflowPanelFocus {
+                    workflow_name: String::from("scripts/custom-release"),
+                    script_path: Some(absolute_script_path.clone()),
+                    selected_step: 1,
+                })
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("rm", &mut session, &metadata)
+                    .await
+                    .expect("remove explicit focused step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_panel_focus(),
+                Some(super::workflow_selectors::WorkflowPanelFocus {
+                    workflow_name: String::from("scripts/custom-release"),
+                    script_path: Some(absolute_script_path.clone()),
+                    selected_step: 1,
+                })
+            );
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("next", &mut session, &metadata)
+                    .await
+                    .expect("focus next explicit workflow step"),
+                ReplAction::Continue
+            );
+            assert_eq!(
+                driver.workflow_panel_focus(),
+                Some(super::workflow_selectors::WorkflowPanelFocus {
+                    workflow_name: String::from("scripts/custom-release"),
+                    script_path: Some(absolute_script_path.clone()),
+                    selected_step: 2,
+                })
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::WorkflowPanelPathItems {
+                    script_path,
+                    workflow_name,
+                    step_count,
+                    items,
+                }) => {
+                    assert_eq!(script_path, absolute_script_path);
+                    assert_eq!(workflow_name, "scripts/custom-release");
+                    assert_eq!(step_count, 2);
+                    assert_eq!(
+                        items,
+                        vec![
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(1),
+                            crate::workflow_panel::WorkflowPanelSelectionItem::Step(2),
+                        ]
+                    );
+                }
+                other => panic!("expected explicit workflow panel selector context, got {other:?}"),
+            }
         });
 }

@@ -29,6 +29,7 @@ use crate::workflows::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct WorkflowPanelFocus {
     pub(super) workflow_name: String,
+    pub(super) script_path: Option<String>,
     pub(super) selected_step: usize,
 }
 
@@ -45,10 +46,16 @@ impl CliReplDriver {
         }
     }
 
-    pub(super) fn set_workflow_panel_focus(&self, workflow_name: String, selected_step: usize) {
+    pub(super) fn set_workflow_panel_focus(
+        &self,
+        workflow_name: String,
+        script_path: Option<String>,
+        selected_step: usize,
+    ) {
         if let Ok(mut guard) = self.workflow_panel_focus.lock() {
             *guard = Some(WorkflowPanelFocus {
                 workflow_name,
+                script_path,
                 selected_step,
             });
         }
@@ -174,7 +181,7 @@ impl CliReplDriver {
                     if let Some(selected_step) =
                         normalize_selected_step(*step_number, detail.steps.len())
                     {
-                        self.set_workflow_panel_focus(detail.summary.name, selected_step);
+                        self.set_workflow_panel_focus(detail.summary.name, None, selected_step);
                     }
                 }
             }
@@ -206,7 +213,11 @@ impl CliReplDriver {
                     if let Some(selected_step) =
                         normalize_selected_step(*step_number, detail.steps.len())
                     {
-                        self.set_workflow_panel_focus(detail.summary.name, selected_step);
+                        self.set_workflow_panel_focus(
+                            detail.summary.name,
+                            Some(path_text(&resolved_path)),
+                            selected_step,
+                        );
                     }
                 }
             }
@@ -401,7 +412,7 @@ impl CliReplDriver {
 
                 match &items[index - 1] {
                     WorkflowPanelSelectionItem::Step(step_number) => {
-                        self.set_workflow_panel_focus(workflow_name.clone(), *step_number);
+                        self.set_workflow_panel_focus(workflow_name.clone(), None, *step_number);
                         println!(
                             "{}",
                             handle_workflow_command(
@@ -444,7 +455,11 @@ impl CliReplDriver {
 
                 match &items[index - 1] {
                     WorkflowPanelSelectionItem::Step(step_number) => {
-                        self.set_workflow_panel_focus(workflow_name.clone(), *step_number);
+                        self.set_workflow_panel_focus(
+                            workflow_name.clone(),
+                            Some(script_path.clone()),
+                            *step_number,
+                        );
                         println!(
                             "{}",
                             handle_workflow_command(
