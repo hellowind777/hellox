@@ -113,6 +113,7 @@ fn selector_includes_latest_run_and_custom_run_sections() {
     assert!(text.contains("== Custom-path runs =="));
     assert!(text.contains("[2] run-200 — FAILED"));
     assert!(text.contains("hellox workflow run --script-path scripts/custom-release.json"));
+    assert!(text.contains("hellox workflow last-run --script-path scripts/custom-release.json"));
 }
 
 #[test]

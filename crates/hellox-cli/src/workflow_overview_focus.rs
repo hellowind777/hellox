@@ -10,7 +10,7 @@ use crate::workflow_runs::{
     WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
 use crate::workflows::{
-    load_workflow_detail_from_path, WorkflowScriptDetail, WorkflowScriptSummary,
+    load_workflow_detail_from_path, WorkflowRunTarget, WorkflowScriptDetail, WorkflowScriptSummary,
 };
 
 use super::{
@@ -35,11 +35,9 @@ pub(super) fn render_workflow_focus(
         })?;
 
     let latest_run = find_latest_run(runs, &workflow.name);
-    let recent_runs = list_workflow_runs(
-        root,
-        Some(&workflow.name),
-        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
-    )?;
+    let run_target = WorkflowRunTarget::Named(workflow.name.clone());
+    let recent_runs =
+        list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
     let metadata = vec![
         KeyValueRow::new("path", path_text(&workflow.path)),
         KeyValueRow::new("status", status_badge(script_state_label(workflow))),

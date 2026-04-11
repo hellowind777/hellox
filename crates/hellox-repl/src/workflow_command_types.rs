@@ -14,6 +14,7 @@ pub enum WorkflowCommand {
     },
     Runs {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Validate {
         workflow_name: Option<String>,
@@ -25,6 +26,7 @@ pub enum WorkflowCommand {
     },
     LastRun {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
     },
     Show {

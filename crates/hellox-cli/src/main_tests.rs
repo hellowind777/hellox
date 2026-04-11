@@ -603,6 +603,16 @@ fn parses_workflow_commands() {
         "workspace/app",
     ])
     .expect("parse workflow runs");
+    let runs_by_path = Cli::try_parse_from([
+        "hellox",
+        "workflow",
+        "runs",
+        "--script-path",
+        "scripts/custom-release.json",
+        "--limit",
+        "7",
+    ])
+    .expect("parse workflow runs by script path");
     let run = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -633,6 +643,16 @@ fn parses_workflow_commands() {
         "workspace/app",
     ])
     .expect("parse workflow last-run");
+    let last_run_by_path = Cli::try_parse_from([
+        "hellox",
+        "workflow",
+        "last-run",
+        "--script-path",
+        "scripts/custom-release.json",
+        "--step",
+        "2",
+    ])
+    .expect("parse workflow last-run by script path");
     let init = Cli::try_parse_from([
         "hellox",
         "workflow",
@@ -690,15 +710,38 @@ fn parses_workflow_commands() {
             command:
                 WorkflowCommands::Runs {
                     workflow_name,
+                    script_path,
                     limit,
                     cwd,
                 },
         }) => {
             assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(script_path, None);
             assert_eq!(limit, 5);
             assert_eq!(cwd, Some(PathBuf::from("workspace/app")));
         }
         other => panic!("unexpected workflow runs command: {other:?}"),
+    }
+
+    match runs_by_path.command {
+        Some(Commands::Workflow {
+            command:
+                WorkflowCommands::Runs {
+                    workflow_name,
+                    script_path,
+                    limit,
+                    cwd,
+                },
+        }) => {
+            assert_eq!(workflow_name, None);
+            assert_eq!(
+                script_path,
+                Some(PathBuf::from("scripts/custom-release.json"))
+            );
+            assert_eq!(limit, 7);
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected workflow runs-by-path command: {other:?}"),
     }
 
     match run.command {
@@ -755,15 +798,38 @@ fn parses_workflow_commands() {
             command:
                 WorkflowCommands::LastRun {
                     workflow_name,
+                    script_path,
                     step,
                     cwd,
                 },
         }) => {
             assert_eq!(workflow_name, Some(String::from("release-review")));
+            assert_eq!(script_path, None);
             assert_eq!(step, Some(3));
             assert_eq!(cwd, Some(PathBuf::from("workspace/app")));
         }
         other => panic!("unexpected workflow last-run command: {other:?}"),
+    }
+
+    match last_run_by_path.command {
+        Some(Commands::Workflow {
+            command:
+                WorkflowCommands::LastRun {
+                    workflow_name,
+                    script_path,
+                    step,
+                    cwd,
+                },
+        }) => {
+            assert_eq!(workflow_name, None);
+            assert_eq!(
+                script_path,
+                Some(PathBuf::from("scripts/custom-release.json"))
+            );
+            assert_eq!(step, Some(2));
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected workflow last-run-by-path command: {other:?}"),
     }
 
     match init.command {

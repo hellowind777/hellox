@@ -11,8 +11,8 @@ mod focus;
 use crate::workflow_runs::WorkflowRunRecord;
 use crate::workflow_runs::{list_workflow_runs, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT};
 use crate::workflows::{
-    list_workflows, load_named_workflow_detail, render_workflow_list, WorkflowScriptDetail,
-    WorkflowScriptSummary, WorkflowStepSummary,
+    list_workflows, load_named_workflow_detail, render_workflow_list, WorkflowRunTarget,
+    WorkflowScriptDetail, WorkflowScriptSummary, WorkflowStepSummary,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,11 +53,8 @@ pub(crate) fn list_workflow_panel_selection_items(
     let mut items = (1..=detail.steps.len())
         .map(WorkflowPanelSelectionItem::Step)
         .collect::<Vec<_>>();
-    let runs = list_workflow_runs(
-        root,
-        Some(&detail.summary.name),
-        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
-    )?;
+    let run_target = WorkflowRunTarget::Named(detail.summary.name.clone());
+    let runs = list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
     items.extend(
         runs.into_iter()
             .map(|record| WorkflowPanelSelectionItem::Run(record.run_id)),

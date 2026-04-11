@@ -9,6 +9,7 @@ use hellox_agent::{
 use hellox_config::{default_config_path, load_or_default};
 
 use crate::cli_workflow_types::WorkflowCommands;
+use crate::workflows::WorkflowRunTarget;
 
 pub(crate) enum WorkflowLookupTarget {
     Named(String),
@@ -62,6 +63,33 @@ pub(crate) fn resolve_optional_lookup_target(
         )),
         (None, None) => Ok(None),
     }
+}
+
+pub(crate) fn resolve_lookup_run_target(
+    root: &Path,
+    workflow_name: Option<String>,
+    script_path: Option<PathBuf>,
+    label: &str,
+) -> Result<WorkflowRunTarget> {
+    resolve_optional_lookup_run_target(root, workflow_name, script_path, label)?
+        .ok_or_else(|| anyhow!("{label} requires a workflow name or `--script-path`"))
+}
+
+pub(crate) fn resolve_optional_lookup_run_target(
+    root: &Path,
+    workflow_name: Option<String>,
+    script_path: Option<PathBuf>,
+    label: &str,
+) -> Result<Option<WorkflowRunTarget>> {
+    Ok(
+        match resolve_optional_lookup_target(workflow_name, script_path, label)? {
+            Some(WorkflowLookupTarget::Named(name)) => Some(WorkflowRunTarget::Named(name)),
+            Some(WorkflowLookupTarget::Path(path)) => {
+                Some(WorkflowRunTarget::Path(resolve_script_path(root, path)))
+            }
+            None => None,
+        },
+    )
 }
 
 pub(crate) fn resolve_lookup_path(

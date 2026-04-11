@@ -8,7 +8,7 @@ use crate::workflow_runs::{
     WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
 use crate::workflows::load_workflow_detail_from_path;
-use crate::workflows::{list_workflows, WorkflowScriptSummary};
+use crate::workflows::{list_workflows, WorkflowRunTarget, WorkflowScriptSummary};
 
 const CUSTOM_RUN_PREVIEW_LIMIT: usize = 5;
 
@@ -66,11 +66,8 @@ pub(crate) fn list_workflow_focus_selection_items(
         items.extend((1..=detail.steps.len()).map(WorkflowOverviewFocusSelectionItem::Step));
     }
 
-    let runs = list_workflow_runs(
-        root,
-        Some(&workflow.name),
-        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
-    )?;
+    let run_target = WorkflowRunTarget::Named(workflow.name.clone());
+    let runs = list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
     items.extend(
         runs.into_iter()
             .map(|record| WorkflowOverviewFocusSelectionItem::Run(record.run_id)),

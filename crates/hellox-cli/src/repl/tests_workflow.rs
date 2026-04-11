@@ -131,10 +131,12 @@ fn help_text_lists_project_workflow_commands() {
     assert!(text.contains("/workflow panel [name] [n]"));
     assert!(text.contains("/workflow panel --script-path <path> [n]"));
     assert!(text.contains("/workflow runs [name]"));
+    assert!(text.contains("/workflow runs --script-path <path>"));
     assert!(text.contains("/workflow validate [name]"));
     assert!(text.contains("/workflow validate --script-path <path>"));
     assert!(text.contains("/workflow show-run <id> [n]"));
     assert!(text.contains("/workflow last-run [name] [n]"));
+    assert!(text.contains("/workflow last-run --script-path <path> [n]"));
     assert!(text.contains("/workflow show --script-path <path>"));
     assert!(text.contains("/workflow init <name>"));
     assert!(text.contains("/workflow add-step --script-path <path> --prompt <text>"));
@@ -256,6 +258,16 @@ fn parse_workflow_authoring_commands() {
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::Runs {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command("/workflow runs --script-path scripts/custom-release.json"),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Runs {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             }
         ))
     );
@@ -273,7 +285,20 @@ fn parse_workflow_authoring_commands() {
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::LastRun {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
                 step_number: Some(3),
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow last-run --script-path scripts/custom-release.json 2"
+        ),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::LastRun {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+                step_number: Some(2),
             }
         ))
     );
@@ -726,6 +751,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let runs = handle_workflow_command(
         WorkflowCommand::Runs {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
         },
         &mut session,
     )
@@ -750,6 +776,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let latest = handle_workflow_command(
         WorkflowCommand::LastRun {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(1),
         },
         &mut session,
@@ -1009,6 +1036,34 @@ async fn handle_workflow_script_path_commands_roundtrip() {
     assert!(detail.contains(&format!(
         "/workflow validate --script-path {absolute_script_path}"
     )));
+
+    let runs = handle_workflow_command(
+        WorkflowCommand::Runs {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+        },
+        &mut session,
+    )
+    .await
+    .expect("list explicit workflow runs");
+    assert!(runs.contains(&format!(
+        "hellox workflow last-run --script-path {absolute_script_path}"
+    )));
+
+    let latest = handle_workflow_command(
+        WorkflowCommand::LastRun {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+            step_number: Some(1),
+        },
+        &mut session,
+    )
+    .await
+    .expect("show latest explicit workflow run");
+    assert!(latest.contains(&absolute_script_path));
+    assert!(latest.contains(&format!(
+        "/workflow last-run --script-path {absolute_script_path}"
+    )));
 }
 
 #[test]
@@ -1206,6 +1261,82 @@ async fn workflow_runs_selector_allows_numeric_selection() {
             assert_eq!(step_count, 1);
         }
         other => panic!("expected workflow run step selector after opening run, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn workflow_runs_selector_supports_explicit_script_path() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow repl done").await;
+    write_config(&root, &base_url);
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+
+    let metadata = metadata_in(&root);
+    let mut session = session_in(root.clone());
+    let driver = super::CliReplDriver::new();
+
+    let run_text = handle_workflow_command(
+        WorkflowCommand::Run {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
+            shared_context: Some(String::from("ship carefully")),
+        },
+        &mut session,
+    )
+    .await
+    .expect("run explicit workflow from repl");
+    let run_id = serde_json::from_str::<serde_json::Value>(&run_text)
+        .expect("parse explicit workflow run output")
+        .get("run_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("explicit workflow run id")
+        .to_string();
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async(
+                "/workflow runs --script-path scripts/custom-release.json",
+                &mut session,
+                &metadata
+            )
+            .await
+            .expect("open explicit workflow runs panel"),
+        ReplAction::Continue
+    );
+
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowRunList { run_ids }) => {
+            assert_eq!(run_ids, vec![run_id.clone()]);
+        }
+        other => panic!("expected explicit workflow run selector context, got {other:?}"),
+    }
+
+    assert_eq!(
+        driver
+            .handle_repl_input_async("1", &mut session, &metadata)
+            .await
+            .expect("select explicit workflow run"),
+        ReplAction::Continue
+    );
+    match driver.selector_context() {
+        Some(super::SelectorContext::WorkflowRunSteps {
+            run_id: selected_run_id,
+            step_count,
+        }) => {
+            assert_eq!(selected_run_id, run_id);
+            assert_eq!(step_count, 1);
+        }
+        other => {
+            panic!("expected workflow run step selector after opening explicit run, got {other:?}")
+        }
     }
 }
 

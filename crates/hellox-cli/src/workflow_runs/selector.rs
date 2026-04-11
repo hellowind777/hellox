@@ -157,7 +157,7 @@ fn next_follow_up_hint(record: &WorkflowRunRecord) -> String {
     if let Some(workflow_name) = record.workflow_name.as_deref() {
         format!("hellox workflow last-run {workflow_name}")
     } else if let Some(script_path) = record.requested_script_path.as_deref() {
-        format!("hellox workflow run --script-path {script_path}")
+        format!("hellox workflow last-run --script-path {script_path}")
     } else {
         format!("hellox workflow show-run {}", record.run_id)
     }

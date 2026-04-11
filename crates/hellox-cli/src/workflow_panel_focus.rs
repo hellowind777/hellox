@@ -10,7 +10,7 @@ use crate::workflow_runs::{
     list_workflow_runs, load_latest_workflow_run, render_run_selector_with_start,
     WorkflowRunRecord, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
-use crate::workflows::{WorkflowScriptDetail, WorkflowStepSummary};
+use crate::workflows::{WorkflowRunTarget, WorkflowScriptDetail, WorkflowStepSummary};
 
 use super::{
     dynamic_command_hint, latest_run_summary, latest_step_status, path_text, validate_step_number,
@@ -26,12 +26,10 @@ pub(super) fn render_workflow_panel_detail(
         validate_step_number(step_number, detail.steps.len())?;
     }
 
-    let recent_runs = list_workflow_runs(
-        root,
-        Some(&detail.summary.name),
-        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
-    )?;
-    let latest_run = load_latest_workflow_run(root, Some(&detail.summary.name)).ok();
+    let run_target = WorkflowRunTarget::Named(detail.summary.name.clone());
+    let recent_runs =
+        list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
+    let latest_run = load_latest_workflow_run(root, Some(&run_target)).ok();
     let metadata = vec![
         KeyValueRow::new("path", path_text(&detail.summary.path)),
         KeyValueRow::new("steps", detail.summary.step_count.to_string()),

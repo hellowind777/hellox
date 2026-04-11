@@ -34,9 +34,17 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
                 step_number,
             }
         }
-        Some(action) if action == "runs" || action == "history" => WorkflowCommand::Runs {
-            workflow_name: parts.next().map(ToString::to_string),
-        },
+        Some(action) if action == "runs" || action == "history" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
+            WorkflowCommand::Runs {
+                workflow_name,
+                script_path,
+            }
+        }
         Some(action) if action == "validate" => {
             let values = trimmed[action.len()..]
                 .trim()
@@ -52,10 +60,20 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
             run_id: parts.next().map(ToString::to_string),
             step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
         },
-        Some(action) if action == "last-run" => WorkflowCommand::LastRun {
-            workflow_name: parts.next().map(ToString::to_string),
-            step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
-        },
+        Some(action) if action == "last-run" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, consumed) = parse_workflow_lookup(&values);
+            WorkflowCommand::LastRun {
+                workflow_name,
+                script_path,
+                step_number: values
+                    .get(consumed)
+                    .and_then(|value| value.parse::<usize>().ok()),
+            }
+        }
         Some(action) if action == "show" => {
             let values = trimmed[action.len()..]
                 .trim()

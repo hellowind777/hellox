@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use hellox_agent::AgentSession;
 
 use super::{commands::WorkflowCommand, *};
+use crate::workflow_command_support::resolve_optional_lookup_run_target;
 use crate::workflow_overview::{
     list_workflow_focus_selection_items, list_workflow_overview_selection_items,
     WorkflowOverviewFocusSelectionItem, WorkflowOverviewSelectionItem,
@@ -145,18 +148,28 @@ impl CliReplDriver {
                     }
                 }
             }
-            WorkflowCommand::Runs { workflow_name } => {
-                if let Ok(runs) = list_workflow_runs(
+            WorkflowCommand::Runs {
+                workflow_name,
+                script_path,
+            } => {
+                if let Ok(filter) = resolve_optional_lookup_run_target(
                     session.working_directory(),
-                    workflow_name.as_deref(),
-                    WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+                    workflow_name.clone(),
+                    script_path.clone().map(PathBuf::from),
+                    "workflow runs",
                 ) {
-                    let run_ids = runs
-                        .into_iter()
-                        .map(|record| record.run_id)
-                        .collect::<Vec<_>>();
-                    if !run_ids.is_empty() {
-                        self.set_selector_context(SelectorContext::WorkflowRunList { run_ids });
+                    if let Ok(runs) = list_workflow_runs(
+                        session.working_directory(),
+                        filter.as_ref(),
+                        WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
+                    ) {
+                        let run_ids = runs
+                            .into_iter()
+                            .map(|record| record.run_id)
+                            .collect::<Vec<_>>();
+                        if !run_ids.is_empty() {
+                            self.set_selector_context(SelectorContext::WorkflowRunList { run_ids });
+                        }
                     }
                 }
             }
@@ -180,20 +193,28 @@ impl CliReplDriver {
             }
             WorkflowCommand::LastRun {
                 workflow_name,
+                script_path,
                 step_number,
             } => {
-                if let Ok(record) =
-                    load_latest_workflow_run(session.working_directory(), workflow_name.as_deref())
-                {
-                    if !record.steps.is_empty() {
-                        self.set_selector_context(SelectorContext::WorkflowRunSteps {
-                            run_id: record.run_id.clone(),
-                            step_count: record.steps.len(),
-                        });
-                        if let Some(selected_step) =
-                            select_workflow_run_step_number(&record, *step_number)
-                        {
-                            self.set_workflow_run_focus(record.run_id, selected_step);
+                if let Ok(filter) = resolve_optional_lookup_run_target(
+                    session.working_directory(),
+                    workflow_name.clone(),
+                    script_path.clone().map(PathBuf::from),
+                    "workflow last-run",
+                ) {
+                    if let Ok(record) =
+                        load_latest_workflow_run(session.working_directory(), filter.as_ref())
+                    {
+                        if !record.steps.is_empty() {
+                            self.set_selector_context(SelectorContext::WorkflowRunSteps {
+                                run_id: record.run_id.clone(),
+                                step_count: record.steps.len(),
+                            });
+                            if let Some(selected_step) =
+                                select_workflow_run_step_number(&record, *step_number)
+                            {
+                                self.set_workflow_run_focus(record.run_id, selected_step);
+                            }
                         }
                     }
                 }

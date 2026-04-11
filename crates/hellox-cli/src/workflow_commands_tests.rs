@@ -27,6 +27,13 @@ fn write_workflow(root: &Path, relative: &str, raw: &str) {
     fs::write(path, raw).expect("write workflow");
 }
 
+fn write_explicit_workflow(root: &Path, relative: &str, raw: &str) {
+    let path = root.join(relative);
+    fs::create_dir_all(path.parent().expect("explicit workflow dir"))
+        .expect("create explicit workflow dir");
+    fs::write(path, raw).expect("write explicit workflow");
+}
+
 fn write_config(root: &Path, base_url: &str) -> PathBuf {
     let config = format!(
         "[gateway]\nlisten = \"{}\"\n\n[session]\npersist = false\nmodel = \"mock-model\"\n",
@@ -218,6 +225,74 @@ async fn workflow_run_command_executes_named_script() {
 
     assert!(text.contains("\"workflow_source\": \".hellox/workflows/release-review.json\""));
     assert!(text.contains("workflow command done"));
+}
+
+#[tokio::test]
+async fn workflow_runs_and_last_run_support_explicit_script_path() {
+    let root = temp_dir();
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+    let base_url = spawn_mock_gateway("workflow command done").await;
+    let config_path = write_config(&root, &base_url);
+    let absolute_script_path = root
+        .join("scripts")
+        .join("custom-release.json")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+
+    let run = workflow_command_text(WorkflowCommands::Run {
+        workflow_name: None,
+        script_path: Some(PathBuf::from("scripts/custom-release.json")),
+        shared_context: Some("ship carefully".to_string()),
+        continue_on_error: false,
+        config: Some(config_path),
+        cwd: Some(root.clone()),
+    })
+    .await
+    .expect("run explicit workflow command");
+    let run_id = serde_json::from_str::<serde_json::Value>(&run)
+        .expect("parse explicit workflow command output")
+        .get("run_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("explicit workflow run id")
+        .to_string();
+
+    let runs = workflow_command_text(WorkflowCommands::Runs {
+        workflow_name: None,
+        script_path: Some(PathBuf::from("scripts/custom-release.json")),
+        limit: 20,
+        cwd: Some(root.clone()),
+    })
+    .await
+    .expect("list explicit workflow runs");
+    assert!(runs.contains(&run_id));
+    assert!(runs.contains(&format!(
+        "hellox workflow last-run --script-path {absolute_script_path}"
+    )));
+
+    let latest = workflow_command_text(WorkflowCommands::LastRun {
+        workflow_name: None,
+        script_path: Some(PathBuf::from("scripts/custom-release.json")),
+        step: Some(1),
+        cwd: Some(root),
+    })
+    .await
+    .expect("show latest explicit workflow run");
+    assert!(latest.contains(&run_id));
+    assert!(latest.contains(&format!(
+        "hellox workflow runs --script-path {absolute_script_path}"
+    )));
+    assert!(latest.contains(&format!(
+        "/workflow last-run --script-path {absolute_script_path}"
+    )));
 }
 
 #[tokio::test]

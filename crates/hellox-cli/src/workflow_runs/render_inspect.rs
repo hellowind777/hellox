@@ -203,6 +203,12 @@ fn render_cli_palette(root: &Path, record: &WorkflowRunRecord) -> Vec<String> {
             cli_run_command(None, Some(script_path), record.shared_context.as_deref())
         ));
         lines.push(format!(
+            "- inspect history: `hellox workflow runs --script-path {script_path}`"
+        ));
+        lines.push(format!(
+            "- latest run: `hellox workflow last-run --script-path {script_path}`"
+        ));
+        lines.push(format!(
             "- inspect script: `hellox workflow panel --script-path {script_path}`"
         ));
         lines.push(format!(
@@ -245,6 +251,12 @@ fn render_repl_palette(record: &WorkflowRunRecord) -> Vec<String> {
             "- latest run: `/workflow last-run {workflow_name}`"
         ));
     } else if let Some(script_path) = record.requested_script_path.as_deref() {
+        lines.push(format!(
+            "- inspect history: `/workflow runs --script-path {script_path}`"
+        ));
+        lines.push(format!(
+            "- latest run: `/workflow last-run --script-path {script_path}`"
+        ));
         lines.push(format!(
             "- inspect script: `/workflow panel --script-path {script_path}`"
         ));

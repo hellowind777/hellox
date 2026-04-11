@@ -34,6 +34,21 @@ mod tests {
             }))
         );
         assert_eq!(
+            parse_command("/workflow runs --script-path scripts/custom-release.json"),
+            Some(ReplCommand::Workflow(WorkflowCommand::Runs {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+            }))
+        );
+        assert_eq!(
+            parse_command("/workflow last-run --script-path scripts/custom-release.json 2"),
+            Some(ReplCommand::Workflow(WorkflowCommand::LastRun {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+                step_number: Some(2),
+            }))
+        );
+        assert_eq!(
             parse_command("/workflow demo"),
             Some(ReplCommand::Workflow(WorkflowCommand::Run {
                 workflow_name: Some(String::from("demo")),

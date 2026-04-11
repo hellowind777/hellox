@@ -119,10 +119,16 @@ fn build_custom_run_entry(record: &WorkflowRunRecord) -> SelectorEntry {
             "rerun: `hellox workflow run --script-path {script_path}`"
         ));
         lines.push(format!(
+            "last-run: `hellox workflow last-run --script-path {script_path}`"
+        ));
+        lines.push(format!(
             "validate: `hellox workflow validate --script-path {script_path}`"
         ));
         lines.push(format!(
             "rerun (repl): `/workflow run --script-path {script_path}`"
+        ));
+        lines.push(format!(
+            "last-run (repl): `/workflow last-run --script-path {script_path}`"
         ));
         lines.push(format!(
             "show (repl): `/workflow show --script-path {script_path}`"

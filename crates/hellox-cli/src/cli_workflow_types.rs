@@ -32,6 +32,8 @@ pub(crate) enum WorkflowCommands {
     },
     Runs {
         workflow_name: Option<String>,
+        #[arg(long)]
+        script_path: Option<PathBuf>,
         #[arg(long, default_value_t = 20)]
         limit: usize,
         #[arg(long)]
@@ -53,6 +55,8 @@ pub(crate) enum WorkflowCommands {
     },
     LastRun {
         workflow_name: Option<String>,
+        #[arg(long)]
+        script_path: Option<PathBuf>,
         #[arg(long)]
         step: Option<usize>,
         #[arg(long)]

@@ -258,7 +258,10 @@ pub(crate) fn handle_workflow_dashboard_input(
         } => {
             let workflow_name = normalize_optional_text(workflow_name)
                 .or_else(|| active_workflow_name(root, state));
-            let record = load_latest_workflow_run(root, workflow_name.as_deref())?;
+            let filter = workflow_name
+                .as_ref()
+                .map(|workflow_name| WorkflowRunTarget::Named(workflow_name.clone()));
+            let record = load_latest_workflow_run(root, filter.as_ref())?;
             navigate_and_render(
                 root,
                 state,
@@ -388,9 +391,12 @@ pub(crate) fn complete_workflow_dashboard_run(
     result_text: &str,
 ) -> Result<String> {
     let run_id = parse_recorded_workflow_run_id(result_text).or_else(|| {
-        load_latest_workflow_run(root, Some(workflow_name))
-            .ok()
-            .map(|record| record.run_id)
+        load_latest_workflow_run(
+            root,
+            Some(&WorkflowRunTarget::Named(workflow_name.to_string())),
+        )
+        .ok()
+        .map(|record| record.run_id)
     });
 
     match run_id {
@@ -452,13 +458,13 @@ fn render_workflow_dashboard_view(
             })
         }
         WorkflowDashboardView::Runs { workflow_name } => {
-            let runs = list_workflow_runs(
-                root,
-                workflow_name.as_deref(),
-                WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
-            )?;
+            let filter = workflow_name
+                .as_ref()
+                .map(|workflow_name| WorkflowRunTarget::Named(workflow_name.clone()));
+            let runs =
+                list_workflow_runs(root, filter.as_ref(), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
             Ok(RenderedWorkflowDashboard {
-                text: render_workflow_run_list(root, &runs, workflow_name.as_deref()),
+                text: render_workflow_run_list(root, &runs, filter.as_ref()),
                 open_targets: runs
                     .into_iter()
                     .map(|record| WorkflowDashboardOpenTarget::Run(record.run_id))

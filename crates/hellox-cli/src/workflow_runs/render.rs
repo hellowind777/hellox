@@ -11,17 +11,26 @@ use super::selector::render_run_selector;
 use super::{
     normalize_filter, path_text, workflow_run_path, workflow_runs_root, WorkflowRunRecord,
 };
+use crate::workflows::WorkflowRunTarget;
 pub(crate) use inspect::select_workflow_run_step_number;
 
 pub(crate) fn render_workflow_run_list(
     root: &Path,
     records: &[WorkflowRunRecord],
-    workflow_name: Option<&str>,
+    filter: Option<&WorkflowRunTarget>,
 ) -> String {
     if records.is_empty() {
-        return match normalize_filter(workflow_name) {
-            Some(name) => format!(
-                "No workflow runs found for `{name}` under `{}`.",
+        return match filter {
+            Some(WorkflowRunTarget::Named(name)) => {
+                let name = normalize_filter(Some(name.as_str())).unwrap_or_else(|| name.clone());
+                format!(
+                    "No workflow runs found for workflow `{name}` under `{}`.",
+                    path_text(&workflow_runs_root(root))
+                )
+            }
+            Some(WorkflowRunTarget::Path(path)) => format!(
+                "No workflow runs found for script path `{}` under `{}`.",
+                path_text(path),
                 path_text(&workflow_runs_root(root))
             ),
             None => format!(
@@ -31,13 +40,17 @@ pub(crate) fn render_workflow_run_list(
         };
     }
 
-    let filter = normalize_filter(workflow_name);
     let mut metadata = vec![
         KeyValueRow::new("root", path_text(&workflow_runs_root(root))),
         KeyValueRow::new("runs", records.len().to_string()),
     ];
-    if let Some(name) = filter.as_deref() {
-        metadata.push(KeyValueRow::new("workflow", name));
+    if let Some(filter) = filter {
+        match filter {
+            WorkflowRunTarget::Named(name) => metadata.push(KeyValueRow::new("workflow", name)),
+            WorkflowRunTarget::Path(path) => {
+                metadata.push(KeyValueRow::new("script_path", path_text(path)))
+            }
+        }
     }
 
     let mut sections = vec![PanelSection::new(
@@ -50,13 +63,35 @@ pub(crate) fn render_workflow_run_list(
     ));
 
     let mut palette = vec!["- inspect one run: `hellox workflow show-run <run-id>`".to_string()];
-    if let Some(name) = filter.as_deref() {
-        palette.push(format!("- latest run: `hellox workflow last-run {name}`"));
-        palette.push(format!("- inspect script: `hellox workflow panel {name}`"));
-        palette.push(format!("- repl history: `/workflow runs {name}`"));
-    } else {
-        palette.push("- focus one workflow: `hellox workflow runs <name>`".to_string());
-        palette.push("- repl history: `/workflow runs <name>`".to_string());
+    match filter {
+        Some(WorkflowRunTarget::Named(name)) => {
+            palette.push(format!("- latest run: `hellox workflow last-run {name}`"));
+            palette.push(format!("- inspect script: `hellox workflow panel {name}`"));
+            palette.push(format!("- repl history: `/workflow runs {name}`"));
+        }
+        Some(WorkflowRunTarget::Path(path)) => {
+            let script_path = path_text(path);
+            palette.push(format!(
+                "- latest run: `hellox workflow last-run --script-path {script_path}`"
+            ));
+            palette.push(format!(
+                "- inspect script: `hellox workflow panel --script-path {script_path}`"
+            ));
+            palette.push(format!(
+                "- validate script: `hellox workflow validate --script-path {script_path}`"
+            ));
+            palette.push(format!(
+                "- repl history: `/workflow runs --script-path {script_path}`"
+            ));
+        }
+        None => {
+            palette.push("- focus one workflow: `hellox workflow runs <name>`".to_string());
+            palette.push(
+                "- focus one explicit script: `hellox workflow runs --script-path <path>`"
+                    .to_string(),
+            );
+            palette.push("- repl history: `/workflow runs <name>`".to_string());
+        }
     }
     sections.push(PanelSection::new("Action palette", palette));
 
@@ -162,7 +197,7 @@ fn next_follow_up_hint(record: &WorkflowRunRecord) -> String {
     if let Some(workflow_name) = record.workflow_name.as_deref() {
         format!("hellox workflow last-run {workflow_name}")
     } else if let Some(script_path) = record.requested_script_path.as_deref() {
-        format!("hellox workflow run --script-path {script_path}")
+        format!("hellox workflow last-run --script-path {script_path}")
     } else {
         "(inspect run)".to_string()
     }

@@ -1,10 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{
     render_workflow_run_inspect_panel, render_workflow_run_inspect_panel_with_step,
     render_workflow_run_list,
 };
 use crate::workflow_runs::{WorkflowRunRecord, WorkflowRunStepRecord, WorkflowRunSummary};
+use crate::workflows::WorkflowRunTarget;
 
 fn sample_record() -> WorkflowRunRecord {
     WorkflowRunRecord {
@@ -50,7 +51,7 @@ fn run_list_renders_history_panel_cards() {
     let text = render_workflow_run_list(
         Path::new("D:/repo"),
         &[sample_record()],
-        Some("release-review"),
+        Some(&WorkflowRunTarget::Named("release-review".to_string())),
     );
 
     assert!(text.contains("Workflow run history panel"));
@@ -64,6 +65,27 @@ fn run_list_renders_history_panel_cards() {
     assert!(text.contains("focus: `hellox workflow show-run run-123 2`"));
     assert!(text.contains("next: `hellox workflow last-run release-review`"));
     assert!(text.contains("hellox workflow last-run release-review"));
+}
+
+#[test]
+fn run_list_renders_script_path_action_palette_for_custom_runs() {
+    let mut record = sample_record();
+    record.workflow_name = None;
+    record.workflow_source = Some("scripts/custom-release.json".to_string());
+    record.requested_script_path = Some("scripts/custom-release.json".to_string());
+
+    let text = render_workflow_run_list(
+        Path::new("D:/repo"),
+        &[record],
+        Some(&WorkflowRunTarget::Path(PathBuf::from(
+            "scripts/custom-release.json",
+        ))),
+    );
+
+    assert!(text.contains("script_path"));
+    assert!(text.contains("hellox workflow last-run --script-path scripts/custom-release.json"));
+    assert!(text.contains("hellox workflow panel --script-path scripts/custom-release.json"));
+    assert!(text.contains("/workflow runs --script-path scripts/custom-release.json"));
 }
 
 #[test]
@@ -102,9 +124,13 @@ fn inspect_panel_uses_script_path_palette_for_custom_runs() {
     assert!(text.contains(
         "hellox workflow run --script-path scripts/custom-release.json --shared-context \"ship carefully\""
     ));
+    assert!(text.contains("hellox workflow runs --script-path scripts/custom-release.json"));
+    assert!(text.contains("hellox workflow last-run --script-path scripts/custom-release.json"));
     assert!(text.contains("hellox workflow panel --script-path scripts/custom-release.json"));
     assert!(text.contains("== REPL palette =="));
     assert!(text.contains("/workflow run --script-path scripts/custom-release.json ship carefully"));
+    assert!(text.contains("/workflow runs --script-path scripts/custom-release.json"));
+    assert!(text.contains("/workflow last-run --script-path scripts/custom-release.json"));
     assert!(text.contains("/workflow panel --script-path scripts/custom-release.json"));
     assert!(text.contains("/workflow validate --script-path scripts/custom-release.json"));
 }

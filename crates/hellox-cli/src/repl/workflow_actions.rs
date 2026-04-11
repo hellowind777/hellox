@@ -9,8 +9,9 @@ use crate::workflow_authoring::{
     update_workflow_step, WorkflowStepDraft, WorkflowStepPatch,
 };
 use crate::workflow_command_support::{
-    resolve_lookup_path, resolve_lookup_target, resolve_optional_lookup_target,
-    resolve_script_path, WorkflowLookupTarget,
+    resolve_lookup_path, resolve_lookup_run_target, resolve_lookup_target,
+    resolve_optional_lookup_run_target, resolve_optional_lookup_target, resolve_script_path,
+    WorkflowLookupTarget,
 };
 use crate::workflow_dashboard::{
     initial_workflow_dashboard_state, render_workflow_dashboard_state,
@@ -25,7 +26,7 @@ use crate::workflows::{
     initialize_workflow, list_workflows, load_named_workflow_detail,
     load_workflow_detail_from_path, render_workflow_detail, render_workflow_list,
     render_workflow_validation, resolve_named_workflow, validate_explicit_workflow_path,
-    validate_named_workflow, validate_workflows, WorkflowRunTarget,
+    validate_named_workflow, validate_workflows,
 };
 
 use super::commands::WorkflowCommand;
@@ -74,13 +75,21 @@ pub(super) async fn handle_workflow_command(
             }
             None => render_workflow_panel(session.working_directory(), None, step_number),
         },
-        WorkflowCommand::Runs { workflow_name } => {
-            let runs =
-                list_workflow_runs(session.working_directory(), workflow_name.as_deref(), 20)?;
+        WorkflowCommand::Runs {
+            workflow_name,
+            script_path,
+        } => {
+            let filter = resolve_optional_lookup_run_target(
+                session.working_directory(),
+                workflow_name,
+                script_path.map(PathBuf::from),
+                "workflow runs",
+            )?;
+            let runs = list_workflow_runs(session.working_directory(), filter.as_ref(), 20)?;
             Ok(render_workflow_run_list(
                 session.working_directory(),
                 &runs,
-                workflow_name.as_deref(),
+                filter.as_ref(),
             ))
         }
         WorkflowCommand::Validate {
@@ -120,12 +129,21 @@ pub(super) async fn handle_workflow_command(
         )),
         WorkflowCommand::LastRun {
             workflow_name,
+            script_path,
             step_number,
-        } => Ok(render_workflow_run_inspect_panel_with_step(
-            session.working_directory(),
-            &load_latest_workflow_run(session.working_directory(), workflow_name.as_deref())?,
-            step_number,
-        )),
+        } => {
+            let filter = resolve_optional_lookup_run_target(
+                session.working_directory(),
+                workflow_name,
+                script_path.map(PathBuf::from),
+                "workflow last-run",
+            )?;
+            Ok(render_workflow_run_inspect_panel_with_step(
+                session.working_directory(),
+                &load_latest_workflow_run(session.working_directory(), filter.as_ref())?,
+                step_number,
+            ))
+        }
         WorkflowCommand::Show {
             workflow_name,
             script_path,
@@ -632,25 +650,13 @@ pub(super) async fn handle_workflow_command(
             script_path,
             shared_context,
         } => {
-            let target = match resolve_lookup_target(
+            let target = resolve_lookup_run_target(
+                session.working_directory(),
                 workflow_name,
                 script_path.map(PathBuf::from),
                 "workflow run",
-            )? {
-                WorkflowLookupTarget::Named(workflow_name) => {
-                    WorkflowRunTarget::Named(workflow_name)
-                }
-                WorkflowLookupTarget::Path(path) => {
-                    WorkflowRunTarget::Path(resolve_script_path(session.working_directory(), path))
-                }
-            };
-            execute_and_record_workflow(
-                session,
-                target,
-                shared_context,
-                None,
-            )
-            .await
+            )?;
+            execute_and_record_workflow(session, target, shared_context, None).await
         }
         WorkflowCommand::Help => Ok(workflow_help_text()),
     }

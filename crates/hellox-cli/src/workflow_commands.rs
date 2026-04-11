@@ -3,9 +3,9 @@ use anyhow::Result;
 use crate::cli_workflow_types::WorkflowCommands;
 use crate::workflow_command_authoring::handle_workflow_authoring_command;
 use crate::workflow_command_support::{
-    build_workflow_session, path_text, preferred_workflow_config_path, resolve_lookup_target,
-    resolve_optional_lookup_target, resolve_script_path, workflow_command_cwd, workspace_root,
-    WorkflowLookupTarget,
+    build_workflow_session, path_text, preferred_workflow_config_path, resolve_lookup_run_target,
+    resolve_lookup_target, resolve_optional_lookup_run_target, resolve_optional_lookup_target,
+    resolve_script_path, workflow_command_cwd, workspace_root, WorkflowLookupTarget,
 };
 use crate::workflow_dashboard::{
     initial_workflow_dashboard_state, render_workflow_dashboard_state, run_workflow_dashboard_loop,
@@ -20,7 +20,7 @@ use crate::workflows::{
     initialize_workflow, list_workflows, load_named_workflow_detail,
     load_workflow_detail_from_path, render_workflow_detail, render_workflow_list,
     render_workflow_validation, validate_explicit_workflow_path, validate_named_workflow,
-    validate_workflows, WorkflowRunTarget,
+    validate_workflows,
 };
 
 pub(crate) async fn handle_workflow_command(command: WorkflowCommands) -> Result<()> {
@@ -72,15 +72,18 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
         },
         WorkflowCommands::Runs {
             workflow_name,
+            script_path,
             limit,
             ..
         } => {
-            let runs = list_workflow_runs(&root, workflow_name.as_deref(), limit)?;
-            Ok(render_workflow_run_list(
+            let filter = resolve_optional_lookup_run_target(
                 &root,
-                &runs,
-                workflow_name.as_deref(),
-            ))
+                workflow_name,
+                script_path,
+                "workflow runs",
+            )?;
+            let runs = list_workflow_runs(&root, filter.as_ref(), limit)?;
+            Ok(render_workflow_run_list(&root, &runs, filter.as_ref()))
         }
         WorkflowCommands::Validate {
             workflow_name,
@@ -114,13 +117,22 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
         }
         WorkflowCommands::LastRun {
             workflow_name,
+            script_path,
             step,
             ..
-        } => Ok(render_workflow_run_inspect_panel_with_step(
-            &root,
-            &load_latest_workflow_run(&root, workflow_name.as_deref())?,
-            step,
-        )),
+        } => {
+            let filter = resolve_optional_lookup_run_target(
+                &root,
+                workflow_name,
+                script_path,
+                "workflow last-run",
+            )?;
+            Ok(render_workflow_run_inspect_panel_with_step(
+                &root,
+                &load_latest_workflow_run(&root, filter.as_ref())?,
+                step,
+            ))
+        }
         WorkflowCommands::Show {
             workflow_name,
             script_path,
@@ -161,12 +173,8 @@ pub(crate) async fn workflow_command_text(command: WorkflowCommands) -> Result<S
             config,
             ..
         } => {
-            let target = match resolve_lookup_target(workflow_name, script_path, "workflow run")? {
-                WorkflowLookupTarget::Named(name) => WorkflowRunTarget::Named(name),
-                WorkflowLookupTarget::Path(path) => {
-                    WorkflowRunTarget::Path(resolve_script_path(&root, path))
-                }
-            };
+            let target =
+                resolve_lookup_run_target(&root, workflow_name, script_path, "workflow run")?;
             let session = build_workflow_session(
                 config.or_else(|| preferred_workflow_config_path(&root)),
                 root,
