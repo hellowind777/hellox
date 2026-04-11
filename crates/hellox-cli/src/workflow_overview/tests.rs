@@ -6,8 +6,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::json;
 
 use super::{
-    list_workflow_focus_selection_items, list_workflow_overview_selection_items,
-    render_workflow_overview, WorkflowOverviewFocusSelectionItem, WorkflowOverviewSelectionItem,
+    list_workflow_focus_selection_items, list_workflow_focus_selection_items_for_path,
+    list_workflow_overview_selection_items, render_workflow_overview,
+    render_workflow_overview_for_path, WorkflowOverviewFocusSelectionItem,
+    WorkflowOverviewSelectionItem,
 };
 
 fn temp_dir() -> PathBuf {
@@ -22,6 +24,12 @@ fn temp_dir() -> PathBuf {
 
 fn write_workflow(root: &Path, relative: &str, raw: &str) {
     let path = root.join(".hellox").join("workflows").join(relative);
+    fs::create_dir_all(path.parent().expect("workflow dir")).expect("create workflow dir");
+    fs::write(path, raw).expect("write workflow");
+}
+
+fn write_explicit_workflow(root: &Path, relative: &str, raw: &str) {
+    let path = root.join(relative);
     fs::create_dir_all(path.parent().expect("workflow dir")).expect("create workflow dir");
     fs::write(path, raw).expect("write workflow");
 }
@@ -232,6 +240,66 @@ fn named_overview_renders_visual_map_and_latest_run_snapshot() {
 }
 
 #[test]
+fn explicit_path_overview_renders_path_palettes() {
+    let root = temp_dir();
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release notes" }
+  ]
+}"#,
+    );
+    write_run(
+        &root,
+        "run-350",
+        json!({
+            "run_id": "run-350",
+            "status": "completed",
+            "workflow_name": null,
+            "workflow_source": "scripts/custom-release.json",
+            "requested_script_path": "scripts/custom-release.json",
+            "started_at": 10,
+            "finished_at": 20,
+            "shared_context": "ship carefully",
+            "continue_on_error": false,
+            "summary": {
+                "total_steps": 1,
+                "completed_steps": 1,
+                "failed_steps": 0,
+                "running_steps": 0,
+                "skipped_steps": 0
+            },
+            "steps": [
+                {
+                    "name": "review",
+                    "status": "completed",
+                    "result_text": "done",
+                    "error": null,
+                    "reason": null
+                }
+            ],
+            "error": null,
+            "result_text": "ok"
+        }),
+    );
+
+    let script_path = root.join("scripts").join("custom-release.json");
+    let text =
+        render_workflow_overview_for_path(&root, &script_path).expect("render explicit overview");
+    assert!(text.contains("Workflow overview: scripts/custom-release"));
+    assert!(text.contains("/workflow run --script-path"));
+    assert!(text.contains("focus: `/workflow panel --script-path"));
+    assert!(text.contains("== Recent runs =="));
+    assert!(text.contains("[2] run-350"));
+    assert!(text.contains("== CLI palette =="));
+    assert!(text.contains("hellox workflow runs --script-path"));
+    assert!(text.contains("== REPL palette =="));
+    assert!(text.contains("/workflow validate --script-path"));
+}
+
+#[test]
 fn focused_selection_items_append_recent_runs_after_steps() {
     let root = temp_dir();
     write_workflow(
@@ -272,6 +340,54 @@ fn focused_selection_items_append_recent_runs_after_steps() {
         vec![
             WorkflowOverviewFocusSelectionItem::Step(1),
             WorkflowOverviewFocusSelectionItem::Run(String::from("run-300")),
+        ]
+    );
+}
+
+#[test]
+fn explicit_path_focus_selection_items_append_recent_runs_after_steps() {
+    let root = temp_dir();
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+    );
+    write_run(
+        &root,
+        "run-360",
+        json!({
+            "run_id": "run-360",
+            "status": "completed",
+            "workflow_name": null,
+            "workflow_source": "scripts/custom-release.json",
+            "requested_script_path": "scripts/custom-release.json",
+            "started_at": 10,
+            "finished_at": 20,
+            "shared_context": null,
+            "continue_on_error": false,
+            "summary": {
+                "total_steps": 1,
+                "completed_steps": 1,
+                "failed_steps": 0,
+                "running_steps": 0,
+                "skipped_steps": 0
+            },
+            "steps": [],
+            "error": null,
+            "result_text": "ok"
+        }),
+    );
+
+    let items = list_workflow_focus_selection_items_for_path(
+        &root,
+        &root.join("scripts").join("custom-release.json"),
+    )
+    .expect("list explicit path focus items");
+    assert_eq!(
+        items,
+        vec![
+            WorkflowOverviewFocusSelectionItem::Step(1),
+            WorkflowOverviewFocusSelectionItem::Run(String::from("run-360")),
         ]
     );
 }

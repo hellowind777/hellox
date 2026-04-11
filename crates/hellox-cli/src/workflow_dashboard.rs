@@ -18,8 +18,10 @@ use crate::workflow_command_support::{
     resolve_optional_lookup_target, resolve_script_path, WorkflowLookupTarget,
 };
 use crate::workflow_overview::{
-    list_workflow_focus_selection_items, list_workflow_overview_selection_items,
-    render_workflow_overview, WorkflowOverviewFocusSelectionItem, WorkflowOverviewSelectionItem,
+    list_workflow_focus_selection_items, list_workflow_focus_selection_items_for_path,
+    list_workflow_overview_selection_items, render_workflow_overview,
+    render_workflow_overview_for_path, WorkflowOverviewFocusSelectionItem,
+    WorkflowOverviewSelectionItem,
 };
 use crate::workflow_panel::{
     list_workflow_panel_selection_items, render_workflow_panel,
@@ -103,6 +105,17 @@ impl DashboardWorkflowTarget {
         }
     }
 
+    fn overview_view(&self) -> WorkflowDashboardView {
+        match self {
+            Self::Named(workflow_name) => WorkflowDashboardView::OverviewFocus {
+                workflow_name: workflow_name.clone(),
+            },
+            Self::Path(path) => WorkflowDashboardView::OverviewPathFocus {
+                script_path: path_text(path),
+            },
+        }
+    }
+
     fn panel_hint(&self) -> String {
         match self {
             Self::Named(workflow_name) => format!("panel {workflow_name} <n>"),
@@ -123,10 +136,7 @@ pub(crate) fn initial_workflow_dashboard_state(
             WorkflowDashboardState::new(WorkflowDashboardView::OverviewFocus { workflow_name })
         }
         (None, Some(script_path)) => {
-            WorkflowDashboardState::new(WorkflowDashboardView::PanelPathFocus {
-                script_path,
-                step_number: None,
-            })
+            WorkflowDashboardState::new(WorkflowDashboardView::OverviewPathFocus { script_path })
         }
         _ => WorkflowDashboardState::new(WorkflowDashboardView::OverviewList),
     }
@@ -175,9 +185,23 @@ pub(crate) fn handle_workflow_dashboard_input(
         WorkflowDashboardCommand::Quit => Ok(WorkflowDashboardHandleOutcome::Quit),
         WorkflowDashboardCommand::Back => back_and_render(root, state),
         WorkflowDashboardCommand::Open { index } => open_and_render(root, state, index),
-        WorkflowDashboardCommand::Overview { workflow_name } => {
-            let view = match normalize_optional_text(workflow_name) {
-                Some(workflow_name) => WorkflowDashboardView::OverviewFocus { workflow_name },
+        WorkflowDashboardCommand::Overview {
+            workflow_name,
+            script_path,
+        } => {
+            let view = match resolve_optional_lookup_target(
+                workflow_name,
+                script_path.map(PathBuf::from),
+                "dashboard overview",
+            )? {
+                Some(WorkflowLookupTarget::Named(workflow_name)) => {
+                    WorkflowDashboardView::OverviewFocus { workflow_name }
+                }
+                Some(WorkflowLookupTarget::Path(path)) => {
+                    WorkflowDashboardView::OverviewPathFocus {
+                        script_path: path_text(&resolve_script_path(root, path)),
+                    }
+                }
                 None => WorkflowDashboardView::OverviewList,
             };
             navigate_and_render(root, state, view)
@@ -210,7 +234,7 @@ pub(crate) fn handle_workflow_dashboard_input(
         WorkflowDashboardCommand::Run { shared_context } => {
             let target = active_workflow_target(root, state).ok_or_else(|| {
                 anyhow!(
-                    "Run a focused workflow first via `overview <name>`, `panel <name>`, or `panel --script-path <path>`."
+                    "Run a focused workflow first via `overview <name>`, `overview --script-path <path>`, `panel <name>`, or `panel --script-path <path>`."
                 )
             })?;
             Ok(WorkflowDashboardHandleOutcome::RunActiveWorkflow {
@@ -568,7 +592,28 @@ fn render_workflow_dashboard_view(
                 text: render_workflow_overview(root, Some(workflow_name))?,
                 open_targets: items
                     .into_iter()
-                    .map(|item| map_focus_overview_selection_item(workflow_name, item))
+                    .map(|item| {
+                        map_focus_overview_selection_item(
+                            &DashboardWorkflowTarget::Named(workflow_name.clone()),
+                            item,
+                        )
+                    })
+                    .collect(),
+            })
+        }
+        WorkflowDashboardView::OverviewPathFocus { script_path } => {
+            let resolved_path = resolve_script_path(root, PathBuf::from(script_path));
+            let items = list_workflow_focus_selection_items_for_path(root, &resolved_path)?;
+            Ok(RenderedWorkflowDashboard {
+                text: render_workflow_overview_for_path(root, &resolved_path)?,
+                open_targets: items
+                    .into_iter()
+                    .map(|item| {
+                        map_focus_overview_selection_item(
+                            &DashboardWorkflowTarget::Path(resolved_path.clone()),
+                            item,
+                        )
+                    })
                     .collect(),
             })
         }
@@ -1033,9 +1078,8 @@ fn refresh_active_workflow_view(
 ) -> Result<WorkflowDashboardHandleOutcome> {
     let next = match state.current() {
         WorkflowDashboardView::PanelFocus { step_number, .. } => target.panel_view(*step_number),
-        WorkflowDashboardView::OverviewFocus { .. } => WorkflowDashboardView::OverviewFocus {
-            workflow_name: target.label(),
-        },
+        WorkflowDashboardView::OverviewFocus { .. }
+        | WorkflowDashboardView::OverviewPathFocus { .. } => target.overview_view(),
         WorkflowDashboardView::PanelPathFocus { step_number, .. } => {
             target.panel_view(*step_number)
         }
@@ -1160,6 +1204,9 @@ fn active_workflow_target(
         | WorkflowDashboardView::PanelFocus { workflow_name, .. } => {
             Some(DashboardWorkflowTarget::Named(workflow_name.clone()))
         }
+        WorkflowDashboardView::OverviewPathFocus { script_path } => Some(
+            DashboardWorkflowTarget::Path(resolve_script_path(root, PathBuf::from(script_path))),
+        ),
         WorkflowDashboardView::PanelPathFocus { script_path, .. } => Some(
             DashboardWorkflowTarget::Path(resolve_script_path(root, PathBuf::from(script_path))),
         ),
@@ -1207,16 +1254,22 @@ fn map_overview_selection_item(item: WorkflowOverviewSelectionItem) -> WorkflowD
 }
 
 fn map_focus_overview_selection_item(
-    workflow_name: &str,
+    target: &DashboardWorkflowTarget,
     item: WorkflowOverviewFocusSelectionItem,
 ) -> WorkflowDashboardOpenTarget {
     match item {
-        WorkflowOverviewFocusSelectionItem::Step(step_number) => {
-            WorkflowDashboardOpenTarget::PanelStep {
-                workflow_name: workflow_name.to_string(),
-                step_number,
+        WorkflowOverviewFocusSelectionItem::Step(step_number) => match target {
+            DashboardWorkflowTarget::Named(workflow_name) => {
+                WorkflowDashboardOpenTarget::PanelStep {
+                    workflow_name: workflow_name.clone(),
+                    step_number,
+                }
             }
-        }
+            DashboardWorkflowTarget::Path(path) => WorkflowDashboardOpenTarget::PanelPathStep {
+                script_path: path_text(path),
+                step_number,
+            },
+        },
         WorkflowOverviewFocusSelectionItem::Run(run_id) => WorkflowDashboardOpenTarget::Run(run_id),
     }
 }
@@ -1325,7 +1378,7 @@ mod tests {
 
     use super::{
         complete_workflow_dashboard_run, handle_workflow_dashboard_input,
-        initial_workflow_dashboard_state, render_workflow_dashboard_state,
+        initial_workflow_dashboard_state, path_text, render_workflow_dashboard_state,
         WorkflowDashboardHandleOutcome,
     };
 
@@ -1453,13 +1506,43 @@ mod tests {
             Some(String::from("scripts/custom-release.json")),
         );
         let text = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
-        assert!(text.contains("Workflow authoring panel: scripts/custom-release"));
+        assert!(text.contains("Workflow overview: scripts/custom-release"));
+        assert!(text.contains("focus: `/workflow panel --script-path"));
         assert!(text.contains("scripts/custom-release.json"));
         assert_eq!(
             state.current(),
-            &hellox_tui::WorkflowDashboardView::PanelPathFocus {
+            &hellox_tui::WorkflowDashboardView::OverviewPathFocus {
                 script_path: String::from("scripts/custom-release.json"),
-                step_number: None,
+            }
+        );
+    }
+
+    #[test]
+    fn dashboard_overview_command_supports_explicit_script_path() {
+        let root = temp_dir();
+        write_explicit_workflow(
+            &root,
+            "scripts/custom-release.json",
+            r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+        );
+
+        let mut state = initial_workflow_dashboard_state(None, None);
+        let output = handle_workflow_dashboard_input(
+            &root,
+            &mut state,
+            "overview --script-path scripts/custom-release.json",
+        )
+        .expect("open explicit workflow overview");
+        match output {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Workflow overview: scripts/custom-release"));
+            }
+            other => panic!("expected explicit workflow overview output, got {other:?}"),
+        }
+        assert_eq!(
+            state.current(),
+            &hellox_tui::WorkflowDashboardView::OverviewPathFocus {
+                script_path: path_text(&root.join("scripts").join("custom-release.json")),
             }
         );
     }

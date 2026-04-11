@@ -69,7 +69,7 @@ pub(super) fn render_workflow_focus(
         ));
         sections.push(PanelSection::new(
             "Step selector",
-            render_focus_step_selector(&detail, latest_run),
+            render_focus_step_selector(&detail, &run_target, latest_run),
         ));
         if !recent_runs.is_empty() {
             sections.push(PanelSection::new(
@@ -94,6 +94,69 @@ pub(super) fn render_workflow_focus(
 
     Ok(render_panel(
         &format!("Workflow overview: {}", workflow.name),
+        &metadata,
+        &sections,
+    ))
+}
+
+pub(super) fn render_workflow_focus_for_path(
+    root: &Path,
+    detail: &WorkflowScriptDetail,
+    script_path: &Path,
+) -> Result<String> {
+    let run_target = WorkflowRunTarget::Path(script_path.to_path_buf());
+    let recent_runs =
+        list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
+    let latest_run = recent_runs.first();
+    let metadata = vec![
+        KeyValueRow::new("path", path_text(&detail.summary.path)),
+        KeyValueRow::new("status", status_badge(script_state_label(&detail.summary))),
+        KeyValueRow::new("steps", detail.summary.step_count.to_string()),
+        KeyValueRow::new(
+            "continue_on_error",
+            detail.summary.continue_on_error.to_string(),
+        ),
+        KeyValueRow::new(
+            "shared_context",
+            detail.summary.shared_context.as_deref().unwrap_or("(none)"),
+        ),
+        KeyValueRow::new(
+            "dynamic_command",
+            repl_run_command_hint(&detail.summary, &run_target),
+        ),
+        KeyValueRow::new("latest_run", latest_run_summary(latest_run)),
+    ];
+    let mut sections = vec![
+        PanelSection::new(
+            "Visual script map",
+            render_focus_script_map(detail, latest_run),
+        ),
+        PanelSection::new(
+            "Step selector",
+            render_focus_step_selector(detail, &run_target, latest_run),
+        ),
+    ];
+    if !recent_runs.is_empty() {
+        sections.push(PanelSection::new(
+            "Recent runs",
+            render_run_selector_with_start(&recent_runs, detail.steps.len() + 1),
+        ));
+    }
+    sections.push(PanelSection::new(
+        "Latest run snapshot",
+        render_latest_run_snapshot(latest_run),
+    ));
+    sections.push(PanelSection::new(
+        "CLI palette",
+        render_focus_cli_palette_for_target(&detail.summary, &run_target),
+    ));
+    sections.push(PanelSection::new(
+        "REPL palette",
+        render_focus_repl_palette_for_target(&detail.summary, &run_target),
+    ));
+
+    Ok(render_panel(
+        &format!("Workflow overview: {}", detail.summary.name),
         &metadata,
         &sections,
     ))
@@ -136,6 +199,7 @@ fn render_focus_script_map(
 
 fn render_focus_step_selector(
     detail: &WorkflowScriptDetail,
+    run_target: &WorkflowRunTarget,
     latest_run: Option<&WorkflowRunRecord>,
 ) -> Vec<String> {
     let entries = detail
@@ -163,9 +227,8 @@ fn render_focus_step_selector(
                     latest_step_status(step.name.as_deref(), latest_run)
                 ),
                 format!(
-                    "focus: `/workflow panel {} {}`",
-                    detail.summary.name,
-                    index + 1
+                    "focus: `{}`",
+                    repl_panel_focus_command(run_target, index + 1)
                 ),
             ];
             SelectorEntry::new(step.name.as_deref().unwrap_or("(unnamed)"), lines)
@@ -260,4 +323,73 @@ fn render_focus_repl_palette(workflow: &WorkflowScriptSummary) -> Vec<String> {
         workflow.name
     ));
     lines
+}
+
+fn render_focus_cli_palette_for_target(
+    workflow: &WorkflowScriptSummary,
+    run_target: &WorkflowRunTarget,
+) -> Vec<String> {
+    match run_target {
+        WorkflowRunTarget::Named(_) => render_focus_cli_palette(workflow),
+        WorkflowRunTarget::Path(path) => {
+            let script_path = path_text(path);
+            vec![
+                format!(
+                    "- run: `hellox workflow run --script-path {script_path} --shared-context \"<text>\"`"
+                ),
+                format!(
+                    "- authoring panel: `hellox workflow panel --script-path {script_path}`"
+                ),
+                format!("- history: `hellox workflow runs --script-path {script_path}`"),
+                format!("- latest run: `hellox workflow last-run --script-path {script_path}`"),
+                format!("- validate: `hellox workflow validate --script-path {script_path}`"),
+            ]
+        }
+    }
+}
+
+fn render_focus_repl_palette_for_target(
+    workflow: &WorkflowScriptSummary,
+    run_target: &WorkflowRunTarget,
+) -> Vec<String> {
+    match run_target {
+        WorkflowRunTarget::Named(_) => render_focus_repl_palette(workflow),
+        WorkflowRunTarget::Path(path) => {
+            let script_path = path_text(path);
+            vec![
+                format!("- run: `/workflow run --script-path {script_path} [shared_context]`"),
+                format!("- authoring panel: `/workflow panel --script-path {script_path}`"),
+                format!("- history: `/workflow runs --script-path {script_path}`"),
+                format!("- latest run: `/workflow last-run --script-path {script_path}`"),
+                format!("- validate: `/workflow validate --script-path {script_path}`"),
+            ]
+        }
+    }
+}
+
+fn repl_run_command_hint(
+    workflow: &WorkflowScriptSummary,
+    run_target: &WorkflowRunTarget,
+) -> String {
+    match run_target {
+        WorkflowRunTarget::Named(_) => dynamic_command_hint(workflow),
+        WorkflowRunTarget::Path(path) => {
+            format!(
+                "/workflow run --script-path {} [shared_context]",
+                path_text(path)
+            )
+        }
+    }
+}
+
+fn repl_panel_focus_command(run_target: &WorkflowRunTarget, step_number: usize) -> String {
+    match run_target {
+        WorkflowRunTarget::Named(workflow_name) => {
+            format!("/workflow panel {workflow_name} {step_number}")
+        }
+        WorkflowRunTarget::Path(path) => format!(
+            "/workflow panel --script-path {} {step_number}",
+            path_text(path)
+        ),
+    }
 }

@@ -39,6 +39,11 @@ pub(crate) fn render_workflow_overview(root: &Path, workflow_name: Option<&str>)
     }
 }
 
+pub(crate) fn render_workflow_overview_for_path(root: &Path, script_path: &Path) -> Result<String> {
+    let detail = load_workflow_detail_from_path(root, script_path, None)?;
+    focus::render_workflow_focus_for_path(root, &detail, script_path)
+}
+
 pub(crate) fn list_workflow_overview_selection_items(
     root: &Path,
 ) -> Result<Vec<WorkflowOverviewSelectionItem>> {
@@ -67,6 +72,24 @@ pub(crate) fn list_workflow_focus_selection_items(
     }
 
     let run_target = WorkflowRunTarget::Named(workflow.name.clone());
+    let runs = list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
+    items.extend(
+        runs.into_iter()
+            .map(|record| WorkflowOverviewFocusSelectionItem::Run(record.run_id)),
+    );
+    Ok(items)
+}
+
+pub(crate) fn list_workflow_focus_selection_items_for_path(
+    root: &Path,
+    script_path: &Path,
+) -> Result<Vec<WorkflowOverviewFocusSelectionItem>> {
+    let detail = load_workflow_detail_from_path(root, script_path, None)?;
+    let mut items = (1..=detail.steps.len())
+        .map(WorkflowOverviewFocusSelectionItem::Step)
+        .collect::<Vec<_>>();
+
+    let run_target = WorkflowRunTarget::Path(script_path.to_path_buf());
     let runs = list_workflow_runs(root, Some(&run_target), WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT)?;
     items.extend(
         runs.into_iter()

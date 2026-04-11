@@ -371,6 +371,7 @@ async fn workflow_dashboard_command_supports_explicit_script_path() {
     .await
     .expect("render workflow dashboard by script path");
 
-    assert!(text.contains("Workflow authoring panel: scripts/custom-release"));
+    assert!(text.contains("Workflow overview: scripts/custom-release"));
+    assert!(text.contains("focus: `/workflow panel --script-path"));
     assert!(text.contains("scripts/custom-release.json"));
 }

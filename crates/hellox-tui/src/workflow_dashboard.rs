@@ -4,6 +4,9 @@ pub enum WorkflowDashboardView {
     OverviewFocus {
         workflow_name: String,
     },
+    OverviewPathFocus {
+        script_path: String,
+    },
     PanelList,
     PanelFocus {
         workflow_name: String,
@@ -88,6 +91,7 @@ impl WorkflowDashboardOpenTarget {
 pub enum WorkflowDashboardCommand {
     Overview {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Show {
         workflow_name: Option<String>,
@@ -287,9 +291,13 @@ pub fn parse_workflow_dashboard_command(input: &str) -> Option<WorkflowDashboard
     let tail = parts.collect::<Vec<_>>();
 
     Some(match command.as_str() {
-        "overview" | "ov" => WorkflowDashboardCommand::Overview {
-            workflow_name: joined_value(tail),
-        },
+        "overview" | "ov" => {
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&tail);
+            WorkflowDashboardCommand::Overview {
+                workflow_name,
+                script_path,
+            }
+        }
         "show" => {
             let (workflow_name, script_path, _) = parse_workflow_lookup(&tail);
             WorkflowDashboardCommand::Show {
@@ -368,6 +376,7 @@ pub fn workflow_dashboard_help_text() -> String {
     [
         "Workflow dashboard commands:",
         "  overview [name]      Show the global workflow overview or focus one workflow",
+        "  overview --script-path <path> Focus one explicit workflow script overview",
         "  show [name]          Show the raw workflow definition for the current or named workflow",
         "  show --script-path <path> Show one explicit workflow script",
         "  run [shared_context] Run the active workflow and open the recorded run",
@@ -1103,6 +1112,14 @@ mod tests {
             parse_workflow_dashboard_command("overview release-review"),
             Some(WorkflowDashboardCommand::Overview {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+            })
+        );
+        assert_eq!(
+            parse_workflow_dashboard_command("overview --script-path scripts/custom-release.json"),
+            Some(WorkflowDashboardCommand::Overview {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
             })
         );
         assert_eq!(
@@ -1366,12 +1383,25 @@ mod tests {
         );
         assert!(state.back());
         assert_eq!(state.current(), &WorkflowDashboardView::OverviewList);
+
+        state.navigate_to(WorkflowDashboardView::OverviewPathFocus {
+            script_path: String::from("scripts/custom-release.json"),
+        });
+        assert_eq!(
+            state.current(),
+            &WorkflowDashboardView::OverviewPathFocus {
+                script_path: String::from("scripts/custom-release.json"),
+            }
+        );
+        assert!(state.back());
+        assert_eq!(state.current(), &WorkflowDashboardView::OverviewList);
     }
 
     #[test]
     fn dashboard_help_mentions_open_and_authoring_commands() {
         let text = workflow_dashboard_help_text();
         assert!(text.contains("show [name]"));
+        assert!(text.contains("overview --script-path <path>"));
         assert!(text.contains("run [shared_context]"));
         assert!(text.contains("validate [name]"));
         assert!(text.contains("add-step --prompt <text>"));

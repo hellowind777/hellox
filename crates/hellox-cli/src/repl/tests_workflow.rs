@@ -756,14 +756,10 @@ async fn workflow_dashboard_mode_supports_explicit_script_path() {
         .expect("workflow dashboard state")
         .current()
     {
-        hellox_tui::WorkflowDashboardView::PanelPathFocus {
-            script_path,
-            step_number,
-        } => {
+        hellox_tui::WorkflowDashboardView::OverviewPathFocus { script_path } => {
             assert!(script_path.ends_with("scripts/custom-release.json"));
-            assert_eq!(*step_number, None);
         }
-        other => panic!("expected explicit workflow panel focus, got {other:?}"),
+        other => panic!("expected explicit workflow overview focus, got {other:?}"),
     }
 
     assert_eq!(

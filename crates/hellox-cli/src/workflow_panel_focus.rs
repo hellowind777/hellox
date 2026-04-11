@@ -10,7 +10,9 @@ use crate::workflow_runs::{
     list_workflow_runs, load_latest_workflow_run, render_run_selector_with_start,
     WorkflowRunRecord, WORKFLOW_RUN_SELECTOR_PREVIEW_LIMIT,
 };
-use crate::workflows::{WorkflowRunTarget, WorkflowScriptDetail, WorkflowStepSummary};
+use crate::workflows::{
+    WorkflowRunTarget, WorkflowScriptDetail, WorkflowScriptSummary, WorkflowStepSummary,
+};
 
 use super::{
     dynamic_command_hint, latest_run_summary, latest_step_status, path_text, validate_step_number,
@@ -40,7 +42,10 @@ pub(super) fn render_workflow_panel_detail(
             "shared_context",
             detail.summary.shared_context.as_deref().unwrap_or("(none)"),
         ),
-        KeyValueRow::new("dynamic_command", dynamic_command_hint(&detail.summary)),
+        KeyValueRow::new(
+            "dynamic_command",
+            dynamic_command_hint_for_target(&detail.summary, target),
+        ),
         KeyValueRow::new("latest_run", latest_run_summary(latest_run.as_ref())),
     ];
     let sections = vec![
@@ -72,6 +77,19 @@ pub(super) fn render_workflow_panel_detail(
         &metadata,
         &sections,
     ))
+}
+
+fn dynamic_command_hint_for_target(
+    summary: &WorkflowScriptSummary,
+    target: &WorkflowRunTarget,
+) -> String {
+    match target {
+        WorkflowRunTarget::Named(_) => dynamic_command_hint(summary),
+        WorkflowRunTarget::Path(path) => format!(
+            "/workflow run --script-path {} [shared_context]",
+            path_text(path)
+        ),
+    }
 }
 
 fn build_step_table(
