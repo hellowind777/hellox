@@ -179,6 +179,14 @@ fn workflow_dashboard_footer(view: &WorkflowDashboardView) -> String {
     lines.join("\n")
 }
 
+fn workflow_dashboard_help_with_context(view: &WorkflowDashboardView) -> String {
+    format!(
+        "{}\n\nCurrent view shortcuts:\n{}",
+        workflow_dashboard_help_text(),
+        workflow_dashboard_footer(view)
+    )
+}
+
 pub(crate) fn handle_workflow_dashboard_input(
     root: &Path,
     state: &mut WorkflowDashboardState,
@@ -199,7 +207,7 @@ pub(crate) fn handle_workflow_dashboard_input(
             Ok(WorkflowDashboardHandleOutcome::Print(message))
         }
         WorkflowDashboardCommand::Help => Ok(WorkflowDashboardHandleOutcome::Print(
-            workflow_dashboard_help_text(),
+            workflow_dashboard_help_with_context(state.current()),
         )),
         WorkflowDashboardCommand::Close => Ok(WorkflowDashboardHandleOutcome::Close),
         WorkflowDashboardCommand::Quit => Ok(WorkflowDashboardHandleOutcome::Quit),
@@ -1582,6 +1590,70 @@ mod tests {
                 script_path: path_text(&root.join("scripts").join("custom-release.json")),
             }
         );
+    }
+
+    #[test]
+    fn dashboard_help_reflects_overview_context_shortcuts() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{ "steps": [{ "name": "review", "prompt": "review release" }] }"#,
+        );
+
+        let mut state =
+            initial_workflow_dashboard_state(Some(String::from("release-review")), None);
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+
+        let help = handle_workflow_dashboard_input(&root, &mut state, "help")
+            .expect("render dashboard help");
+        match help {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Workflow dashboard commands:"));
+                assert!(text.contains("Current view shortcuts:"));
+                assert!(text.contains(
+                    "author: add-step --prompt <text> | update-step [n] | duplicate-step [n] [--to <m>] [--name <step-name>] | move-step [n] --to <m> | remove-step [n]"
+                ));
+                assert!(text.contains(
+                    "workflow: set-shared-context <text> | clear-shared-context | enable-continue-on-error | disable-continue-on-error"
+                ));
+            }
+            other => panic!("expected dashboard help output, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dashboard_help_reflects_panel_context_shortcuts() {
+        let root = temp_dir();
+        write_workflow(
+            &root,
+            "release-review.json",
+            r#"{
+  "steps": [
+    { "name": "review", "prompt": "review release" }
+  ]
+}"#,
+        );
+
+        let mut state =
+            initial_workflow_dashboard_state(Some(String::from("release-review")), None);
+        let _ = render_workflow_dashboard_state(&root, &mut state).expect("render dashboard");
+        let _ = handle_workflow_dashboard_input(&root, &mut state, "panel 1").expect("focus panel");
+
+        let help = handle_workflow_dashboard_input(&root, &mut state, "help")
+            .expect("render focused panel help");
+        match help {
+            WorkflowDashboardHandleOutcome::Print(text) => {
+                assert!(text.contains("Current view shortcuts:"));
+                assert!(text.contains(
+                    "step edit: name <text> | prompt <text> | when <json> | model <name> | backend <name> | step-cwd <path>"
+                ));
+                assert!(text.contains(
+                    "step clear/action: clear-name | clear-when | clear-model | clear-backend | clear-step-cwd | background | foreground | dup [to] | move <to> | rm"
+                ));
+            }
+            other => panic!("expected focused panel help output, got {other:?}"),
+        }
     }
 
     #[test]
