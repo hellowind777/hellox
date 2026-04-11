@@ -4,6 +4,9 @@ use clap::Subcommand;
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum RemoteEnvCommands {
+    Panel {
+        environment_name: Option<String>,
+    },
     List,
     Show {
         environment_name: String,
@@ -34,6 +37,15 @@ pub(crate) enum RemoteEnvCommands {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum TeleportCommands {
+    Panel {
+        environment_name: String,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+    },
     Plan {
         environment_name: String,
         #[arg(long)]

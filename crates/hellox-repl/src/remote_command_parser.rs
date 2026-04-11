@@ -5,6 +5,9 @@ pub fn parse_remote_env_command(remainder: &str) -> RemoteEnvCommand {
 
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => RemoteEnvCommand::List,
+        Some(action) if action == "panel" => RemoteEnvCommand::Panel {
+            environment_name: parts.next().map(ToString::to_string),
+        },
         Some(action) if action == "list" => RemoteEnvCommand::List,
         Some(action) if action == "show" => RemoteEnvCommand::Show {
             environment_name: parts.next().map(ToString::to_string),
@@ -34,6 +37,10 @@ pub fn parse_teleport_command(remainder: &str) -> TeleportCommand {
 
     match parts.next().map(|part| part.to_ascii_lowercase()) {
         None => TeleportCommand::Help,
+        Some(action) if action == "panel" => TeleportCommand::Panel {
+            environment_name: parts.next().map(ToString::to_string),
+            session_id: parts.next().map(ToString::to_string),
+        },
         Some(action) if action == "plan" => TeleportCommand::Plan {
             environment_name: parts.next().map(ToString::to_string),
             session_id: parts.next().map(ToString::to_string),

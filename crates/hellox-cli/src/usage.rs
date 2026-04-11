@@ -108,7 +108,7 @@ pub fn print_usage() {
     );
     println!();
     print_section(
-        "Optional remote-capable commands:",
+        "User-managed remote commands:",
         &[
             "hellox auth status|accounts|show <account-id>",
             "hellox auth login <account-id> --access-token <token> [--provider <name>]",
@@ -129,10 +129,10 @@ pub fn print_usage() {
             "hellox server settings-show <account-id> [--config <path>]",
             "hellox server team-memory-show <account-id> <repo-id> [--config <path>]",
             "hellox server team-memory-panel <account-id> <repo-id> [--config <path>]",
-            "hellox remote-env list|show <name>",
+            "hellox remote-env panel [name]|list|show <name>",
             "hellox remote-env add <name> --url <url> [--token-env <env>]",
             "hellox remote-env enable|disable|remove <name>",
-            "hellox teleport plan <environment-name> [--session-id <id>]",
+            "hellox teleport panel|plan <environment-name> [--session-id <id>]",
             "hellox assistant list [--environment <name>] | show <session-id> [--environment <name>]",
         ],
     );

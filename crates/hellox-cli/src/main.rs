@@ -39,6 +39,7 @@ mod plugin_panel;
 mod prompt_fragment_commands;
 mod prompt_fragments;
 mod remote_commands;
+mod remote_panel;
 mod repl;
 mod search;
 mod server_commands;

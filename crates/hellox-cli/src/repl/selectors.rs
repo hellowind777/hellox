@@ -1,6 +1,6 @@
 use super::commands::{
     BridgeCommand, ConfigCommand, McpCommand, ModelCommand, OutputStyleCommand, PersonaCommand,
-    PlanCommand, PluginCommand, PromptFragmentCommand,
+    PlanCommand, PluginCommand, PromptFragmentCommand, RemoteEnvCommand,
 };
 use super::*;
 use crate::bridge_panel::bridge_panel_session_ids;
@@ -8,6 +8,7 @@ use crate::config_panel::config_selector_keys;
 use crate::mcp_panel::mcp_panel_server_names;
 use crate::model_panel::model_panel_profile_names;
 use crate::plugin_panel::plugin_panel_ids;
+use crate::remote_panel::remote_env_panel_names;
 use crate::sessions::list_sessions;
 use crate::style_panels::{
     output_style_panel_names, persona_panel_names, prompt_fragment_panel_names,
@@ -33,6 +34,9 @@ pub(super) enum SelectorContext {
     },
     BridgePanelList {
         session_ids: Vec<String>,
+    },
+    RemoteEnvPanelList {
+        environment_names: Vec<String>,
     },
     PlanPanelSteps {
         step_count: usize,
@@ -125,6 +129,26 @@ impl CliReplDriver {
                 if !session_ids.is_empty() {
                     self.set_selector_context(SelectorContext::BridgePanelList { session_ids });
                 }
+            }
+        }
+    }
+
+    pub(super) fn prepare_remote_env_selector_context(
+        &self,
+        command: &RemoteEnvCommand,
+        metadata: &ReplMetadata,
+    ) {
+        if let RemoteEnvCommand::Panel {
+            environment_name: None,
+        } = command
+        {
+            let config = hellox_config::load_or_default(Some(metadata.config_path.clone()))
+                .unwrap_or_else(|_| metadata.config.clone());
+            let environment_names = remote_env_panel_names(&config);
+            if !environment_names.is_empty() {
+                self.set_selector_context(SelectorContext::RemoteEnvPanelList {
+                    environment_names,
+                });
             }
         }
     }
@@ -392,6 +416,28 @@ impl CliReplDriver {
                     crate::repl::bridge_actions::handle_bridge_command(
                         BridgeCommand::Panel {
                             session_id: Some(session_id),
+                        },
+                        metadata,
+                    )?
+                );
+                Ok(true)
+            }
+            SelectorContext::RemoteEnvPanelList { environment_names } => {
+                if index == 0 || index > environment_names.len() {
+                    println!(
+                        "Invalid selection. Choose 1..{} or re-run `/remote-env panel`.",
+                        environment_names.len()
+                    );
+                    return Ok(true);
+                }
+
+                let environment_name = environment_names[index - 1].clone();
+                self.clear_selector_context();
+                println!(
+                    "{}",
+                    crate::repl::remote_actions::handle_remote_env_command(
+                        RemoteEnvCommand::Panel {
+                            environment_name: Some(environment_name),
                         },
                         metadata,
                     )?

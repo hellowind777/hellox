@@ -10,7 +10,7 @@ pub(crate) enum AuthCommands {
     },
     Login {
         account_id: String,
-        #[arg(long, default_value = "hellox-cloud")]
+        #[arg(long, default_value = "hellox-remote")]
         provider: String,
         #[arg(long)]
         access_token: String,
@@ -42,7 +42,7 @@ pub(crate) enum AuthCommands {
     },
     OauthStart {
         account_id: String,
-        #[arg(long, default_value = "hellox-cloud")]
+        #[arg(long, default_value = "hellox-remote")]
         provider: String,
         #[arg(long)]
         client_id: String,
@@ -59,7 +59,7 @@ pub(crate) enum AuthCommands {
     },
     OauthExchange {
         account_id: String,
-        #[arg(long, default_value = "hellox-cloud")]
+        #[arg(long, default_value = "hellox-remote")]
         provider: String,
         #[arg(long)]
         client_id: String,

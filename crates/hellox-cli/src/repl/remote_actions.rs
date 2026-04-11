@@ -14,6 +14,7 @@ use crate::assistant_panel::{
     render_local_assistant_detail_panel, render_local_assistant_list_panel,
     render_remote_assistant_detail_panel, render_remote_assistant_list_panel,
 };
+use crate::remote_panel::{render_remote_env_panel, render_teleport_plan_panel};
 use crate::sessions::load_session;
 
 use super::commands::{AssistantCommand, RemoteEnvCommand, TeleportCommand};
@@ -27,6 +28,9 @@ pub(super) fn handle_remote_env_command(
 
     match command {
         RemoteEnvCommand::Help => Ok(remote_env_help_text()),
+        RemoteEnvCommand::Panel { environment_name } => {
+            render_remote_env_panel(&metadata.config_path, &config, environment_name.as_deref())
+        }
         RemoteEnvCommand::List => Ok(format_remote_environment_list(&list_remote_environments(
             &config,
         ))),
@@ -110,6 +114,37 @@ pub(super) fn handle_teleport_command(
 
     match command {
         TeleportCommand::Help => Ok(teleport_help_text()),
+        TeleportCommand::Panel {
+            environment_name: None,
+            ..
+        } => Ok("Usage: /teleport panel <environment-name> [session-id]".to_string()),
+        TeleportCommand::Panel {
+            environment_name: Some(environment_name),
+            session_id,
+        } => {
+            let stored = match session_id.as_deref() {
+                Some(session_id) => Some(load_session(&metadata.sessions_root, session_id)?),
+                None => None,
+            };
+            let plan = build_teleport_plan(
+                &config,
+                &environment_name,
+                stored.as_ref(),
+                TeleportOverrides {
+                    session_id: session_id
+                        .or_else(|| session.session_id().map(ToString::to_string)),
+                    model: Some(session.model().to_string()),
+                    working_directory: Some(
+                        session
+                            .working_directory()
+                            .display()
+                            .to_string()
+                            .replace('\\', "/"),
+                    ),
+                },
+            )?;
+            Ok(render_teleport_plan_panel(&plan))
+        }
         TeleportCommand::Plan {
             environment_name: None,
             ..
@@ -236,8 +271,9 @@ pub(super) fn handle_assistant_command(
 
 fn remote_env_help_text() -> String {
     [
-        "Usage (optional remote capability):",
+        "Usage (user-managed remote capability):",
         "  /remote-env",
+        "  /remote-env panel [name]",
         "  /remote-env show <name>",
         "  /remote-env add <name> <url> [token-env] [account-id] [device-id]",
         "  /remote-env enable <name>",
@@ -249,7 +285,8 @@ fn remote_env_help_text() -> String {
 
 fn teleport_help_text() -> String {
     [
-        "Usage (optional remote capability):",
+        "Usage (user-managed remote capability):",
+        "  /teleport panel <environment-name> [session-id]",
         "  /teleport plan <environment-name> [session-id]",
         "  /teleport connect <environment-name> [session-id]",
     ]
@@ -258,7 +295,7 @@ fn teleport_help_text() -> String {
 
 fn assistant_help_text() -> String {
     [
-        "Usage (optional remote capability):",
+        "Usage (user-managed remote capability):",
         "  /assistant                     Open the local assistant viewer panel",
         "  /assistant list [environment-name] Show the local/remote assistant session viewer",
         "  /assistant show <session-id> [environment-name] Inspect one assistant-viewable session",

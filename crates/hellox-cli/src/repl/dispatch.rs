@@ -97,6 +97,7 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::RemoteEnv(command) => {
+            driver.prepare_remote_env_selector_context(&command, metadata);
             println!("{}", handle_remote_env_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }

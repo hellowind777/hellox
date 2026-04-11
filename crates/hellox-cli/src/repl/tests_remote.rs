@@ -75,6 +75,12 @@ fn parse_remote_commands() {
         Some(ReplCommand::RemoteEnv(RemoteEnvCommand::List))
     );
     assert_eq!(
+        super::commands::parse_command("/remote-env panel dev"),
+        Some(ReplCommand::RemoteEnv(RemoteEnvCommand::Panel {
+            environment_name: Some(String::from("dev")),
+        }))
+    );
+    assert_eq!(
         super::commands::parse_command(
             "/remote-env add dev https://remote.example.test REMOTE_TOKEN"
         ),
@@ -84,6 +90,13 @@ fn parse_remote_commands() {
             token_env: Some(String::from("REMOTE_TOKEN")),
             account_id: None,
             device_id: None,
+        }))
+    );
+    assert_eq!(
+        super::commands::parse_command("/teleport panel dev session-123"),
+        Some(ReplCommand::Teleport(TeleportCommand::Panel {
+            environment_name: Some(String::from("dev")),
+            session_id: Some(String::from("session-123")),
         }))
     );
     assert_eq!(
@@ -113,6 +126,8 @@ fn parse_remote_commands() {
 fn help_text_lists_remote_commands() {
     let text = help_text();
     assert!(text.contains("/remote-env"));
+    assert!(text.contains("/remote-env panel [name]"));
+    assert!(text.contains("/teleport panel"));
     assert!(text.contains("/teleport plan"));
     assert!(text.contains("/teleport connect"));
     assert!(text.contains("/assistant"));
@@ -137,6 +152,19 @@ fn handle_remote_commands_stay_in_repl() {
     let config = load_or_default(Some(metadata.config_path.clone())).expect("load config");
     assert!(config.remote.environments.contains_key("dev"));
 
+    assert_eq!(
+        handle_repl_input("/remote-env panel", &mut session, &metadata).expect("remote-env panel"),
+        ReplAction::Continue
+    );
+    assert_eq!(
+        handle_repl_input(
+            "/teleport panel dev remote-session",
+            &mut session,
+            &metadata
+        )
+        .expect("teleport panel"),
+        ReplAction::Continue
+    );
     assert_eq!(
         handle_repl_input("/teleport plan dev remote-session", &mut session, &metadata)
             .expect("teleport plan"),
@@ -177,4 +205,61 @@ fn assistant_command_renders_local_viewer_panels() {
     assert!(detail.contains("Assistant viewer: remote-session"));
     assert!(detail.contains("Transcript preview"));
     assert!(detail.contains("system_prompt_preview: system"));
+}
+
+#[test]
+fn remote_env_panel_selector_allows_numeric_selection() {
+    let root = temp_dir();
+    let mut session = session(root.clone());
+    let metadata = metadata(&root);
+    let driver = super::CliReplDriver::new();
+
+    assert_eq!(
+        handle_repl_input(
+            "/remote-env add dev https://remote.example.test REMOTE_TOKEN",
+            &mut session,
+            &metadata,
+        )
+        .expect("remote-env add dev"),
+        ReplAction::Continue
+    );
+    assert_eq!(
+        handle_repl_input(
+            "/remote-env add qa https://qa.example.test QA_TOKEN",
+            &mut session,
+            &metadata,
+        )
+        .expect("remote-env add qa"),
+        ReplAction::Continue
+    );
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+        .block_on(async {
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("/remote-env panel", &mut session, &metadata)
+                    .await
+                    .expect("open remote-env panel"),
+                ReplAction::Continue
+            );
+
+            match driver.selector_context() {
+                Some(super::SelectorContext::RemoteEnvPanelList { environment_names }) => {
+                    assert_eq!(environment_names, vec!["dev".to_string(), "qa".to_string()]);
+                }
+                other => panic!("expected remote-env selector context, got {other:?}"),
+            }
+
+            assert_eq!(
+                driver
+                    .handle_repl_input_async("1", &mut session, &metadata)
+                    .await
+                    .expect("select remote env"),
+                ReplAction::Continue
+            );
+            assert!(driver.selector_context().is_none());
+        });
 }

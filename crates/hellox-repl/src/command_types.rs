@@ -203,6 +203,9 @@ pub enum IdeCommand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoteEnvCommand {
+    Panel {
+        environment_name: Option<String>,
+    },
     List,
     Show {
         environment_name: Option<String>,
@@ -228,6 +231,10 @@ pub enum RemoteEnvCommand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TeleportCommand {
+    Panel {
+        environment_name: Option<String>,
+        session_id: Option<String>,
+    },
     Plan {
         environment_name: Option<String>,
         session_id: Option<String>,

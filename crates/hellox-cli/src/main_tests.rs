@@ -1547,6 +1547,8 @@ fn parses_bridge_and_ide_commands() {
 
 #[test]
 fn parses_remote_env_teleport_and_assistant_commands() {
+    let remote_panel = Cli::try_parse_from(["hellox", "remote-env", "panel", "dev"])
+        .expect("parse remote-env panel");
     let remote_env = Cli::try_parse_from([
         "hellox",
         "remote-env",
@@ -1571,6 +1573,15 @@ fn parses_remote_env_teleport_and_assistant_commands() {
         "session-123",
     ])
     .expect("parse teleport plan");
+    let teleport_panel = Cli::try_parse_from([
+        "hellox",
+        "teleport",
+        "panel",
+        "dev",
+        "--session-id",
+        "session-123",
+    ])
+    .expect("parse teleport panel");
     let teleport_connect = Cli::try_parse_from([
         "hellox",
         "teleport",
@@ -1605,6 +1616,13 @@ fn parses_remote_env_teleport_and_assistant_commands() {
         other => panic!("unexpected remote-env command: {other:?}"),
     }
 
+    match remote_panel.command {
+        Some(Commands::RemoteEnv {
+            command: RemoteEnvCommands::Panel { environment_name },
+        }) => assert_eq!(environment_name, Some(String::from("dev"))),
+        other => panic!("unexpected remote-env panel command: {other:?}"),
+    }
+
     match teleport.command {
         Some(Commands::Teleport {
             command:
@@ -1621,6 +1639,24 @@ fn parses_remote_env_teleport_and_assistant_commands() {
             assert_eq!(cwd, None);
         }
         other => panic!("unexpected teleport command: {other:?}"),
+    }
+
+    match teleport_panel.command {
+        Some(Commands::Teleport {
+            command:
+                TeleportCommands::Panel {
+                    environment_name,
+                    session_id,
+                    model,
+                    cwd,
+                },
+        }) => {
+            assert_eq!(environment_name, "dev");
+            assert_eq!(session_id, Some(String::from("session-123")));
+            assert_eq!(model, None);
+            assert_eq!(cwd, None);
+        }
+        other => panic!("unexpected teleport panel command: {other:?}"),
     }
 
     match teleport_connect.command {
@@ -1708,7 +1744,7 @@ fn parses_auth_and_sync_commands() {
         "login",
         "account-1",
         "--provider",
-        "hellox-cloud",
+        "hellox-remote",
         "--access-token",
         "token-123",
         "--scope",
@@ -1751,7 +1787,7 @@ fn parses_auth_and_sync_commands() {
                 },
         }) => {
             assert_eq!(account_id, "account-1");
-            assert_eq!(provider, "hellox-cloud");
+            assert_eq!(provider, "hellox-remote");
             assert_eq!(access_token, "token-123");
             assert_eq!(refresh_token, None);
             assert_eq!(scopes, vec![String::from("user:profile")]);

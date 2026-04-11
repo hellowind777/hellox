@@ -18,6 +18,7 @@ use crate::assistant_panel::{
     render_remote_assistant_detail_panel, render_remote_assistant_list_panel,
 };
 use crate::cli_types::{AssistantCommands, RemoteEnvCommands, TeleportCommands};
+use crate::remote_panel::{render_remote_env_panel, render_teleport_plan_panel};
 use crate::sessions::load_session;
 
 pub fn handle_remote_env_command(command: RemoteEnvCommands) -> Result<()> {
@@ -25,6 +26,12 @@ pub fn handle_remote_env_command(command: RemoteEnvCommands) -> Result<()> {
     let mut config = load_or_default(Some(config_path.clone()))?;
 
     match command {
+        RemoteEnvCommands::Panel { environment_name } => {
+            println!(
+                "{}",
+                render_remote_env_panel(&config_path, &config, environment_name.as_deref())?
+            );
+        }
         RemoteEnvCommands::List => {
             println!(
                 "{}",
@@ -81,6 +88,29 @@ pub fn handle_teleport_command(command: TeleportCommands) -> Result<()> {
     let config = load_or_default(Some(default_config_path()))?;
 
     match command {
+        TeleportCommands::Panel {
+            environment_name,
+            session_id,
+            model,
+            cwd,
+        } => {
+            let stored = match session_id.as_deref() {
+                Some(session_id) => Some(load_session(&sessions_root(), session_id)?),
+                None => None,
+            };
+            let plan = build_teleport_plan(
+                &config,
+                &environment_name,
+                stored.as_ref(),
+                TeleportOverrides {
+                    session_id,
+                    model,
+                    working_directory: cwd
+                        .map(|path| path.display().to_string().replace('\\', "/")),
+                },
+            )?;
+            println!("{}", render_teleport_plan_panel(&plan));
+        }
         TeleportCommands::Plan {
             environment_name,
             session_id,

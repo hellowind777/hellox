@@ -297,19 +297,21 @@ fn remote_list_cli_palette(environment_name: &str) -> Vec<String> {
             "- inspect session: `hellox assistant show <session-id> --environment {environment_name}`"
         ),
         format!(
-            "- direct-connect plan: `hellox teleport plan {environment_name} --session-id <session-id>`"
+            "- direct-connect panel: `hellox teleport panel {environment_name} --session-id <session-id>`"
         ),
         format!(
             "- direct-connect launch: `hellox teleport connect {environment_name} --session-id <session-id>`"
         ),
+        format!("- environment panel: `hellox remote-env panel {environment_name}`"),
     ]
 }
 
 fn remote_list_repl_palette(environment_name: &str) -> Vec<String> {
     vec![
         format!("- inspect session: `/assistant show <session-id> {environment_name}`"),
-        format!("- direct-connect plan: `/teleport plan {environment_name} <session-id>`"),
+        format!("- direct-connect panel: `/teleport panel {environment_name} <session-id>`"),
         format!("- direct-connect launch: `/teleport connect {environment_name} <session-id>`"),
+        format!("- environment panel: `/remote-env panel {environment_name}`"),
     ]
 }
 
@@ -317,19 +319,21 @@ fn remote_detail_cli_palette(environment_name: &str, session_id: &str) -> Vec<St
     vec![
         format!("- back to list: `hellox assistant list --environment {environment_name}`"),
         format!(
-            "- direct-connect plan: `hellox teleport plan {environment_name} --session-id {session_id}`"
+            "- direct-connect panel: `hellox teleport panel {environment_name} --session-id {session_id}`"
         ),
         format!(
             "- direct-connect launch: `hellox teleport connect {environment_name} --session-id {session_id}`"
         ),
+        format!("- environment panel: `hellox remote-env panel {environment_name}`"),
     ]
 }
 
 fn remote_detail_repl_palette(environment_name: &str, session_id: &str) -> Vec<String> {
     vec![
         format!("- back to list: `/assistant list {environment_name}`"),
-        format!("- direct-connect plan: `/teleport plan {environment_name} {session_id}`"),
+        format!("- direct-connect panel: `/teleport panel {environment_name} {session_id}`"),
         format!("- direct-connect launch: `/teleport connect {environment_name} {session_id}`"),
+        format!("- environment panel: `/remote-env panel {environment_name}`"),
     ]
 }
 
