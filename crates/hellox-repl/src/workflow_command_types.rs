@@ -9,6 +9,7 @@ pub enum WorkflowCommand {
     },
     Panel {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
     },
     Runs {
@@ -16,6 +17,7 @@ pub enum WorkflowCommand {
     },
     Validate {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     ShowRun {
         run_id: Option<String>,
@@ -27,12 +29,14 @@ pub enum WorkflowCommand {
     },
     Show {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Init {
         workflow_name: Option<String>,
     },
     AddStep {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         name: Option<String>,
         prompt: Option<String>,
         index: Option<usize>,
@@ -44,6 +48,7 @@ pub enum WorkflowCommand {
     },
     UpdateStep {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
         name: Option<String>,
         clear_name: bool,
@@ -60,34 +65,42 @@ pub enum WorkflowCommand {
     },
     DuplicateStep {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
         to_step_number: Option<usize>,
         name: Option<String>,
     },
     MoveStep {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
         to_step_number: Option<usize>,
     },
     RemoveStep {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         step_number: Option<usize>,
     },
     SetSharedContext {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         value: Option<String>,
     },
     ClearSharedContext {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     EnableContinueOnError {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     DisableContinueOnError {
         workflow_name: Option<String>,
+        script_path: Option<String>,
     },
     Run {
         workflow_name: Option<String>,
+        script_path: Option<String>,
         shared_context: Option<String>,
     },
     Help,

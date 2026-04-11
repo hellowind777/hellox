@@ -214,29 +214,47 @@ fn render_cli_palette(root: &Path, record: &WorkflowRunRecord) -> Vec<String> {
 }
 
 fn render_repl_palette(record: &WorkflowRunRecord) -> Vec<String> {
-    let Some(workflow_name) = record.workflow_name.as_deref() else {
-        return Vec::new();
+    let mut lines = match (
+        record.workflow_name.as_deref(),
+        record.requested_script_path.as_deref(),
+    ) {
+        (Some(workflow_name), _) => vec![format!(
+            "- rerun: `{}`",
+            repl_run_command(Some(workflow_name), None, record.shared_context.as_deref())
+        )],
+        (None, Some(script_path)) => vec![format!(
+            "- rerun: `{}`",
+            repl_run_command(None, Some(script_path), record.shared_context.as_deref())
+        )],
+        (None, None) => return Vec::new(),
     };
-
-    let mut lines = vec![format!(
-        "- rerun: `{}`",
-        repl_run_command(workflow_name, record.shared_context.as_deref())
-    )];
     if !record.steps.is_empty() {
         lines.push(
             "- focus adjacent step in REPL/dashboard: `first` / `prev` / `next` / `last`"
                 .to_string(),
         );
     }
-    lines.push(format!(
-        "- inspect script: `/workflow panel {workflow_name}`"
-    ));
-    lines.push(format!(
-        "- inspect history: `/workflow runs {workflow_name}`"
-    ));
-    lines.push(format!(
-        "- latest run: `/workflow last-run {workflow_name}`"
-    ));
+    if let Some(workflow_name) = record.workflow_name.as_deref() {
+        lines.push(format!(
+            "- inspect script: `/workflow panel {workflow_name}`"
+        ));
+        lines.push(format!(
+            "- inspect history: `/workflow runs {workflow_name}`"
+        ));
+        lines.push(format!(
+            "- latest run: `/workflow last-run {workflow_name}`"
+        ));
+    } else if let Some(script_path) = record.requested_script_path.as_deref() {
+        lines.push(format!(
+            "- inspect script: `/workflow panel --script-path {script_path}`"
+        ));
+        lines.push(format!(
+            "- show script: `/workflow show --script-path {script_path}`"
+        ));
+        lines.push(format!(
+            "- validate script: `/workflow validate --script-path {script_path}`"
+        ));
+    }
     lines
 }
 
@@ -261,8 +279,16 @@ fn cli_run_command(
     command
 }
 
-fn repl_run_command(workflow_name: &str, shared_context: Option<&str>) -> String {
-    let mut command = format!("/workflow run {workflow_name}");
+fn repl_run_command(
+    workflow_name: Option<&str>,
+    script_path: Option<&str>,
+    shared_context: Option<&str>,
+) -> String {
+    let mut command = match (workflow_name, script_path) {
+        (Some(workflow_name), _) => format!("/workflow run {workflow_name}"),
+        (None, Some(script_path)) => format!("/workflow run --script-path {script_path}"),
+        (None, None) => "/workflow run".to_string(),
+    };
     if let Some(shared_context) = shared_context.filter(|value| !value.trim().is_empty()) {
         command.push(' ');
         command.push_str(shared_context);

@@ -304,13 +304,15 @@ fn parse_known_and_unknown_commands() {
     assert_eq!(
         super::commands::parse_command("/workflow validate release-review"),
         Some(ReplCommand::Workflow(WorkflowCommand::Validate {
-            workflow_name: Some(String::from("release-review"))
+            workflow_name: Some(String::from("release-review")),
+            script_path: None,
         }))
     );
     assert_eq!(
         super::commands::parse_command("/workflow show release-review"),
         Some(ReplCommand::Workflow(WorkflowCommand::Show {
-            workflow_name: Some(String::from("release-review"))
+            workflow_name: Some(String::from("release-review")),
+            script_path: None,
         }))
     );
     assert_eq!(
@@ -323,6 +325,7 @@ fn parse_known_and_unknown_commands() {
         super::commands::parse_command("/workflow release-review ship carefully"),
         Some(ReplCommand::Workflow(WorkflowCommand::Run {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             shared_context: Some(String::from("ship carefully"))
         }))
     );

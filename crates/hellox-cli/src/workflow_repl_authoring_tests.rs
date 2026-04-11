@@ -47,6 +47,7 @@ fn repl_parses_duplicate_and_move_commands() {
         parse_command("/workflow duplicate-step release-review 2 --to 3 --name ship copy"),
         Some(ReplCommand::Workflow(WorkflowCommand::DuplicateStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(2),
             to_step_number: Some(3),
             name: Some(String::from("ship copy")),
@@ -56,6 +57,28 @@ fn repl_parses_duplicate_and_move_commands() {
         parse_command("/workflow move-step release-review 3 --to 1"),
         Some(ReplCommand::Workflow(WorkflowCommand::MoveStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
+            step_number: Some(3),
+            to_step_number: Some(1),
+        }))
+    );
+    assert_eq!(
+        parse_command(
+            "/workflow duplicate-step --script-path scripts/custom-release.json 2 --to 3"
+        ),
+        Some(ReplCommand::Workflow(WorkflowCommand::DuplicateStep {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
+            step_number: Some(2),
+            to_step_number: Some(3),
+            name: None,
+        }))
+    );
+    assert_eq!(
+        parse_command("/workflow move-step --script-path scripts/custom-release.json 3 --to 1"),
+        Some(ReplCommand::Workflow(WorkflowCommand::MoveStep {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
             step_number: Some(3),
             to_step_number: Some(1),
         }))
@@ -80,6 +103,7 @@ async fn repl_workflow_authoring_supports_duplicate_and_move() {
     let duplicated = handle_workflow_command_for_test(
         WorkflowCommand::DuplicateStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(2),
             to_step_number: Some(3),
             name: Some(String::from("ship copy")),
@@ -94,6 +118,7 @@ async fn repl_workflow_authoring_supports_duplicate_and_move() {
     let moved = handle_workflow_command_for_test(
         WorkflowCommand::MoveStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(3),
             to_step_number: Some(1),
         },

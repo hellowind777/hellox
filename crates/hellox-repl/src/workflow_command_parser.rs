@@ -20,19 +20,34 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
             }
         }
         Some(action) if action == "panel" || action == "edit" || action == "board" => {
-            let workflow_name = parts.next().map(ToString::to_string);
-            let step_number = parts.next().and_then(|value| value.parse::<usize>().ok());
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, consumed) = parse_workflow_lookup(&values);
+            let step_number = values
+                .get(consumed)
+                .and_then(|value| value.parse::<usize>().ok());
             WorkflowCommand::Panel {
                 workflow_name,
+                script_path,
                 step_number,
             }
         }
         Some(action) if action == "runs" || action == "history" => WorkflowCommand::Runs {
             workflow_name: parts.next().map(ToString::to_string),
         },
-        Some(action) if action == "validate" => WorkflowCommand::Validate {
-            workflow_name: parts.next().map(ToString::to_string),
-        },
+        Some(action) if action == "validate" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
+            WorkflowCommand::Validate {
+                workflow_name,
+                script_path,
+            }
+        }
         Some(action) if action == "show-run" => WorkflowCommand::ShowRun {
             run_id: parts.next().map(ToString::to_string),
             step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
@@ -41,9 +56,17 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
             workflow_name: parts.next().map(ToString::to_string),
             step_number: parts.next().and_then(|value| value.parse::<usize>().ok()),
         },
-        Some(action) if action == "show" => WorkflowCommand::Show {
-            workflow_name: parts.next().map(ToString::to_string),
-        },
+        Some(action) if action == "show" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
+            WorkflowCommand::Show {
+                workflow_name,
+                script_path,
+            }
+        }
         Some(action) if action == "init" => WorkflowCommand::Init {
             workflow_name: parts.next().map(ToString::to_string),
         },
@@ -66,47 +89,92 @@ pub fn parse_workflow_command(remainder: &str) -> WorkflowCommand {
             parse_workflow_move_step_command(trimmed[action.len()..].trim())
         }
         Some(action) if action == "remove-step" || action == "remove" || action == "rm-step" => {
-            let mut values = trimmed[action.len()..].trim().split_whitespace();
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, consumed) = parse_workflow_lookup(&values);
             WorkflowCommand::RemoveStep {
-                workflow_name: values.next().map(ToString::to_string),
-                step_number: values.next().and_then(|value| value.parse::<usize>().ok()),
+                workflow_name,
+                script_path,
+                step_number: values
+                    .get(consumed)
+                    .and_then(|value| value.parse::<usize>().ok()),
             }
         }
         Some(action) if action == "set-shared-context" => {
-            let mut values = trimmed[action.len()..].trim().split_whitespace();
-            let workflow_name = values.next().map(ToString::to_string);
-            let value = joined_remainder(values.collect::<Vec<_>>());
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, consumed) = parse_workflow_lookup(&values);
+            let value = joined_remainder(values.into_iter().skip(consumed).collect::<Vec<_>>());
             WorkflowCommand::SetSharedContext {
                 workflow_name,
+                script_path,
                 value,
             }
         }
-        Some(action) if action == "clear-shared-context" => WorkflowCommand::ClearSharedContext {
-            workflow_name: parts.next().map(ToString::to_string),
-        },
-        Some(action) if action == "enable-continue-on-error" => {
-            WorkflowCommand::EnableContinueOnError {
-                workflow_name: parts.next().map(ToString::to_string),
+        Some(action) if action == "clear-shared-context" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
+            WorkflowCommand::ClearSharedContext {
+                workflow_name,
+                script_path,
             }
         }
         Some(action) if action == "disable-continue-on-error" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
             WorkflowCommand::DisableContinueOnError {
-                workflow_name: parts.next().map(ToString::to_string),
+                workflow_name,
+                script_path,
+            }
+        }
+        Some(action) if action == "enable-continue-on-error" => {
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, _) = parse_workflow_lookup(&values);
+            WorkflowCommand::EnableContinueOnError {
+                workflow_name,
+                script_path,
             }
         }
         Some(action) if action == "run" => {
-            let workflow_name = parts.next().map(ToString::to_string);
-            let shared_context = joined_remainder(parts.collect::<Vec<_>>());
+            let values = trimmed[action.len()..]
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            let (workflow_name, script_path, consumed) = parse_workflow_lookup(&values);
+            let shared_context = joined_remainder(values.into_iter().skip(consumed).collect());
             WorkflowCommand::Run {
                 workflow_name,
+                script_path,
                 shared_context,
             }
         }
         Some(action) if action == "help" => WorkflowCommand::Help,
         Some(workflow_name) => WorkflowCommand::Run {
             workflow_name: Some(workflow_name),
+            script_path: None,
             shared_context: joined_remainder(parts.collect::<Vec<_>>()),
         },
+    }
+}
+
+fn parse_workflow_lookup(values: &[&str]) -> (Option<String>, Option<String>, usize) {
+    match values {
+        ["--script-path", path, ..] => (None, Some((*path).to_string()), 2),
+        [workflow_name, ..] => (Some((*workflow_name).to_string()), None, 1),
+        [] => (None, None, 0),
     }
 }
 

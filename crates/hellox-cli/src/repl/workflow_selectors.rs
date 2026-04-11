@@ -120,6 +120,7 @@ impl CliReplDriver {
             }
             WorkflowCommand::Panel {
                 workflow_name: Some(workflow_name),
+                script_path: None,
                 step_number,
             } => {
                 if let Ok(detail) =
@@ -255,6 +256,7 @@ impl CliReplDriver {
                     WorkflowOverviewFocusSelectionItem::Step(step_number) => {
                         WorkflowCommand::Panel {
                             workflow_name: Some(workflow_name.clone()),
+                            script_path: None,
                             step_number: Some(*step_number),
                         }
                     }
@@ -279,6 +281,7 @@ impl CliReplDriver {
 
                 let command = WorkflowCommand::Panel {
                     workflow_name: Some(workflow_names[index - 1].clone()),
+                    script_path: None,
                     step_number: None,
                 };
                 self.clear_selector_context();
@@ -308,6 +311,7 @@ impl CliReplDriver {
                             handle_workflow_command(
                                 WorkflowCommand::Panel {
                                     workflow_name: Some(workflow_name.clone()),
+                                    script_path: None,
                                     step_number: Some(*step_number),
                                 },
                                 session,

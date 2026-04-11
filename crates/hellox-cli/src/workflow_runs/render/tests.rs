@@ -103,7 +103,10 @@ fn inspect_panel_uses_script_path_palette_for_custom_runs() {
         "hellox workflow run --script-path scripts/custom-release.json --shared-context \"ship carefully\""
     ));
     assert!(text.contains("hellox workflow panel --script-path scripts/custom-release.json"));
-    assert!(!text.contains("== REPL palette =="));
+    assert!(text.contains("== REPL palette =="));
+    assert!(text.contains("/workflow run --script-path scripts/custom-release.json ship carefully"));
+    assert!(text.contains("/workflow panel --script-path scripts/custom-release.json"));
+    assert!(text.contains("/workflow validate --script-path scripts/custom-release.json"));
 }
 
 #[test]

@@ -37,6 +37,7 @@ mod tests {
             parse_command("/workflow demo"),
             Some(ReplCommand::Workflow(WorkflowCommand::Run {
                 workflow_name: Some(String::from("demo")),
+                script_path: None,
                 shared_context: None,
             }))
         );

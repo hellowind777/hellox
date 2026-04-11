@@ -211,6 +211,7 @@ pub(super) async fn handle_repl_input_async_impl(
                     handle_workflow_command(
                         WorkflowCommand::Run {
                             workflow_name: Some(workflow_name),
+                            script_path: None,
                             shared_context,
                         },
                         session,

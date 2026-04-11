@@ -121,6 +121,12 @@ fn build_custom_run_entry(record: &WorkflowRunRecord) -> SelectorEntry {
         lines.push(format!(
             "validate: `hellox workflow validate --script-path {script_path}`"
         ));
+        lines.push(format!(
+            "rerun (repl): `/workflow run --script-path {script_path}`"
+        ));
+        lines.push(format!(
+            "show (repl): `/workflow show --script-path {script_path}`"
+        ));
     }
 
     SelectorEntry::new(record.run_id.clone(), lines).with_badge(status_badge(&record.status))

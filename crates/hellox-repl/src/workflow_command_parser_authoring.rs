@@ -26,8 +26,9 @@ enum WorkflowDuplicateSegmentKind {
 }
 
 pub(super) fn parse_workflow_add_step_command(remainder: &str) -> WorkflowCommand {
-    let mut tokens = remainder.split_whitespace();
-    let workflow_name = tokens.next().map(ToString::to_string);
+    let tokens = remainder.split_whitespace().collect::<Vec<_>>();
+    let mut workflow_name = None;
+    let mut script_path = None;
     let mut name = None;
     let mut prompt = None;
     let mut index = None;
@@ -39,8 +40,37 @@ pub(super) fn parse_workflow_add_step_command(remainder: &str) -> WorkflowComman
     let mut current_kind = None;
     let mut current_value = String::new();
 
-    for token in tokens {
+    let mut token_index = 0;
+    if let Some(first) = tokens.first() {
+        if *first == "--script-path" {
+            script_path = tokens.get(1).map(|value| (*value).to_string());
+            token_index = usize::min(2, tokens.len());
+        } else if !first.starts_with("--") {
+            workflow_name = Some((*first).to_string());
+            token_index = 1;
+        }
+    }
+
+    while token_index < tokens.len() {
+        let token = tokens[token_index];
+        token_index += 1;
         let next_kind = match token {
+            "--script-path" => {
+                push_workflow_step_segment(
+                    &mut name,
+                    &mut prompt,
+                    &mut when,
+                    &mut model,
+                    &mut backend,
+                    &mut step_cwd,
+                    current_kind.take(),
+                    &mut current_value,
+                );
+                script_path = tokens.get(token_index).map(|value| (*value).to_string());
+                token_index = usize::min(token_index + 1, tokens.len());
+                current_kind = None;
+                continue;
+            }
             "--name" => Some(WorkflowStepSegmentKind::Name),
             "--prompt" => Some(WorkflowStepSegmentKind::Prompt),
             "--when" => Some(WorkflowStepSegmentKind::When),
@@ -127,6 +157,7 @@ pub(super) fn parse_workflow_add_step_command(remainder: &str) -> WorkflowComman
 
     WorkflowCommand::AddStep {
         workflow_name,
+        script_path,
         name,
         prompt,
         index,
@@ -139,9 +170,25 @@ pub(super) fn parse_workflow_add_step_command(remainder: &str) -> WorkflowComman
 }
 
 pub(super) fn parse_workflow_update_step_command(remainder: &str) -> WorkflowCommand {
-    let mut tokens = remainder.split_whitespace();
-    let workflow_name = tokens.next().map(ToString::to_string);
-    let step_number = tokens.next().and_then(|value| value.parse::<usize>().ok());
+    let tokens = remainder.split_whitespace().collect::<Vec<_>>();
+    let mut workflow_name = None;
+    let mut script_path = None;
+    let mut token_index = 0;
+    if let Some(first) = tokens.first() {
+        if *first == "--script-path" {
+            script_path = tokens.get(1).map(|value| (*value).to_string());
+            token_index = usize::min(2, tokens.len());
+        } else if !first.starts_with("--") {
+            workflow_name = Some((*first).to_string());
+            token_index = 1;
+        }
+    }
+    let step_number = tokens
+        .get(token_index)
+        .and_then(|value| value.parse::<usize>().ok());
+    if step_number.is_some() {
+        token_index += 1;
+    }
     let mut name = None;
     let mut clear_name = false;
     let mut prompt = None;
@@ -157,8 +204,26 @@ pub(super) fn parse_workflow_update_step_command(remainder: &str) -> WorkflowCom
     let mut current_kind = None;
     let mut current_value = String::new();
 
-    for token in tokens {
+    while token_index < tokens.len() {
+        let token = tokens[token_index];
+        token_index += 1;
         let next_kind = match token {
+            "--script-path" => {
+                push_workflow_step_patch_segment(
+                    &mut name,
+                    &mut prompt,
+                    &mut when,
+                    &mut model,
+                    &mut backend,
+                    &mut step_cwd,
+                    current_kind.take(),
+                    &mut current_value,
+                );
+                script_path = tokens.get(token_index).map(|value| (*value).to_string());
+                token_index = usize::min(token_index + 1, tokens.len());
+                current_kind = None;
+                continue;
+            }
             "--name" => Some(WorkflowStepPatchKind::Name),
             "--prompt" => Some(WorkflowStepPatchKind::Prompt),
             "--when" => Some(WorkflowStepPatchKind::When),
@@ -300,6 +365,7 @@ pub(super) fn parse_workflow_update_step_command(remainder: &str) -> WorkflowCom
 
     WorkflowCommand::UpdateStep {
         workflow_name,
+        script_path,
         step_number,
         name,
         clear_name,
@@ -317,19 +383,45 @@ pub(super) fn parse_workflow_update_step_command(remainder: &str) -> WorkflowCom
 }
 
 pub(super) fn parse_workflow_duplicate_step_command(remainder: &str) -> WorkflowCommand {
-    let mut tokens = remainder.split_whitespace();
-    let workflow_name = tokens.next().map(ToString::to_string);
-    let step_number = tokens.next().and_then(|value| value.parse::<usize>().ok());
+    let tokens = remainder.split_whitespace().collect::<Vec<_>>();
+    let mut workflow_name = None;
+    let mut script_path = None;
+    let mut token_index = 0;
+    if let Some(first) = tokens.first() {
+        if *first == "--script-path" {
+            script_path = tokens.get(1).map(|value| (*value).to_string());
+            token_index = usize::min(2, tokens.len());
+        } else if !first.starts_with("--") {
+            workflow_name = Some((*first).to_string());
+            token_index = 1;
+        }
+    }
+    let step_number = tokens
+        .get(token_index)
+        .and_then(|value| value.parse::<usize>().ok());
+    if step_number.is_some() {
+        token_index += 1;
+    }
     let mut to_step_number = None;
     let mut name = None;
     let mut current_kind = None;
     let mut current_value = String::new();
 
-    while let Some(token) = tokens.next() {
+    while token_index < tokens.len() {
+        let token = tokens[token_index];
+        token_index += 1;
         match token {
+            "--script-path" => {
+                push_duplicate_segment(&mut name, current_kind.take(), &mut current_value);
+                script_path = tokens.get(token_index).map(|value| (*value).to_string());
+                token_index = usize::min(token_index + 1, tokens.len());
+            }
             "--to" | "--index" => {
                 push_duplicate_segment(&mut name, current_kind.take(), &mut current_value);
-                to_step_number = tokens.next().and_then(|value| value.parse::<usize>().ok());
+                to_step_number = tokens
+                    .get(token_index)
+                    .and_then(|value| value.parse::<usize>().ok());
+                token_index = usize::min(token_index + 1, tokens.len());
             }
             "--name" => {
                 push_duplicate_segment(&mut name, current_kind.take(), &mut current_value);
@@ -348,6 +440,7 @@ pub(super) fn parse_workflow_duplicate_step_command(remainder: &str) -> Workflow
 
     WorkflowCommand::DuplicateStep {
         workflow_name,
+        script_path,
         step_number,
         to_step_number,
         name,
@@ -355,15 +448,40 @@ pub(super) fn parse_workflow_duplicate_step_command(remainder: &str) -> Workflow
 }
 
 pub(super) fn parse_workflow_move_step_command(remainder: &str) -> WorkflowCommand {
-    let mut tokens = remainder.split_whitespace();
-    let workflow_name = tokens.next().map(ToString::to_string);
-    let step_number = tokens.next().and_then(|value| value.parse::<usize>().ok());
+    let tokens = remainder.split_whitespace().collect::<Vec<_>>();
+    let mut workflow_name = None;
+    let mut script_path = None;
+    let mut token_index = 0;
+    if let Some(first) = tokens.first() {
+        if *first == "--script-path" {
+            script_path = tokens.get(1).map(|value| (*value).to_string());
+            token_index = usize::min(2, tokens.len());
+        } else if !first.starts_with("--") {
+            workflow_name = Some((*first).to_string());
+            token_index = 1;
+        }
+    }
+    let step_number = tokens
+        .get(token_index)
+        .and_then(|value| value.parse::<usize>().ok());
+    if step_number.is_some() {
+        token_index += 1;
+    }
     let mut to_step_number = None;
 
-    while let Some(token) = tokens.next() {
+    while token_index < tokens.len() {
+        let token = tokens[token_index];
+        token_index += 1;
         match token {
+            "--script-path" => {
+                script_path = tokens.get(token_index).map(|value| (*value).to_string());
+                token_index = usize::min(token_index + 1, tokens.len());
+            }
             "--to" => {
-                to_step_number = tokens.next().and_then(|value| value.parse::<usize>().ok());
+                to_step_number = tokens
+                    .get(token_index)
+                    .and_then(|value| value.parse::<usize>().ok());
+                token_index = usize::min(token_index + 1, tokens.len());
             }
             _ if to_step_number.is_none() => {
                 to_step_number = token.parse::<usize>().ok();
@@ -374,6 +492,7 @@ pub(super) fn parse_workflow_move_step_command(remainder: &str) -> WorkflowComma
 
     WorkflowCommand::MoveStep {
         workflow_name,
+        script_path,
         step_number,
         to_step_number,
     }

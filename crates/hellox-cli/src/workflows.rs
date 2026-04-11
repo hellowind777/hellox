@@ -587,7 +587,10 @@ fn named_workflow_path(root: &Path, name: &str) -> Result<PathBuf> {
 }
 
 fn workflow_name_from_path(root: &Path, path: &Path) -> String {
-    let relative = path.strip_prefix(workflow_root(root)).unwrap_or(path);
+    let relative = path
+        .strip_prefix(workflow_root(root))
+        .or_else(|_| path.strip_prefix(root))
+        .unwrap_or(path);
     let without_extension = relative.with_extension("");
     path_text(&without_extension)
 }

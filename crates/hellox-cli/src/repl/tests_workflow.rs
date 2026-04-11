@@ -63,6 +63,13 @@ fn write_workflow(root: &Path, relative: &str, raw: &str) {
     fs::write(path, raw).expect("write workflow");
 }
 
+fn write_explicit_workflow(root: &Path, relative: &str, raw: &str) {
+    let path = root.join(relative);
+    fs::create_dir_all(path.parent().expect("explicit workflow dir"))
+        .expect("create explicit workflow dir");
+    fs::write(path, raw).expect("write explicit workflow");
+}
+
 fn write_config(root: &Path, base_url: &str) {
     let config = format!(
         "[gateway]\nlisten = \"{}\"\n\n[session]\npersist = false\nmodel = \"mock-model\"\n",
@@ -122,12 +129,24 @@ fn help_text_lists_project_workflow_commands() {
     assert!(text.contains("/workflow dashboard [name]"));
     assert!(text.contains("/workflow overview [name]"));
     assert!(text.contains("/workflow panel [name] [n]"));
+    assert!(text.contains("/workflow panel --script-path <path> [n]"));
     assert!(text.contains("/workflow runs [name]"));
     assert!(text.contains("/workflow validate [name]"));
+    assert!(text.contains("/workflow validate --script-path <path>"));
     assert!(text.contains("/workflow show-run <id> [n]"));
     assert!(text.contains("/workflow last-run [name] [n]"));
+    assert!(text.contains("/workflow show --script-path <path>"));
     assert!(text.contains("/workflow init <name>"));
+    assert!(text.contains("/workflow add-step --script-path <path> --prompt <text>"));
     assert!(text.contains("/workflow add-step <name> --prompt <text>"));
+    assert!(text.contains("/workflow duplicate-step --script-path <path> <n> [--to <m>]"));
+    assert!(text.contains("/workflow move-step --script-path <path> <n> --to <m>"));
+    assert!(text.contains("/workflow remove-step --script-path <path> <n>"));
+    assert!(text.contains("/workflow set-shared-context --script-path <path> <text>"));
+    assert!(text.contains("/workflow clear-shared-context --script-path <path>"));
+    assert!(text.contains("/workflow enable-continue-on-error --script-path <path>"));
+    assert!(text.contains("/workflow disable-continue-on-error --script-path <path>"));
+    assert!(text.contains("/workflow run --script-path <path> [shared_context]"));
     assert!(text.contains("/workflow run <name> [shared_context]"));
     assert!(text.contains("/release-review [shared_context]"));
 }
@@ -165,6 +184,7 @@ fn handle_workflow_validate_and_init_commands() {
         .block_on(handle_workflow_command(
             WorkflowCommand::Validate {
                 workflow_name: None,
+                script_path: None,
             },
             &mut session,
         ))
@@ -206,6 +226,19 @@ fn parse_workflow_authoring_commands() {
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::Panel {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
+                step_number: Some(2),
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow panel --script-path scripts/custom-release.json 2"
+        ),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Panel {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
                 step_number: Some(2),
             }
         ))
@@ -250,6 +283,7 @@ fn parse_workflow_authoring_commands() {
         ),
         Some(super::commands::ReplCommand::Workflow(WorkflowCommand::AddStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             name: Some(String::from("review")),
             prompt: Some(String::from("review release notes")),
             index: None,
@@ -266,6 +300,7 @@ fn parse_workflow_authoring_commands() {
         ),
         Some(super::commands::ReplCommand::Workflow(WorkflowCommand::UpdateStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(2),
             name: None,
             clear_name: true,
@@ -288,9 +323,59 @@ fn parse_workflow_authoring_commands() {
         Some(super::commands::ReplCommand::Workflow(
             WorkflowCommand::SetSharedContext {
                 workflow_name: Some(String::from("release-review")),
+                script_path: None,
                 value: Some(String::from("ship carefully")),
             }
         ))
+    );
+    assert_eq!(
+        super::commands::parse_command("/workflow show --script-path scripts/custom-release.json"),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Show {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow validate --script-path scripts/custom-release.json"
+        ),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Validate {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow run --script-path scripts/custom-release.json ship carefully"
+        ),
+        Some(super::commands::ReplCommand::Workflow(
+            WorkflowCommand::Run {
+                workflow_name: None,
+                script_path: Some(String::from("scripts/custom-release.json")),
+                shared_context: Some(String::from("ship carefully")),
+            }
+        ))
+    );
+    assert_eq!(
+        super::commands::parse_command(
+            "/workflow add-step --script-path scripts/custom-release.json --prompt review release notes --name review --background"
+        ),
+        Some(super::commands::ReplCommand::Workflow(WorkflowCommand::AddStep {
+            workflow_name: None,
+            script_path: Some(String::from("scripts/custom-release.json")),
+            name: Some(String::from("review")),
+            prompt: Some(String::from("review release notes")),
+            index: None,
+            when: None,
+            model: None,
+            backend: None,
+            step_cwd: None,
+            run_in_background: true,
+        }))
     );
 }
 
@@ -615,6 +700,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let text = handle_workflow_command(
         WorkflowCommand::Run {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             shared_context: Some(String::from("ship carefully")),
         },
         &mut session,
@@ -688,6 +774,7 @@ async fn handle_workflow_run_command_executes_local_script() {
     let panel = handle_workflow_command(
         WorkflowCommand::Panel {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(1),
         },
         &mut session,
@@ -717,6 +804,7 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
     let added = handle_workflow_command(
         WorkflowCommand::AddStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             name: Some(String::from("summarize")),
             prompt: Some(String::from("summarize findings")),
             index: Some(2),
@@ -736,6 +824,7 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
     let updated = handle_workflow_command(
         WorkflowCommand::UpdateStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(2),
             name: None,
             clear_name: true,
@@ -760,6 +849,7 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
     let context = handle_workflow_command(
         WorkflowCommand::SetSharedContext {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             value: Some(String::from("ship carefully")),
         },
         &mut session,
@@ -771,6 +861,7 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
     let enabled = handle_workflow_command(
         WorkflowCommand::EnableContinueOnError {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
         },
         &mut session,
     )
@@ -781,6 +872,7 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
     let removed = handle_workflow_command(
         WorkflowCommand::RemoveStep {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             step_number: Some(1),
         },
         &mut session,
@@ -792,12 +884,131 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
     let cleared = handle_workflow_command(
         WorkflowCommand::ClearSharedContext {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
         },
         &mut session,
     )
     .await
     .expect("clear shared context from repl");
     assert!(cleared.contains("shared_context: (none)"));
+}
+
+#[tokio::test]
+async fn handle_workflow_script_path_commands_roundtrip() {
+    let root = temp_dir();
+    let base_url = spawn_mock_gateway("workflow explicit path done").await;
+    write_config(&root, &base_url);
+    write_explicit_workflow(
+        &root,
+        "scripts/custom-release.json",
+        r#"{
+  "steps": [
+    { "name": "review", "prompt": "review {{workflow.shared_context}}" }
+  ]
+}"#,
+    );
+
+    let script_path = "scripts/custom-release.json";
+    let absolute_script_path = root
+        .join("scripts")
+        .join("custom-release.json")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+
+    let mut session = session_in(root.clone());
+
+    let shown = handle_workflow_command(
+        WorkflowCommand::Show {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+        },
+        &mut session,
+    )
+    .await
+    .expect("show explicit workflow script");
+    assert!(shown.contains("workflow: scripts/custom-release"));
+    assert!(shown.contains(&absolute_script_path));
+
+    let validated = handle_workflow_command(
+        WorkflowCommand::Validate {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+        },
+        &mut session,
+    )
+    .await
+    .expect("validate explicit workflow script");
+    assert!(validated.contains("scripts/custom-release"));
+    assert!(validated.contains("valid"));
+
+    let panel = handle_workflow_command(
+        WorkflowCommand::Panel {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+            step_number: Some(1),
+        },
+        &mut session,
+    )
+    .await
+    .expect("panel explicit workflow script");
+    assert!(panel.contains("Workflow authoring panel: scripts/custom-release"));
+
+    let added = handle_workflow_command(
+        WorkflowCommand::AddStep {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+            name: Some(String::from("ship")),
+            prompt: Some(String::from("ship release")),
+            index: Some(2),
+            when: None,
+            model: None,
+            backend: None,
+            step_cwd: None,
+            run_in_background: false,
+        },
+        &mut session,
+    )
+    .await
+    .expect("add step on explicit workflow script");
+    assert!(added.contains("Added workflow step 2"));
+
+    let run_text = handle_workflow_command(
+        WorkflowCommand::Run {
+            workflow_name: None,
+            script_path: Some(String::from(script_path)),
+            shared_context: Some(String::from("ship carefully")),
+        },
+        &mut session,
+    )
+    .await
+    .expect("run explicit workflow script");
+    let run_id = serde_json::from_str::<serde_json::Value>(&run_text)
+        .expect("parse explicit workflow run output")
+        .get("run_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("explicit workflow run id")
+        .to_string();
+
+    let detail = handle_workflow_command(
+        WorkflowCommand::ShowRun {
+            run_id: Some(run_id),
+            step_number: None,
+        },
+        &mut session,
+    )
+    .await
+    .expect("show explicit workflow run");
+    assert!(detail.contains("== REPL palette =="));
+    assert!(detail.contains(&format!(
+        "/workflow run --script-path {absolute_script_path} ship carefully"
+    )));
+    assert!(detail.contains(&format!(
+        "/workflow panel --script-path {absolute_script_path}"
+    )));
+    assert!(detail.contains(&format!(
+        "/workflow validate --script-path {absolute_script_path}"
+    )));
 }
 
 #[test]
@@ -950,6 +1161,7 @@ async fn workflow_runs_selector_allows_numeric_selection() {
     let run_text = handle_workflow_command(
         WorkflowCommand::Run {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             shared_context: Some(String::from("ship carefully")),
         },
         &mut session,
@@ -1019,6 +1231,7 @@ async fn workflow_panel_focus_allows_numeric_recent_run_selection() {
     let run_text = handle_workflow_command(
         WorkflowCommand::Run {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             shared_context: Some(String::from("ship carefully")),
         },
         &mut session,
@@ -1181,6 +1394,7 @@ async fn workflow_overview_focus_allows_numeric_recent_run_selection() {
     let run_text = handle_workflow_command(
         WorkflowCommand::Run {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             shared_context: Some(String::from("ship carefully")),
         },
         &mut session,
@@ -1264,6 +1478,7 @@ async fn workflow_show_run_allows_numeric_step_selection() {
     let run_text = handle_workflow_command(
         WorkflowCommand::Run {
             workflow_name: Some(String::from("release-review")),
+            script_path: None,
             shared_context: Some(String::from("ship carefully")),
         },
         &mut session,
