@@ -9,7 +9,7 @@ mod skills;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
@@ -204,6 +204,13 @@ pub fn config_root() -> PathBuf {
         .join(".hellox")
 }
 
+pub fn config_root_for(config_path: &Path) -> PathBuf {
+    config_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf()
+}
+
 pub fn default_config_path() -> PathBuf {
     config_root().join("config.toml")
 }
@@ -225,10 +232,7 @@ pub fn tasks_root() -> PathBuf {
 }
 
 pub fn tasks_root_for(config_path: &std::path::Path) -> PathBuf {
-    config_path
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .join("tasks")
+    config_root_for(config_path).join("tasks")
 }
 
 pub fn scheduled_tasks_path() -> PathBuf {

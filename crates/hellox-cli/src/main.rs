@@ -366,6 +366,7 @@ async fn run_interactive_session(
             max_turns,
         )?;
         let workspace_trusted = ensure_workspace_trusted(
+            &bootstrap.repl_metadata.config_path,
             resolve_app_language(&bootstrap.repl_metadata.config),
             bootstrap.session.working_directory(),
         )?;
@@ -378,6 +379,7 @@ async fn run_interactive_session(
                 &mut bootstrap.session,
                 &bootstrap.repl_metadata.memory_root,
                 &bootstrap.repl_metadata.config,
+                &bootstrap.repl_metadata.config_path,
             )
             .await?;
         }
@@ -435,6 +437,7 @@ async fn run_single_prompt_session(
         &mut bootstrap.session,
         &bootstrap.repl_metadata.memory_root,
         &bootstrap.repl_metadata.config,
+        &bootstrap.repl_metadata.config_path,
     )
     .await
 }
@@ -444,6 +447,7 @@ async fn run_prompt_with_session(
     session: &mut AgentSession,
     memory_root: &Path,
     config: &hellox_config::HelloxConfig,
+    config_path: &Path,
 ) -> Result<()> {
     let result = session.run_user_prompt(prompt).await.map_err(|error| {
         anyhow!(
@@ -453,6 +457,7 @@ async fn run_prompt_with_session(
                 &error,
                 config,
                 session.model(),
+                Some(config_path),
             )
         )
     })?;

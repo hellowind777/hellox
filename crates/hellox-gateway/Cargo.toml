@@ -10,6 +10,7 @@ anyhow.workspace = true
 axum.workspace = true
 base64.workspace = true
 futures-util.workspace = true
+hellox-auth = { path = "../hellox-auth" }
 hellox-config = { path = "../hellox-config" }
 hellox-core = { path = "../hellox-core" }
 hellox-gateway-api = { path = "../hellox-gateway-api" }

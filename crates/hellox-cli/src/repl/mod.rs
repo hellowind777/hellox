@@ -207,6 +207,7 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
                         &error,
                         &metadata.config,
                         session.model(),
+                        Some(&metadata.config_path),
                     )
                 );
                 return Ok(());

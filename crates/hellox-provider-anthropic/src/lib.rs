@@ -2,7 +2,7 @@ use std::env;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use hellox_auth::load_provider_key;
+use hellox_auth::{get_provider_key, LocalAuthStoreBackend};
 use hellox_config::ProviderConfig;
 use hellox_core::AnthropicCompatAdapter;
 use hellox_gateway_api::{
@@ -17,12 +17,21 @@ pub struct AnthropicAdapter {
     anthropic_version: String,
     api_key_env: String,
     provider_name: String,
+    auth_backend: LocalAuthStoreBackend,
 }
 
 impl AnthropicAdapter {
     const FILES_API_BETA: &'static str = "files-api-2025-04-14";
 
     pub fn from_config(provider_name: &str, config: &ProviderConfig) -> Result<Self> {
+        Self::from_config_with_backend(provider_name, config, LocalAuthStoreBackend::default())
+    }
+
+    pub fn from_config_with_backend(
+        provider_name: &str,
+        config: &ProviderConfig,
+        auth_backend: LocalAuthStoreBackend,
+    ) -> Result<Self> {
         let ProviderConfig::Anthropic {
             base_url,
             anthropic_version,
@@ -38,6 +47,7 @@ impl AnthropicAdapter {
             anthropic_version: anthropic_version.clone(),
             api_key_env: api_key_env.clone(),
             provider_name: provider_name.to_string(),
+            auth_backend,
         })
     }
 
@@ -45,7 +55,11 @@ impl AnthropicAdapter {
         env::var(&self.api_key_env)
             .ok()
             .filter(|value| !value.trim().is_empty())
-            .or_else(|| load_provider_key(&self.provider_name).ok().flatten())
+            .or_else(|| {
+                self.auth_backend.load_auth_store().ok().and_then(|store| {
+                    get_provider_key(&store, &self.provider_name).map(|entry| entry.api_key.clone())
+                })
+            })
             .ok_or_else(|| {
                 anyhow!(
                     "missing API key in env var {} or auth store provider key `{}`",

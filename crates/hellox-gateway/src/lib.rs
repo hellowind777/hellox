@@ -5,7 +5,7 @@ mod streaming;
 
 use std::collections::{BTreeMap, HashMap};
 use std::convert::Infallible;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -17,6 +17,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use hellox_auth::LocalAuthStoreBackend;
 use hellox_config::{load_or_default, HelloxConfig, ProviderConfig};
 use hellox_core::{AnthropicCompatAdapter, ModelProfile};
 use hellox_gateway_api::{
@@ -42,7 +43,10 @@ pub struct GatewayState {
 }
 
 pub async fn serve(config_path: Option<PathBuf>) -> Result<()> {
-    let state = build_state(load_or_default(config_path)?)?;
+    let state = build_state(
+        load_or_default(config_path.clone())?,
+        config_path.as_deref(),
+    )?;
     let listen = state.config.gateway.listen.clone();
 
     let app = Router::new()
@@ -62,17 +66,24 @@ pub async fn serve(config_path: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-pub fn build_state(config: HelloxConfig) -> Result<GatewayState> {
+pub fn build_state(config: HelloxConfig, config_path: Option<&Path>) -> Result<GatewayState> {
     let profiles = hellox_config::materialize_profiles(&config);
     let mut adapters: HashMap<String, Arc<dyn AnthropicCompatAdapter>> = HashMap::new();
+    let auth_backend = config_path
+        .map(LocalAuthStoreBackend::from_config_path)
+        .unwrap_or_default();
 
     for (name, provider) in &config.providers {
         let adapter: Arc<dyn AnthropicCompatAdapter> = match provider {
-            ProviderConfig::Anthropic { .. } => {
-                Arc::new(AnthropicAdapter::from_config(name, provider)?)
-            }
+            ProviderConfig::Anthropic { .. } => Arc::new(
+                AnthropicAdapter::from_config_with_backend(name, provider, auth_backend.clone())?,
+            ),
             ProviderConfig::OpenAiCompatible { .. } => {
-                Arc::new(OpenAiCompatibleAdapter::from_config(name, provider)?)
+                Arc::new(OpenAiCompatibleAdapter::from_config_with_backend(
+                    name,
+                    provider,
+                    auth_backend.clone(),
+                )?)
             }
         };
         adapters.insert(name.clone(), adapter);

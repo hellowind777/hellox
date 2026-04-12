@@ -6,5 +6,5 @@ pub(super) fn env_lock() -> MutexGuard<'static, ()> {
     ENV_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
-        .expect("startup env test lock poisoned")
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }

@@ -29,6 +29,23 @@ pub struct OnboardingOutcome {
 }
 
 pub fn resolve_provider_readiness(config: &HelloxConfig, model: &str) -> Result<ProviderReadiness> {
+    resolve_provider_readiness_with_backend(config, model, &LocalAuthStoreBackend::default())
+}
+
+pub fn resolve_provider_readiness_for_config_path(
+    config: &HelloxConfig,
+    model: &str,
+    config_path: &Path,
+) -> Result<ProviderReadiness> {
+    let auth_backend = LocalAuthStoreBackend::from_config_path(config_path);
+    resolve_provider_readiness_with_backend(config, model, &auth_backend)
+}
+
+fn resolve_provider_readiness_with_backend(
+    config: &HelloxConfig,
+    model: &str,
+    auth_backend: &LocalAuthStoreBackend,
+) -> Result<ProviderReadiness> {
     let profiles = hellox_config::materialize_profiles(config);
     let profile = profiles
         .get(model)
@@ -42,7 +59,7 @@ pub fn resolve_provider_readiness(config: &HelloxConfig, model: &str) -> Result<
         .providers
         .get(&profile.provider)
         .ok_or_else(|| anyhow!("unknown provider `{}`", profile.provider))?;
-    let auth_store = LocalAuthStoreBackend::default().load_auth_store().ok();
+    let auth_store = auth_backend.load_auth_store().ok();
 
     let (provider_kind, env_var) = match provider {
         ProviderConfig::Anthropic { api_key_env, .. } => ("anthropic", api_key_env.as_str()),
@@ -70,7 +87,8 @@ pub fn run_interactive_provider_onboarding(
     selected_model: &mut String,
     language: AppLanguage,
 ) -> Result<OnboardingOutcome> {
-    let readiness = resolve_provider_readiness(config, selected_model)?;
+    let readiness =
+        resolve_provider_readiness_for_config_path(config, selected_model, config_path)?;
     if config.ui.has_completed_onboarding && readiness.has_api_key {
         return Ok(OnboardingOutcome::default());
     }
@@ -264,7 +282,8 @@ fn persist_onboarding_selection(
     base_url: String,
     api_key: String,
 ) -> Result<()> {
-    let mut auth_store = LocalAuthStoreBackend::default().load_auth_store()?;
+    let auth_backend = LocalAuthStoreBackend::from_config_path(config_path);
+    let mut auth_store = auth_backend.load_auth_store()?;
     match provider {
         ProviderOption::Anthropic => {
             config.providers.insert(
@@ -294,7 +313,7 @@ fn persist_onboarding_selection(
     *selected_model = model.profile_name().to_string();
     config.ui.has_completed_onboarding = true;
     save_config(Some(config_path.to_path_buf()), config)?;
-    LocalAuthStoreBackend::default().save_auth_store(&auth_store)?;
+    auth_backend.save_auth_store(&auth_store)?;
     Ok(())
 }
 
@@ -425,6 +444,7 @@ mod tests {
 
     use super::{
         current_provider_base_url, persist_onboarding_selection, resolve_provider_readiness,
+        resolve_provider_readiness_for_config_path,
     };
     use crate::startup::onboarding_copy::{ModelPreset, ProviderOption};
 
@@ -458,6 +478,34 @@ mod tests {
     }
 
     #[test]
+    fn config_scoped_readiness_does_not_reuse_global_provider_keys() {
+        let scoped_root = temp_root();
+        let other_root = temp_root();
+        let config_path = scoped_root.join(".hellox").join("config.toml");
+        let other_config_path = other_root.join(".hellox").join("config.toml");
+
+        let mut other_store = LocalAuthStoreBackend::from_config_path(&other_config_path)
+            .load_auth_store()
+            .expect("load other auth store");
+        hellox_auth::set_provider_key(
+            &mut other_store,
+            "openai".to_string(),
+            "sk-other".to_string(),
+        );
+        LocalAuthStoreBackend::from_config_path(&other_config_path)
+            .save_auth_store(&other_store)
+            .expect("save other auth store");
+
+        let mut config = HelloxConfig::default();
+        config.session.model = "openai_opus".to_string();
+        let readiness =
+            resolve_provider_readiness_for_config_path(&config, "openai_opus", &config_path)
+                .expect("config-scoped readiness");
+
+        assert!(!readiness.has_api_key);
+    }
+
+    #[test]
     fn current_provider_base_url_matches_provider_name() {
         let config = HelloxConfig::default();
         assert_eq!(
@@ -473,12 +521,13 @@ mod tests {
     #[test]
     fn persist_onboarding_selection_writes_config_and_auth_store() {
         let _guard = super::super::test_support::env_lock();
-        let root = temp_root();
-        let config_path = root.join("config.toml");
+        let global_home = temp_root();
+        let isolated_root = temp_root();
+        let config_path = isolated_root.join(".hellox").join("config.toml");
         let original_home = env::var_os("HOME");
         let original_user_profile = env::var_os("USERPROFILE");
-        env::set_var("HOME", &root);
-        env::set_var("USERPROFILE", &root);
+        env::set_var("HOME", &global_home);
+        env::set_var("USERPROFILE", &global_home);
 
         let mut config = HelloxConfig::default();
         let mut selected_model = String::new();
@@ -493,9 +542,13 @@ mod tests {
         )
         .expect("persist onboarding selection");
 
-        let auth_store = LocalAuthStoreBackend::default()
+        let auth_store = LocalAuthStoreBackend::from_config_path(&config_path)
             .load_auth_store()
             .expect("load auth store");
+        let provider_keys_path = config_path
+            .parent()
+            .expect("config parent")
+            .join("provider-keys.json");
 
         if let Some(value) = original_home {
             env::set_var("HOME", value);
@@ -518,5 +571,6 @@ mod tests {
                 .api_key,
             "sk-test"
         );
+        assert!(provider_keys_path.exists());
     }
 }

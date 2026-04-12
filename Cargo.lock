@@ -902,6 +902,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing-subscriber",
+ "unicode-width",
 ]
 
 [[package]]
@@ -942,6 +943,7 @@ dependencies = [
  "axum",
  "base64",
  "futures-util",
+ "hellox-auth",
  "hellox-config",
  "hellox-core",
  "hellox-gateway-api",

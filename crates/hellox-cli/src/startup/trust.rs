@@ -6,7 +6,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use hellox_config::config_root;
+use hellox_config::config_root_for;
 use hellox_tui::render_cards;
 use serde::{Deserialize, Serialize};
 
@@ -28,11 +28,15 @@ struct TrustedWorkspace {
     accepted_at: u64,
 }
 
-pub fn ensure_workspace_trusted(language: AppLanguage, working_directory: &Path) -> Result<bool> {
+pub fn ensure_workspace_trusted(
+    config_path: &Path,
+    language: AppLanguage,
+    working_directory: &Path,
+) -> Result<bool> {
     let normalized = normalize_workspace_path(working_directory)?;
     let mode = resolve_trust_mode(working_directory)?;
 
-    if is_workspace_trusted(&normalized, mode)? {
+    if is_workspace_trusted(config_path, &normalized, mode)? {
         return Ok(true);
     }
 
@@ -40,13 +44,13 @@ pub fn ensure_workspace_trusted(language: AppLanguage, working_directory: &Path)
         return Ok(true);
     }
 
-    prompt_for_workspace_trust(language, working_directory, &normalized, mode)
+    prompt_for_workspace_trust(config_path, language, working_directory, &normalized, mode)
 }
 
-fn is_workspace_trusted(normalized: &str, mode: TrustMode) -> Result<bool> {
+fn is_workspace_trusted(config_path: &Path, normalized: &str, mode: TrustMode) -> Result<bool> {
     match mode {
         TrustMode::RememberWorkspace => {
-            let store = load_trust_store()?;
+            let store = load_trust_store(config_path)?;
             Ok(store.trusted_workspaces.contains_key(normalized))
         }
         TrustMode::SessionOnly => Ok(session_trust_cache()
@@ -57,12 +61,13 @@ fn is_workspace_trusted(normalized: &str, mode: TrustMode) -> Result<bool> {
 }
 
 fn prompt_for_workspace_trust(
+    config_path: &Path,
     language: AppLanguage,
     working_directory: &Path,
     normalized: &str,
     mode: TrustMode,
 ) -> Result<bool> {
-    let store_path = workspace_trust_path()
+    let store_path = workspace_trust_path_for(config_path)
         .display()
         .to_string()
         .replace('\\', "/");
@@ -82,7 +87,7 @@ fn prompt_for_workspace_trust(
 
         match TrustChoice::from_input(language, &input) {
             Some(TrustChoice::Trust) => {
-                remember_workspace_trust(working_directory, normalized, mode)?;
+                remember_workspace_trust(config_path, working_directory, normalized, mode)?;
                 println!();
                 for line in render_cards(&accepted_cards(language, normalized, mode)) {
                     println!("{line}");
@@ -100,12 +105,13 @@ fn prompt_for_workspace_trust(
 }
 
 fn remember_workspace_trust(
+    config_path: &Path,
     working_directory: &Path,
     normalized: &str,
     mode: TrustMode,
 ) -> Result<()> {
     match mode {
-        TrustMode::RememberWorkspace => save_persisted_workspace_trust(normalized),
+        TrustMode::RememberWorkspace => save_persisted_workspace_trust(config_path, normalized),
         TrustMode::SessionOnly => {
             let _ = working_directory;
             session_trust_cache()
@@ -117,8 +123,8 @@ fn remember_workspace_trust(
     }
 }
 
-fn save_persisted_workspace_trust(normalized: &str) -> Result<()> {
-    let mut store = load_trust_store()?;
+fn save_persisted_workspace_trust(config_path: &Path, normalized: &str) -> Result<()> {
+    let mut store = load_trust_store(config_path)?;
     store.trusted_workspaces.insert(
         normalized.to_string(),
         TrustedWorkspace {
@@ -126,11 +132,11 @@ fn save_persisted_workspace_trust(normalized: &str) -> Result<()> {
             accepted_at: unix_timestamp(),
         },
     );
-    save_trust_store(&store)
+    save_trust_store(config_path, &store)
 }
 
-fn load_trust_store() -> Result<WorkspaceTrustStore> {
-    let path = workspace_trust_path();
+fn load_trust_store(config_path: &Path) -> Result<WorkspaceTrustStore> {
+    let path = workspace_trust_path_for(config_path);
     if !path.exists() {
         return Ok(WorkspaceTrustStore::default());
     }
@@ -140,8 +146,8 @@ fn load_trust_store() -> Result<WorkspaceTrustStore> {
         .with_context(|| format!("failed to parse trust store {}", path.display()))
 }
 
-fn save_trust_store(store: &WorkspaceTrustStore) -> Result<()> {
-    let path = workspace_trust_path();
+fn save_trust_store(config_path: &Path, store: &WorkspaceTrustStore) -> Result<()> {
+    let path = workspace_trust_path_for(config_path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create trust dir {}", parent.display()))?;
@@ -151,8 +157,8 @@ fn save_trust_store(store: &WorkspaceTrustStore) -> Result<()> {
     fs::write(&path, raw).with_context(|| format!("failed to write trust store {}", path.display()))
 }
 
-fn workspace_trust_path() -> PathBuf {
-    config_root().join("workspace-trust.json")
+fn workspace_trust_path_for(config_path: &Path) -> PathBuf {
+    config_root_for(config_path).join("workspace-trust.json")
 }
 
 fn resolve_trust_mode(working_directory: &Path) -> Result<TrustMode> {
@@ -226,7 +232,7 @@ mod tests {
 
     use super::{
         normalize_workspace_path, remember_workspace_trust, resolve_trust_mode, save_trust_store,
-        session_trust_cache, workspace_trust_path, WorkspaceTrustStore,
+        session_trust_cache, workspace_trust_path_for, WorkspaceTrustStore,
     };
     use crate::startup::trust_copy::TrustMode;
 
@@ -252,13 +258,14 @@ mod tests {
     fn save_trust_store_creates_json_file() {
         let _guard = super::super::test_support::env_lock();
         let root = temp_root();
+        let config_path = root.join(".hellox").join("config.toml");
         let current_home = env::var_os("HOME");
         let current_user_profile = env::var_os("USERPROFILE");
         env::set_var("HOME", &root);
         env::set_var("USERPROFILE", &root);
 
-        let result = save_trust_store(&WorkspaceTrustStore::default());
-        let trust_path = workspace_trust_path();
+        let result = save_trust_store(&config_path, &WorkspaceTrustStore::default());
+        let trust_path = workspace_trust_path_for(&config_path);
 
         if let Some(value) = current_home {
             env::set_var("HOME", value);
@@ -308,15 +315,16 @@ mod tests {
     fn session_only_trust_does_not_write_persistent_store() {
         let _guard = super::super::test_support::env_lock();
         let root = temp_root();
+        let config_path = root.join(".hellox").join("config.toml");
         let current_home = env::var_os("HOME");
         let current_user_profile = env::var_os("USERPROFILE");
         env::set_var("HOME", &root);
         env::set_var("USERPROFILE", &root);
 
         let normalized = normalize_workspace_path(&root).expect("normalize path");
-        let trust_path = workspace_trust_path();
+        let trust_path = workspace_trust_path_for(&config_path);
         let original_store = fs::read_to_string(&trust_path).ok();
-        remember_workspace_trust(&root, &normalized, TrustMode::SessionOnly)
+        remember_workspace_trust(&config_path, &root, &normalized, TrustMode::SessionOnly)
             .expect("remember session trust");
         let is_cached = session_trust_cache()
             .lock()
@@ -337,5 +345,35 @@ mod tests {
 
         assert!(is_cached);
         assert_eq!(updated_store, original_store);
+    }
+
+    #[test]
+    fn trust_store_path_follows_config_path_not_global_home() {
+        let _guard = super::super::test_support::env_lock();
+        let global_home = temp_root();
+        let isolated_root = temp_root();
+        let config_path = isolated_root.join(".hellox").join("config.toml");
+        let current_home = env::var_os("HOME");
+        let current_user_profile = env::var_os("USERPROFILE");
+        env::set_var("HOME", &global_home);
+        env::set_var("USERPROFILE", &global_home);
+
+        save_trust_store(&config_path, &WorkspaceTrustStore::default()).expect("save trust store");
+        let scoped_path = workspace_trust_path_for(&config_path);
+        let global_path = global_home.join(".hellox").join("workspace-trust.json");
+
+        if let Some(value) = current_home {
+            env::set_var("HOME", value);
+        } else {
+            env::remove_var("HOME");
+        }
+        if let Some(value) = current_user_profile {
+            env::set_var("USERPROFILE", value);
+        } else {
+            env::remove_var("USERPROFILE");
+        }
+
+        assert!(scoped_path.exists());
+        assert!(!global_path.exists());
     }
 }

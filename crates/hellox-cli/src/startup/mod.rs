@@ -15,7 +15,10 @@ use hellox_config::{default_config_path, load_or_default, HelloxConfig};
 
 use gateway::ensure_gateway_ready;
 pub use localization::{resolve_app_language, resolve_default_app_language, AppLanguage};
-use onboarding::{resolve_provider_readiness, run_interactive_provider_onboarding};
+use onboarding::{
+    resolve_provider_readiness, resolve_provider_readiness_for_config_path,
+    run_interactive_provider_onboarding,
+};
 pub use trust::ensure_workspace_trusted;
 
 pub enum LaunchPreparation {
@@ -59,7 +62,11 @@ pub fn prepare_noninteractive_session_launch(
     gateway_url: Option<&str>,
 ) -> Result<Option<String>> {
     let context = resolve_launch_context(config_arg, session_id, model_override)?;
-    let readiness = resolve_provider_readiness(&context.config, &context.selected_model)?;
+    let readiness = resolve_provider_readiness_for_config_path(
+        &context.config,
+        &context.selected_model,
+        &context.config_path,
+    )?;
     if !readiness.has_api_key {
         let message = match context.language {
             AppLanguage::English => format!(
@@ -88,10 +95,16 @@ pub fn format_prompt_submission_error(
     error: &anyhow::Error,
     config: &HelloxConfig,
     model: &str,
+    config_path: Option<&std::path::Path>,
 ) -> String {
     let text = error.to_string();
     let lower = text.to_ascii_lowercase();
-    let readiness = resolve_provider_readiness(config, model).ok();
+    let readiness = config_path
+        .map(|path| resolve_provider_readiness_for_config_path(config, model, path))
+        .transpose()
+        .ok()
+        .flatten()
+        .or_else(|| resolve_provider_readiness(config, model).ok());
 
     if lower.contains("missing api key") {
         return match (language, readiness) {
