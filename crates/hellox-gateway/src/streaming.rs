@@ -1,7 +1,6 @@
 use axum::response::sse::Event;
 use hellox_gateway_api::{
-    flatten_text_blocks, AnthropicCompatResponse, ContentBlock, DocumentSource, ImageSource,
-    StopReason, ToolResultContent,
+    flatten_text_blocks, AnthropicCompatResponse, ContentBlock, StopReason, ToolResultContent,
 };
 use serde_json::{json, Value};
 
@@ -94,7 +93,7 @@ fn block_start_value(block: &ContentBlock) -> Value {
         ContentBlock::Text { .. } => json!({"type": "text", "text": ""}),
         ContentBlock::Image { source } => json!({
             "type": "image",
-            "source": image_source_placeholder(source)
+            "source": source_to_value(source)
         }),
         ContentBlock::Document {
             source,
@@ -103,7 +102,7 @@ fn block_start_value(block: &ContentBlock) -> Value {
             citations,
         } => json!({
             "type": "document",
-            "source": document_source_placeholder(source),
+            "source": source_to_value(source),
             "title": title,
             "context": context,
             "citations": citations
@@ -162,28 +161,8 @@ fn block_delta_value(block: &ContentBlock) -> Option<Value> {
     }
 }
 
-fn image_source_placeholder(source: &ImageSource) -> Value {
-    match source {
-        ImageSource::File { file_id } => json!({"type": "file", "file_id": file_id}),
-        ImageSource::Base64 { media_type, .. } => {
-            json!({"type": "base64", "media_type": media_type, "data": ""})
-        }
-        ImageSource::Url { url } => json!({"type": "url", "url": url}),
-    }
-}
-
-fn document_source_placeholder(source: &DocumentSource) -> Value {
-    match source {
-        DocumentSource::File { file_id } => json!({"type": "file", "file_id": file_id}),
-        DocumentSource::Base64 { media_type, .. } => {
-            json!({"type": "base64", "media_type": media_type, "data": ""})
-        }
-        DocumentSource::Url { url } => json!({"type": "url", "url": url}),
-        DocumentSource::Text { media_type, .. } => {
-            json!({"type": "text", "media_type": media_type, "data": ""})
-        }
-        DocumentSource::Content { .. } => json!({"type": "content", "content": []}),
-    }
+fn source_to_value(source: &impl serde::Serialize) -> Value {
+    serde_json::to_value(source).expect("content source should serialize")
 }
 
 fn stop_reason_to_value(stop_reason: &Option<StopReason>) -> Value {
@@ -195,5 +174,128 @@ fn stop_reason_to_value(stop_reason: &Option<StopReason>) -> Value {
         Some(StopReason::PauseTurn) => Value::String("pause_turn".to_string()),
         Some(StopReason::Refusal) => Value::String("refusal".to_string()),
         None => Value::Null,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::convert::Infallible;
+
+    use axum::{
+        body::to_bytes,
+        response::{sse::Sse, IntoResponse},
+    };
+    use futures_util::stream;
+    use serde_json::json;
+
+    use hellox_gateway_api::{DocumentCitations, DocumentSource, ImageSource, Usage};
+
+    use super::*;
+
+    #[test]
+    fn block_start_preserves_image_source_payload() {
+        let block = ContentBlock::Image {
+            source: ImageSource::Base64 {
+                media_type: "image/png".to_string(),
+                data: "ZmFrZS1pbWFnZQ==".to_string(),
+            },
+        };
+
+        let value = block_start_value(&block);
+        assert_eq!(
+            value,
+            json!({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": "ZmFrZS1pbWFnZQ=="
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn block_start_preserves_document_source_payload() {
+        let block = ContentBlock::Document {
+            source: DocumentSource::Content {
+                content: vec![ContentBlock::Text {
+                    text: "hello from document".to_string(),
+                }],
+            },
+            title: Some("Doc".to_string()),
+            context: Some("ctx".to_string()),
+            citations: Some(DocumentCitations { enabled: true }),
+        };
+
+        let value = block_start_value(&block);
+        assert_eq!(
+            value,
+            json!({
+                "type": "document",
+                "source": {
+                    "type": "content",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "hello from document"
+                        }
+                    ]
+                },
+                "title": "Doc",
+                "context": "ctx",
+                "citations": {
+                    "enabled": true
+                }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn sse_stream_preserves_non_text_block_source_values() {
+        let response = AnthropicCompatResponse::new(
+            "claude-test",
+            vec![
+                ContentBlock::Image {
+                    source: ImageSource::File {
+                        file_id: "file_123".to_string(),
+                    },
+                },
+                ContentBlock::Document {
+                    source: DocumentSource::Text {
+                        media_type: "text/plain".to_string(),
+                        data: "hello world".to_string(),
+                    },
+                    title: Some("Notes".to_string()),
+                    context: None,
+                    citations: None,
+                },
+            ],
+            Usage {
+                input_tokens: 10,
+                output_tokens: 4,
+            },
+        );
+
+        let events = anthropic_sse_events(&response);
+        let rendered = String::from_utf8(
+            to_bytes(
+                Sse::new(stream::iter(events.into_iter().map(Ok::<_, Infallible>)))
+                    .into_response()
+                    .into_body(),
+                usize::MAX,
+            )
+            .await
+            .expect("serialize sse body")
+            .to_vec(),
+        )
+        .expect("utf8 sse body");
+
+        assert!(rendered.contains("\"file_id\":\"file_123\""), "{rendered}");
+        assert!(
+            rendered.contains("\"media_type\":\"text/plain\""),
+            "{rendered}"
+        );
+        assert!(rendered.contains("\"data\":\"hello world\""), "{rendered}");
     }
 }
