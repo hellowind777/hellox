@@ -8,6 +8,13 @@ pub enum AppLanguage {
 }
 
 impl AppLanguage {
+    pub fn locale_tag(self) -> &'static str {
+        match self {
+            Self::English => "en",
+            Self::SimplifiedChinese => "zh-CN",
+        }
+    }
+
     pub fn accepts_input(self, value: &str) -> bool {
         match self {
             Self::English => matches!(

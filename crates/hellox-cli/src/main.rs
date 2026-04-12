@@ -137,7 +137,10 @@ use crate::repl::{run_repl, ReplExit, ReplMetadata};
 use crate::server_commands::handle_server_command;
 use crate::sessions::{format_session_list, list_sessions, load_session};
 use crate::settings_commands::{handle_model_command, handle_permissions_command};
-use crate::startup::{ensure_workspace_trusted, resolve_app_language};
+use crate::startup::{
+    ensure_workspace_trusted, format_prompt_submission_error, prepare_interactive_session_launch,
+    prepare_noninteractive_session_launch, resolve_app_language, LaunchPreparation,
+};
 use crate::sync_commands::handle_sync_command;
 use crate::task_commands::handle_tasks_command;
 use crate::ui_commands::{handle_brief_command, handle_tools_command};
@@ -145,10 +148,22 @@ use crate::usage::print_usage;
 use crate::worker_runner::run_worker_job;
 use crate::workflow_commands::handle_workflow_command;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter("info").init();
-    let cli = Cli::parse();
+    let cli = std::thread::Builder::new()
+        .name("hellox-cli-parse".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(Cli::parse)
+        .map_err(|error| anyhow!("failed to spawn cli parser thread: {error}"))?
+        .join()
+        .map_err(|_| anyhow!("cli parser thread panicked"))?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    runtime.block_on(async_main(cli))
+}
+
+async fn async_main(cli: Cli) -> Result<()> {
     let Cli {
         prompt,
         print,
@@ -329,6 +344,19 @@ async fn run_interactive_session(
     let mut pending_prompt = initial_prompt;
 
     loop {
+        match prepare_interactive_session_launch(
+            config_arg.clone(),
+            active_session_id.as_deref(),
+            active_model_override.as_deref(),
+            gateway_url_arg.as_deref(),
+        )? {
+            LaunchPreparation::Continue { model_override } => {
+                if let Some(model_override) = model_override {
+                    active_model_override = Some(model_override);
+                }
+            }
+            LaunchPreparation::Exit => break,
+        }
         let mut bootstrap = build_session(
             config_arg.clone(),
             gateway_url_arg.clone(),
@@ -349,6 +377,7 @@ async fn run_interactive_session(
                 prompt,
                 &mut bootstrap.session,
                 &bootstrap.repl_metadata.memory_root,
+                &bootstrap.repl_metadata.config,
             )
             .await?;
         }
@@ -394,11 +423,18 @@ async fn run_single_prompt_session(
     session_id: Option<String>,
     max_turns: usize,
 ) -> Result<()> {
+    prepare_noninteractive_session_launch(
+        config.clone(),
+        session_id.as_deref(),
+        model.as_deref(),
+        gateway_url.as_deref(),
+    )?;
     let mut bootstrap = build_session(config, gateway_url, model, cwd, session_id, max_turns)?;
     run_prompt_with_session(
         prompt,
         &mut bootstrap.session,
         &bootstrap.repl_metadata.memory_root,
+        &bootstrap.repl_metadata.config,
     )
     .await
 }
@@ -407,8 +443,19 @@ async fn run_prompt_with_session(
     prompt: String,
     session: &mut AgentSession,
     memory_root: &Path,
+    config: &hellox_config::HelloxConfig,
 ) -> Result<()> {
-    let result = session.run_user_prompt(prompt).await?;
+    let result = session.run_user_prompt(prompt).await.map_err(|error| {
+        anyhow!(
+            "{}",
+            format_prompt_submission_error(
+                resolve_app_language(config),
+                &error,
+                config,
+                session.model(),
+            )
+        )
+    })?;
     println!("{}", result.final_text);
     match maybe_auto_compact_session(session, memory_root)? {
         Some(outcome) => println!("{}", format_auto_compact_notice(&outcome)),
@@ -525,6 +572,7 @@ pub(crate) fn build_session(
         if session_path.exists() {
             let stored = StoredSession::load(session_id)?;
             let options = AgentOptions {
+                app_language: Some(resolve_app_language(&current).locale_tag().to_string()),
                 model: model.unwrap_or_else(|| stored.snapshot.model.clone()),
                 max_turns,
                 ..AgentOptions::default()
@@ -557,6 +605,7 @@ pub(crate) fn build_session(
         None => env::current_dir()?,
     };
     let options = AgentOptions {
+        app_language: Some(resolve_app_language(&current).locale_tag().to_string()),
         output_style: hellox_style::resolve_configured_output_style(&current, &working_directory)?,
         persona: hellox_style::resolve_configured_persona(&current, &working_directory)?,
         prompt_fragments: hellox_style::resolve_configured_fragments(&current, &working_directory)?,

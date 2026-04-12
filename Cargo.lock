@@ -837,6 +837,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sys-locale",
  "tokio",
  "uuid",
 ]
@@ -894,6 +895,7 @@ dependencies = [
  "hellox-telemetry",
  "hellox-tools-mcp",
  "hellox-tui",
+ "reqwest",
  "serde",
  "serde_json",
  "sys-locale",
@@ -999,6 +1001,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hellox-auth",
  "hellox-config",
  "hellox-core",
  "hellox-gateway-api",
@@ -1012,6 +1015,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hellox-auth",
  "hellox-config",
  "hellox-core",
  "hellox-gateway-api",

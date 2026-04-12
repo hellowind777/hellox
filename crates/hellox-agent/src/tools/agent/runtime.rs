@@ -257,6 +257,7 @@ pub(super) fn build_child_session(
         agent_name,
     )?;
     let options = AgentOptions {
+        app_language: config.ui.language.clone().or_else(sys_locale::get_locale),
         output_style: hellox_style::resolve_configured_output_style(&config, &working_directory)?,
         persona: hellox_style::resolve_configured_persona(&config, &working_directory)?,
         prompt_fragments: hellox_style::resolve_configured_fragments(&config, &working_directory)?,

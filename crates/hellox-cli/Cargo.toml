@@ -27,6 +27,7 @@ hellox-sync = { path = "../hellox-sync" }
 hellox-telemetry = { path = "../hellox-telemetry" }
 hellox-tui = { path = "../hellox-tui" }
 hellox-tools-mcp = { path = "../hellox-tools-mcp" }
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

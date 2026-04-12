@@ -80,6 +80,7 @@ impl AgentSession {
             self.options.output_style.as_ref(),
             self.options.persona.as_ref(),
             &self.options.prompt_fragments,
+            self.options.app_language.as_deref(),
         );
 
         if let Some(session_store) = &mut self.session_store {

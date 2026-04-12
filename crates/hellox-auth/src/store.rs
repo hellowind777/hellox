@@ -166,6 +166,15 @@ pub fn remove_provider_key(store: &mut AuthStore, provider: &str) -> Result<Prov
         .ok_or_else(|| anyhow!("Provider key `{provider}` was not found"))
 }
 
+pub fn get_provider_key<'a>(store: &'a AuthStore, provider: &str) -> Option<&'a ProviderKey> {
+    store.provider_keys.get(provider)
+}
+
+pub fn load_provider_key(provider: &str) -> Result<Option<String>> {
+    let store = load_auth_store(None, None)?;
+    Ok(get_provider_key(&store, provider).map(|entry| entry.api_key.clone()))
+}
+
 /// Register a trusted device for a stored account and return the generated device secret once.
 pub fn trust_device(
     store: &mut AuthStore,

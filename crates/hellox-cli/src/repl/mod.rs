@@ -65,7 +65,7 @@ use hellox_tui::WorkflowDashboardState;
 use crate::auto_compact::{format_auto_compact_notice, maybe_auto_compact_session};
 use crate::auto_memory::{format_auto_memory_refresh_notice, maybe_auto_refresh_session_memory};
 use crate::search::DEFAULT_SEARCH_LIMIT;
-use crate::startup::{resolve_app_language, AppLanguage};
+use crate::startup::{format_prompt_submission_error, resolve_app_language, AppLanguage};
 use bridge_actions::{handle_bridge_command, handle_ide_command};
 use commands::{
     parse_command, MemoryCommand, ReplCommand, SessionCommand, TaskCommand, WorkflowCommand,
@@ -166,7 +166,21 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
         session: &mut AgentSession,
         metadata: &ReplMetadata,
     ) -> Result<()> {
-        let result = session.run_user_prompt(prompt).await?;
+        let result = match session.run_user_prompt(prompt).await {
+            Ok(result) => result,
+            Err(error) => {
+                println!(
+                    "{}",
+                    format_prompt_submission_error(
+                        self.language,
+                        &error,
+                        &metadata.config,
+                        session.model(),
+                    )
+                );
+                return Ok(());
+            }
+        };
         println!("{}", result.final_text);
         match maybe_auto_compact_session(session, &metadata.memory_root)? {
             Some(outcome) => println!("{}", format_auto_compact_notice(&outcome)),

@@ -8,6 +8,7 @@ authors.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+hellox-auth = { path = "../hellox-auth" }
 hellox-config = { path = "../hellox-config" }
 hellox-core = { path = "../hellox-core" }
 hellox-gateway-api = { path = "../hellox-gateway-api" }

@@ -33,6 +33,7 @@ pub struct AgentOptions {
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
     pub thinking: Option<ThinkingConfig>,
+    pub app_language: Option<String>,
     pub output_style: Option<OutputStylePrompt>,
     pub persona: Option<PersonaPrompt>,
     pub prompt_fragments: Vec<PromptFragment>,
@@ -46,6 +47,7 @@ impl Default for AgentOptions {
             max_tokens: Some(4_096),
             temperature: None,
             thinking: None,
+            app_language: None,
             output_style: None,
             persona: None,
             prompt_fragments: Vec::new(),
@@ -131,6 +133,7 @@ impl AgentSession {
             options.output_style.as_ref(),
             options.persona.as_ref(),
             &options.prompt_fragments,
+            options.app_language.as_deref(),
         );
         let session_store = persist.then(|| {
             StoredSession::create(
@@ -243,6 +246,14 @@ impl AgentSession {
         session_store.snapshot.model = options.model.clone();
         session_store.snapshot.permission_mode = Some(restored_permission_mode.clone());
         session_store.snapshot.shell_name = session_store.snapshot.shell_name.clone();
+        let system_prompt = build_default_system_prompt(
+            &working_directory,
+            &session_store.snapshot.shell_name,
+            options.output_style.as_ref(),
+            options.persona.as_ref(),
+            &options.prompt_fragments,
+            options.app_language.as_deref(),
+        );
         Self {
             client: client.with_telemetry(telemetry_sink.clone()),
             tools,
@@ -258,7 +269,7 @@ impl AgentSession {
                 working_directory,
                 telemetry_sink: telemetry_sink.clone(),
             },
-            system_prompt: session_store.snapshot.system_prompt.clone(),
+            system_prompt,
             shell_name: session_store.snapshot.shell_name.clone(),
             output_style_name: restored_output_style_name,
             persona_name: restored_persona_name,

@@ -2,6 +2,7 @@ use std::env;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
+use hellox_auth::load_provider_key;
 use hellox_config::ProviderConfig;
 use hellox_core::AnthropicCompatAdapter;
 use hellox_gateway_api::{
@@ -16,10 +17,11 @@ pub struct OpenAiCompatibleAdapter {
     client: Client,
     base_url: String,
     api_key_env: String,
+    provider_name: String,
 }
 
 impl OpenAiCompatibleAdapter {
-    pub fn from_config(config: &ProviderConfig) -> Result<Self> {
+    pub fn from_config(provider_name: &str, config: &ProviderConfig) -> Result<Self> {
         let ProviderConfig::OpenAiCompatible {
             base_url,
             api_key_env,
@@ -32,12 +34,28 @@ impl OpenAiCompatibleAdapter {
             client: Client::new(),
             base_url: base_url.clone(),
             api_key_env: api_key_env.clone(),
+            provider_name: provider_name.to_string(),
         })
     }
 
     fn api_key(&self) -> Result<String> {
         env::var(&self.api_key_env)
-            .with_context(|| format!("missing API key in env var {}", self.api_key_env))
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| load_provider_key(&self.provider_name).ok().flatten())
+            .ok_or_else(|| {
+                anyhow!(
+                    "missing API key in env var {} or auth store provider key `{}`",
+                    self.api_key_env,
+                    self.provider_name
+                )
+            })
+            .with_context(|| {
+                format!(
+                    "failed to resolve openai-compatible provider key for `{}`",
+                    self.provider_name
+                )
+            })
     }
 
     fn map_messages(request: &AnthropicCompatRequest) -> Result<Vec<Value>> {

@@ -12,15 +12,20 @@ pub fn build_default_system_prompt(
     output_style: Option<&OutputStylePrompt>,
     persona: Option<&PersonaPrompt>,
     prompt_fragments: &[PromptFragment],
+    app_language: Option<&str>,
 ) -> String {
     // Claude Code-style tool naming. The shell tool is platform-specific.
     let shell_tool = if cfg!(windows) { "PowerShell" } else { "Bash" };
+    let language_name = language_name(app_language);
     let prompt = format!(
         concat!(
             "You are hellox, a Rust-native terminal coding agent.\n\n",
             "# Environment\n",
             "- Working directory: {cwd}\n",
             "- Shell: {shell}\n\n",
+            "# Language\n",
+            "- Default user-facing language: {language_name}\n",
+            "- Unless the user explicitly asks otherwise, write all user-facing responses in {language_name}.\n\n",
             "# Mission\n",
             "- Complete the user's software-engineering task end-to-end.\n",
             "- Use tools when they materially improve correctness or speed.\n",
@@ -38,6 +43,7 @@ pub fn build_default_system_prompt(
         ),
         cwd = cwd.display(),
         shell = shell_name,
+        language_name = language_name,
         shell_tool = shell_tool,
     );
     compose_prompt_layers(
@@ -48,4 +54,15 @@ pub fn build_default_system_prompt(
             fragments: prompt_fragments.to_vec(),
         },
     )
+}
+
+fn language_name(app_language: Option<&str>) -> &'static str {
+    match app_language
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_default()
+        .as_str()
+    {
+        value if value.starts_with("zh") => "Simplified Chinese",
+        _ => "English",
+    }
 }

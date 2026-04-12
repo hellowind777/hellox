@@ -3,6 +3,7 @@ use std::env;
 use std::path::Path;
 
 use anyhow::Result;
+use hellox_auth::{get_provider_key, LocalAuthStoreBackend};
 use hellox_config::{config_root, HelloxConfig, ProviderConfig};
 use hellox_telemetry::{
     cost_report_text, gather_persisted_workspace_stats, stats_report_text, usage_report_text,
@@ -58,6 +59,7 @@ pub fn doctor_text(
     config: &HelloxConfig,
 ) -> Result<String> {
     let mut lines = Vec::new();
+    let auth_store = LocalAuthStoreBackend::default().load_auth_store().ok();
     lines.push(format!(
         "{} workspace_root: {}",
         ok_tag(),
@@ -116,9 +118,18 @@ pub fn doctor_text(
                 "{} provider `{name}` ({kind}) env `{env_var}` is set",
                 ok_tag()
             ));
+        } else if auth_store
+            .as_ref()
+            .and_then(|store| get_provider_key(store, name))
+            .is_some()
+        {
+            lines.push(format!(
+                "{} provider `{name}` ({kind}) auth store key is set",
+                ok_tag()
+            ));
         } else {
             lines.push(format!(
-                "{} provider `{name}` ({kind}) env `{env_var}` is missing",
+                "{} provider `{name}` ({kind}) env `{env_var}` and auth store key are missing",
                 warn_tag()
             ));
         }

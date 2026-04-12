@@ -68,9 +68,11 @@ pub fn build_state(config: HelloxConfig) -> Result<GatewayState> {
 
     for (name, provider) in &config.providers {
         let adapter: Arc<dyn AnthropicCompatAdapter> = match provider {
-            ProviderConfig::Anthropic { .. } => Arc::new(AnthropicAdapter::from_config(provider)?),
+            ProviderConfig::Anthropic { .. } => {
+                Arc::new(AnthropicAdapter::from_config(name, provider)?)
+            }
             ProviderConfig::OpenAiCompatible { .. } => {
-                Arc::new(OpenAiCompatibleAdapter::from_config(provider)?)
+                Arc::new(OpenAiCompatibleAdapter::from_config(name, provider)?)
             }
         };
         adapters.insert(name.clone(), adapter);

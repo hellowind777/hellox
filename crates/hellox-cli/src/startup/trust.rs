@@ -113,7 +113,12 @@ fn normalize_workspace_path(path: &Path) -> Result<String> {
         std::env::current_dir()?.join(path)
     };
     let resolved = absolute.canonicalize().unwrap_or(absolute);
-    let normalized = resolved.display().to_string().replace('\\', "/");
+    let normalized = resolved
+        .display()
+        .to_string()
+        .replace('\\', "/")
+        .trim_start_matches("//?/")
+        .to_string();
     #[cfg(windows)]
     {
         return Ok(normalized.to_ascii_lowercase());
