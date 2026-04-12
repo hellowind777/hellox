@@ -5,6 +5,8 @@ use hellox_repl::{ReplCompletion, ReplPromptState};
 
 use crate::startup::AppLanguage;
 
+use super::prompt_shell_copy::prompt_shell_lines;
+
 struct PromptCommandCopy {
     value: &'static str,
     english: &'static str,
@@ -203,6 +205,7 @@ pub(super) fn prompt_state(
     session: &AgentSession,
     language: AppLanguage,
     has_prior_submit: bool,
+    workspace_trusted: bool,
 ) -> ReplPromptState {
     let placeholder = if has_prior_submit || session.message_count() > 0 {
         Some(continuation_placeholder(language))
@@ -213,8 +216,9 @@ pub(super) fn prompt_state(
         ))
     };
 
-    ReplPromptState::with_placeholder_and_completions(
+    ReplPromptState::with_shell(
         placeholder,
+        prompt_shell_lines(language, session.model(), workspace_trusted),
         PROMPT_COMMANDS
             .iter()
             .map(|command| {

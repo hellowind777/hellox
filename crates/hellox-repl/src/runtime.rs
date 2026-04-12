@@ -91,9 +91,11 @@ where
 
     loop {
         let prompt_state = driver.prompt_state(session, metadata);
-        let prompt = driver.prompt_label(session, metadata);
-        if let Some(placeholder) = prompt_state.placeholder.as_deref() {
-            println!("{placeholder}");
+        let prompt = compose_prompt_text(&driver.prompt_label(session, metadata), &prompt_state);
+        if prompt_state.shell_lines.is_empty() {
+            if let Some(placeholder) = prompt_state.placeholder.as_deref() {
+                println!("{placeholder}");
+            }
         }
         print!("{prompt}");
         io::stdout().flush()?;
@@ -148,8 +150,8 @@ where
     let history_path = repl_history_path(metadata);
 
     let result = loop {
-        let prompt = driver.prompt_label(session, metadata);
         let prompt_state = driver.prompt_state(session, metadata);
+        let prompt = compose_prompt_text(&driver.prompt_label(session, metadata), &prompt_state);
         if let Some(helper) = editor.helper_mut() {
             helper.set_state(prompt_state);
         }
@@ -187,4 +189,38 @@ fn repl_history_path(metadata: &ReplMetadata) -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
     root.join("repl-history.txt")
+}
+
+fn compose_prompt_text(label: &str, state: &ReplPromptState) -> String {
+    if state.shell_lines.is_empty() {
+        return label.to_string();
+    }
+
+    let mut lines = state.shell_lines.clone();
+    lines.push(label.to_string());
+    lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::input_helper::ReplPromptState;
+
+    use super::compose_prompt_text;
+
+    #[test]
+    fn compose_prompt_text_appends_label_after_shell_lines() {
+        let state = ReplPromptState::with_shell(
+            Some("Explain this repository".to_string()),
+            vec![
+                "╭─ local chat · model opus · trusted workspace".to_string(),
+                "│ /help commands".to_string(),
+            ],
+            Vec::new(),
+        );
+
+        assert_eq!(
+            compose_prompt_text("╰─ ❯ ", &state),
+            "╭─ local chat · model opus · trusted workspace\n│ /help commands\n╰─ ❯ "
+        );
+    }
 }

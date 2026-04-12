@@ -417,7 +417,7 @@ fn repl_prompt_label_matches_claude_style_prefix() {
     let session = session();
     assert_eq!(
         super::CliReplDriver::new().prompt_label(&session, &metadata()),
-        "❯ "
+        "╰─ ❯ "
     );
 }
 
@@ -426,12 +426,21 @@ fn prompt_state_uses_repo_example_before_first_submit() {
     let root = temp_dir();
     fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("write cargo manifest");
     let session = session_in(root);
-    let state = super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, false);
+    let state =
+        super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, false, true);
 
     assert_eq!(
         state.placeholder.as_deref(),
         Some("解释这个 Rust 工作区的结构")
     );
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("本地对话")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("工作区已信任")));
     assert!(state
         .completions
         .iter()
@@ -446,23 +455,32 @@ fn prompt_state_uses_repo_example_before_first_submit() {
 #[test]
 fn prompt_state_switches_to_continuation_hint_after_submit() {
     let session = session();
-    let state = super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, true);
+    let state =
+        super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, true, true);
 
     assert_eq!(
         state.placeholder.as_deref(),
         Some("继续输入任务，输入 `/` 查看命令，或按 ↑ 编辑上一条输入")
     );
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("输入 / + Tab 浏览命令")));
 }
 
 #[test]
 fn prompt_state_uses_existing_messages_as_continuation_signal() {
     let session = restorable_session_with_tool_turn();
-    let state = super::prompt_input::prompt_state(&session, AppLanguage::English, false);
+    let state = super::prompt_input::prompt_state(&session, AppLanguage::English, false, false);
 
     assert_eq!(
         state.placeholder.as_deref(),
         Some("Type another task, use `/` for commands, or press ↑ to edit the previous input")
     );
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("trust review")));
 }
 
 #[test]

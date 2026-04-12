@@ -25,6 +25,7 @@ impl ReplCompletion {
 pub struct ReplPromptState {
     pub placeholder: Option<String>,
     pub completions: Vec<ReplCompletion>,
+    pub shell_lines: Vec<String>,
 }
 
 impl ReplPromptState {
@@ -32,9 +33,18 @@ impl ReplPromptState {
         placeholder: Option<String>,
         completions: Vec<ReplCompletion>,
     ) -> Self {
+        Self::with_shell(placeholder, Vec::new(), completions)
+    }
+
+    pub fn with_shell(
+        placeholder: Option<String>,
+        shell_lines: Vec<String>,
+        completions: Vec<ReplCompletion>,
+    ) -> Self {
         Self {
             placeholder,
             completions,
+            shell_lines,
         }
     }
 }

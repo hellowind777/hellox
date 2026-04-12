@@ -15,6 +15,7 @@ pub(crate) mod output_localizer;
 mod plan_actions;
 mod plugin_actions;
 mod prompt_input;
+mod prompt_shell_copy;
 mod remote_actions;
 mod selector_input;
 mod selectors;
@@ -166,7 +167,12 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
     }
 
     fn prompt_state(&self, session: &AgentSession, _metadata: &ReplMetadata) -> ReplPromptState {
-        prompt_input::prompt_state(session, self.language, self.has_prior_submit())
+        prompt_input::prompt_state(
+            session,
+            self.language,
+            self.has_prior_submit(),
+            self.workspace_trusted,
+        )
     }
 
     async fn handle_input(
@@ -218,7 +224,7 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
 }
 
 fn default_prompt_label() -> String {
-    String::from("❯ ")
+    String::from("╰─ ❯ ")
 }
 
 impl CliReplDriver {
