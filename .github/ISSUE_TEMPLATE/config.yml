@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security policy
+    url: https://github.com/hellowind777/hellox/security/policy
+    about: Please report suspected vulnerabilities through the private security policy flow.
