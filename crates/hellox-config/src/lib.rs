@@ -1,3 +1,4 @@
+mod lsp;
 mod mcp;
 mod plugin;
 mod remote;
@@ -12,6 +13,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use hellox_core::{ModelProfile, ProviderCapabilities, ReasoningCompatibility};
+pub use lsp::{LspConfig, LspServerConfig};
 pub use mcp::{McpConfig, McpOAuthConfig, McpScope, McpServerConfig, McpTransportConfig};
 pub use plugin::{MarketplaceConfig, PluginConfig, PluginEntryConfig, PluginSourceConfig};
 pub use remote::{RemoteConfig, RemoteEnvironmentConfig};
@@ -146,6 +148,8 @@ pub struct HelloxConfig {
     #[serde(default)]
     pub prompt: PromptCompositionConfig,
     #[serde(default)]
+    pub lsp: LspConfig,
+    #[serde(default)]
     pub mcp: McpConfig,
     #[serde(default)]
     pub plugins: PluginConfig,
@@ -167,6 +171,7 @@ impl Default for HelloxConfig {
             session: default_session(),
             output_style: OutputStyleConfig::default(),
             prompt: PromptCompositionConfig::default(),
+            lsp: LspConfig::default(),
             mcp: McpConfig::default(),
             plugins: PluginConfig::default(),
             remote: RemoteConfig::default(),

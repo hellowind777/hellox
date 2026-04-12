@@ -24,6 +24,7 @@ where
     registry.register(ListMcpPromptsTool);
     registry.register(GetMcpPromptTool);
     registry.register(McpAuthTool);
+    registry.register(crate::LspTool);
 }
 
 pub struct McpTool;

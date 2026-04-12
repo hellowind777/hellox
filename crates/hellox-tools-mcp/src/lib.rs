@@ -1,5 +1,6 @@
 mod auth;
 mod config;
+mod lsp;
 mod oauth;
 mod registry;
 mod runtime;
@@ -15,6 +16,7 @@ pub use config::{
     format_server_list, get_server, parse_key_value_pairs, remove_server, set_server_enabled,
     set_server_oauth, StreamTransportKind,
 };
+pub use lsp::LspTool;
 pub use oauth::{
     clear_server_oauth_account, exchange_server_oauth_authorization_code, oauth_status,
     refresh_server_oauth_access_token, resolve_oauth_client_config,
