@@ -227,18 +227,16 @@ fn load_replay_file(replay_path: &Path) -> Result<VecDeque<PaneHostRecord>> {
 mod tests {
     use std::env;
     use std::fs;
-    use std::sync::{Mutex, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::PaneHostRecord;
     use crate::native_pane_backend::launch_native_pane;
+    use crate::native_pane_backend_preflight::pane_backend_test_env_lock;
     use crate::native_pane_backend_preflight::NativePaneBackend;
     use crate::native_pane_layout::{
         build_iterm_script, build_tmux_new_session_args, build_tmux_select_layout_args,
         pane_group_name, pane_group_title, pane_title, shell_join,
     };
-
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
     struct EnvGuard {
         key: &'static str,
@@ -310,8 +308,7 @@ mod tests {
 
     #[test]
     fn pane_host_replay_drives_tmux_launch_sequence() {
-        let _env_lock = ENV_LOCK
-            .get_or_init(|| Mutex::new(()))
+        let _env_lock = pane_backend_test_env_lock()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         *super::replay_harness_state()
@@ -379,8 +376,7 @@ mod tests {
 
     #[test]
     fn pane_host_replay_drives_iterm_launch_sequence() {
-        let _env_lock = ENV_LOCK
-            .get_or_init(|| Mutex::new(()))
+        let _env_lock = pane_backend_test_env_lock()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         *super::replay_harness_state()

@@ -1,21 +1,19 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use hellox_tool_runtime::LocalTool as RuntimeLocalTool;
 use serde_json::Value;
 
-use super::super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
+use super::super::{ToolExecutionContext, ToolRegistry};
 use super::runtime::run_agent_prompt;
 use super::team_coordination_support::{
     persist_team_member_runtime_updates, resolve_team_selection,
 };
 
-pub(super) fn register_tools(registry: &mut ToolRegistry) {
-    registry.register(SendMessageTool);
-    registry.register(TeamRunTool);
-}
+pub(super) use hellox_tools_agent::coordination_tool::{SendMessageTool, TeamRunTool};
 
-pub(super) struct SendMessageTool;
-pub(super) struct TeamRunTool;
+pub(super) fn register_tools(registry: &mut ToolRegistry) {
+    registry.register_runtime(SendMessageTool);
+    registry.register_runtime(TeamRunTool);
+}
 
 #[async_trait]
 impl hellox_tools_agent::coordination_tool::TeamCoordinationToolContext for ToolExecutionContext {
@@ -46,41 +44,5 @@ impl hellox_tools_agent::coordination_tool::TeamCoordinationToolContext for Tool
         request: hellox_tools_agent::shared::AgentRunRequest,
     ) -> Result<Value> {
         run_agent_prompt(self, request).await
-    }
-}
-
-#[async_trait]
-impl LocalTool for SendMessageTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::coordination_tool::SendMessageTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::coordination_tool::SendMessageTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamRunTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::coordination_tool::TeamRunTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::coordination_tool::TeamRunTool,
-            input,
-            context,
-        )
-        .await
     }
 }

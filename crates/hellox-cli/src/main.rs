@@ -91,6 +91,8 @@ mod workflow_commands_tests;
 #[cfg(test)]
 mod workflow_repl_authoring_tests;
 #[cfg(test)]
+mod workflow_test_support;
+#[cfg(test)]
 mod workflows_tests;
 
 use std::env;

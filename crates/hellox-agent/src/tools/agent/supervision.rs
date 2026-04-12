@@ -1,9 +1,8 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use hellox_tool_runtime::LocalTool as RuntimeLocalTool;
 use serde_json::{json, Value};
 
-use super::super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
+use super::super::{ToolExecutionContext, ToolRegistry};
 use super::background::{
     agent_status_value, cancelled_record, effective_background_record, list_background_records,
     store_background_record, take_abort_handle,
@@ -18,17 +17,16 @@ use super::team_coordination_support::{
     persist_team_runtime_value_for_session, resolve_team_members,
 };
 
-pub(super) fn register_tools(registry: &mut ToolRegistry) {
-    registry.register(AgentListTool);
-    registry.register(AgentStopTool);
-    registry.register(TeamWaitTool);
-    registry.register(TeamStopTool);
-}
+pub(super) use hellox_tools_agent::supervision_tool::{
+    AgentListTool, AgentStopTool, TeamStopTool, TeamWaitTool,
+};
 
-pub(super) struct AgentListTool;
-pub(super) struct AgentStopTool;
-pub(super) struct TeamWaitTool;
-pub(super) struct TeamStopTool;
+pub(super) fn register_tools(registry: &mut ToolRegistry) {
+    registry.register_runtime(AgentListTool);
+    registry.register_runtime(AgentStopTool);
+    registry.register_runtime(TeamWaitTool);
+    registry.register_runtime(TeamStopTool);
+}
 
 #[async_trait]
 impl hellox_tools_agent::supervision_tool::TeamSupervisionToolContext for ToolExecutionContext {
@@ -90,78 +88,6 @@ impl hellox_tools_agent::supervision_tool::TeamSupervisionToolContext for ToolEx
 
     fn agent_status_fallback(&self, session_id: &str) -> Value {
         safe_agent_status_value(session_id)
-    }
-}
-
-#[async_trait]
-impl LocalTool for AgentListTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::supervision_tool::AgentListTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::supervision_tool::AgentListTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for AgentStopTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::supervision_tool::AgentStopTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::supervision_tool::AgentStopTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamWaitTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::supervision_tool::TeamWaitTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::supervision_tool::TeamWaitTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamStopTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::supervision_tool::TeamStopTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::supervision_tool::TeamStopTool,
-            input,
-            context,
-        )
-        .await
     }
 }
 

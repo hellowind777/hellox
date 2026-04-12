@@ -19,12 +19,13 @@ use super::team_registry::{TeamCreateTool, TeamDeleteTool, TeamUpdateTool};
 use super::workflow::WorkflowTool;
 use crate::permissions::PermissionPolicy;
 use crate::planning::PlanningState;
-use crate::tools::{LocalTool, ToolExecutionContext};
+use crate::tools::ToolExecutionContext;
 use crate::StoredSession;
 use hellox_config::{session_file_path, PermissionMode};
 use hellox_gateway_api::{
     extract_text, AnthropicCompatRequest, AnthropicCompatResponse, ContentBlock, Usage,
 };
+use hellox_tool_runtime::LocalTool;
 
 static AGENT_TEST_SEMAPHORE: LazyLock<Arc<Semaphore>> =
     LazyLock::new(|| Arc::new(Semaphore::new(1)));

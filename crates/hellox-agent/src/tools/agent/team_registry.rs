@@ -1,23 +1,22 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use hellox_config::PermissionMode;
-use hellox_tool_runtime::LocalTool as RuntimeLocalTool;
 use serde_json::Value;
 
-use super::super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
+use super::super::{ToolExecutionContext, ToolRegistry};
 use super::team_layout_runtime::sync_team_layout_runtime;
 use super::team_member_support::{materialize_members, render_removed_members};
 use super::team_registry_support::{sync_member_permissions, sync_member_runtime_metadata};
 
-pub(super) fn register_tools(registry: &mut ToolRegistry) {
-    registry.register(TeamCreateTool);
-    registry.register(TeamUpdateTool);
-    registry.register(TeamDeleteTool);
-}
+pub(super) use hellox_tools_agent::team_registry_tool::{
+    TeamCreateTool, TeamDeleteTool, TeamUpdateTool,
+};
 
-pub(super) struct TeamCreateTool;
-pub(super) struct TeamUpdateTool;
-pub(super) struct TeamDeleteTool;
+pub(super) fn register_tools(registry: &mut ToolRegistry) {
+    registry.register_runtime(TeamCreateTool);
+    registry.register_runtime(TeamUpdateTool);
+    registry.register_runtime(TeamDeleteTool);
+}
 
 #[async_trait]
 impl hellox_tools_agent::team_registry_tool::TeamRegistryToolContext for ToolExecutionContext {
@@ -77,59 +76,5 @@ impl hellox_tools_agent::team_registry_tool::TeamRegistryToolContext for ToolExe
         team: &hellox_tools_agent::team_storage::TeamRecord,
     ) -> Result<Value> {
         sync_team_layout_runtime(pane_group, team)
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamCreateTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::team_registry_tool::TeamCreateTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::team_registry_tool::TeamCreateTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamUpdateTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::team_registry_tool::TeamUpdateTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::team_registry_tool::TeamUpdateTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamDeleteTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::team_registry_tool::TeamDeleteTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::team_registry_tool::TeamDeleteTool,
-            input,
-            context,
-        )
-        .await
     }
 }

@@ -1,5 +1,7 @@
 use std::env;
 use std::process::{Command, Stdio};
+#[cfg(test)]
+use std::sync::{Mutex, OnceLock};
 
 pub const TMUX_BACKEND: &str = "tmux_pane";
 pub const ITERM_BACKEND: &str = "iterm_pane";
@@ -182,10 +184,15 @@ fn iterm_unavailable_reason() -> &'static str {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::env;
+pub(crate) fn pane_backend_test_env_lock() -> &'static Mutex<()> {
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    ENV_LOCK.get_or_init(|| Mutex::new(()))
+}
 
+#[cfg(test)]
+mod tests {
     use super::*;
+    use std::env;
 
     struct EnvGuard {
         key: &'static str,
@@ -212,6 +219,9 @@ mod tests {
 
     #[test]
     fn pane_backend_preflight_honors_requested_backend_override() {
+        let _env_lock = pane_backend_test_env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let _backend = EnvGuard::set(PANE_BACKEND_ENV, "iterm");
         let _command = EnvGuard::set(
             ITERM_COMMAND_ENV,
@@ -227,6 +237,9 @@ mod tests {
 
     #[test]
     fn pane_backend_preflight_reports_invalid_command_prefix() {
+        let _env_lock = pane_backend_test_env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let _command = EnvGuard::set(TMUX_COMMAND_ENV, "{not-json}");
 
         let report = pane_backend_preflight();

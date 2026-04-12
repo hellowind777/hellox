@@ -16,6 +16,7 @@ use super::workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_
 use super::{ReplAction, ReplMetadata};
 use crate::repl::selectors::{WorkflowOverviewFocusTarget, WorkflowRunListTarget};
 use crate::workflow_overview::WorkflowOverviewSelectionItem;
+use crate::workflow_test_support::acquire_workflow_test_guard;
 
 fn temp_dir() -> PathBuf {
     let suffix = SystemTime::now()
@@ -701,6 +702,7 @@ fn workflow_dashboard_mode_supports_step_authoring() {
 #[tokio::test]
 async fn workflow_dashboard_mode_runs_active_workflow() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow dashboard done").await;
     write_config(&root, &base_url);
     write_workflow(
@@ -769,6 +771,7 @@ async fn workflow_dashboard_mode_runs_active_workflow() {
 #[tokio::test]
 async fn workflow_dashboard_mode_supports_explicit_script_path() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow dashboard explicit path done").await;
     write_config(&root, &base_url);
     write_explicit_workflow(
@@ -906,6 +909,7 @@ async fn workflow_dashboard_mode_supports_explicit_script_path() {
 #[tokio::test]
 async fn handle_workflow_run_command_executes_local_script() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_workflow(
@@ -1142,6 +1146,7 @@ async fn handle_workflow_authoring_commands_edit_local_script() {
 #[tokio::test]
 async fn handle_workflow_script_path_commands_roundtrip() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow explicit path done").await;
     write_config(&root, &base_url);
     write_explicit_workflow(
@@ -1416,6 +1421,7 @@ fn workflow_panel_selector_allows_numeric_selection() {
 #[tokio::test]
 async fn workflow_runs_selector_allows_numeric_selection() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_workflow(
@@ -1490,6 +1496,7 @@ async fn workflow_runs_selector_allows_numeric_selection() {
 #[tokio::test]
 async fn workflow_runs_selector_supports_explicit_script_path() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_explicit_workflow(
@@ -1576,6 +1583,7 @@ async fn workflow_runs_selector_supports_explicit_script_path() {
 #[tokio::test]
 async fn workflow_panel_focus_allows_numeric_recent_run_selection() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_workflow(
@@ -1739,6 +1747,7 @@ fn workflow_overview_focus_allows_numeric_step_selection() {
 #[tokio::test]
 async fn workflow_overview_focus_allows_numeric_recent_run_selection() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_workflow(
@@ -1821,6 +1830,7 @@ async fn workflow_overview_focus_allows_numeric_recent_run_selection() {
 #[tokio::test]
 async fn workflow_overview_focus_supports_explicit_script_path_selection() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_explicit_workflow(
@@ -1931,6 +1941,7 @@ async fn workflow_overview_focus_supports_explicit_script_path_selection() {
 #[tokio::test]
 async fn workflow_show_run_allows_numeric_step_selection() {
     let root = temp_dir();
+    let _guard = acquire_workflow_test_guard().await;
     let base_url = spawn_mock_gateway("workflow repl done").await;
     write_config(&root, &base_url);
     write_workflow(

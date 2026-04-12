@@ -1,20 +1,19 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use hellox_tool_runtime::LocalTool as RuntimeLocalTool;
 use serde_json::{json, Value};
 
-use super::super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
+use super::super::{ToolExecutionContext, ToolRegistry};
 use super::background::agent_status_value;
 use super::team_coordination_support::{
     persist_team_runtime_reconciliation, refresh_team_record_runtime,
 };
 use super::team_layout_runtime::summarize_layout_runtime;
 
-pub(super) fn register_tools(registry: &mut ToolRegistry) {
-    registry.register(TeamStatusTool);
-}
+pub(super) use hellox_tools_agent::team_status_tool::TeamStatusTool;
 
-pub(super) struct TeamStatusTool;
+pub(super) fn register_tools(registry: &mut ToolRegistry) {
+    registry.register_runtime(TeamStatusTool);
+}
 
 pub(super) fn team_status_value(
     context: &ToolExecutionContext,
@@ -58,23 +57,5 @@ impl hellox_tools_agent::team_status_tool::TeamStatusToolContext for ToolExecuti
                 "error": error.to_string(),
             })
         })
-    }
-}
-
-#[async_trait]
-impl LocalTool for TeamStatusTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::team_status_tool::TeamStatusTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::team_status_tool::TeamStatusTool,
-            input,
-            context,
-        )
-        .await
     }
 }

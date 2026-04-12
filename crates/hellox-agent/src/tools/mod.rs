@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use hellox_gateway_api::ToolDefinition;
 use serde_json::Value;
 
@@ -100,41 +99,12 @@ impl ToolExecutionContext {
 
 pub(crate) type LocalToolResult = hellox_tool_runtime::LocalToolResult;
 
-#[async_trait]
-pub(crate) trait LocalTool: Send + Sync {
-    fn definition(&self) -> ToolDefinition;
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult>;
-}
-
-struct ToolAdapter<T>(T);
-
-#[async_trait]
-impl<T> hellox_tool_runtime::LocalTool<ToolExecutionContext> for ToolAdapter<T>
-where
-    T: LocalTool + Send + Sync,
-{
-    fn definition(&self) -> ToolDefinition {
-        self.0.definition()
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        self.0.call(input, context).await
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct ToolRegistry {
     inner: hellox_tool_runtime::ToolRegistry<ToolExecutionContext>,
 }
 
 impl ToolRegistry {
-    pub(crate) fn register<T>(&mut self, tool: T)
-    where
-        T: LocalTool + 'static,
-    {
-        self.inner.register(ToolAdapter(tool));
-    }
-
     pub(crate) fn register_runtime<T>(&mut self, tool: T)
     where
         T: hellox_tool_runtime::LocalTool<ToolExecutionContext> + 'static,

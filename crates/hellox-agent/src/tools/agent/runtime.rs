@@ -1,12 +1,11 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use hellox_config::{load_or_default, session_file_path};
-use hellox_tool_runtime::LocalTool as RuntimeLocalTool;
 use serde_json::{json, Value};
 
 use crate::{default_tool_registry, AgentOptions, AgentSession, GatewayClient, StoredSession};
 
-use super::super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
+use super::super::{ToolExecutionContext, ToolRegistry};
 use super::background::{
     agent_status_value, clear_abort_handle, completed_record, failed_record, is_running_session,
     register_abort_handle, running_record, store_background_record,
@@ -17,15 +16,13 @@ use super::process_backend::{
 use super::shared::{current_shell_name, AgentRunRequest};
 use super::team_coordination_support::reconcile_team_runtime_for_session;
 
-pub(super) fn register_tools(registry: &mut ToolRegistry) {
-    registry.register(AgentTool);
-    registry.register(AgentStatusTool);
-    registry.register(AgentWaitTool);
-}
+pub(super) use hellox_tools_agent::runtime_tool::{AgentStatusTool, AgentTool, AgentWaitTool};
 
-pub(super) struct AgentTool;
-pub(super) struct AgentStatusTool;
-pub(super) struct AgentWaitTool;
+pub(super) fn register_tools(registry: &mut ToolRegistry) {
+    registry.register_runtime(AgentTool);
+    registry.register_runtime(AgentStatusTool);
+    registry.register_runtime(AgentWaitTool);
+}
 
 #[async_trait]
 impl hellox_tools_agent::runtime_tool::AgentRuntimeToolContext for ToolExecutionContext {
@@ -42,60 +39,6 @@ impl hellox_tools_agent::runtime_tool::AgentRuntimeToolContext for ToolExecution
 
     fn agent_status_value(&self, session_id: &str) -> Result<Value> {
         agent_status_value(session_id)
-    }
-}
-
-#[async_trait]
-impl LocalTool for AgentTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::runtime_tool::AgentTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::runtime_tool::AgentTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for AgentStatusTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::runtime_tool::AgentStatusTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::runtime_tool::AgentStatusTool,
-            input,
-            context,
-        )
-        .await
-    }
-}
-
-#[async_trait]
-impl LocalTool for AgentWaitTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        RuntimeLocalTool::<ToolExecutionContext>::definition(
-            &hellox_tools_agent::runtime_tool::AgentWaitTool,
-        )
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        RuntimeLocalTool::<ToolExecutionContext>::call(
-            &hellox_tools_agent::runtime_tool::AgentWaitTool,
-            input,
-            context,
-        )
-        .await
     }
 }
 

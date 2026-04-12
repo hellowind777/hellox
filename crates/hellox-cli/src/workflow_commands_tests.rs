@@ -10,6 +10,7 @@ use tokio::net::TcpListener;
 use crate::cli_types::{Cli, Commands};
 use crate::cli_workflow_types::WorkflowCommands;
 use crate::workflow_commands::workflow_command_text;
+use crate::workflow_test_support::acquire_workflow_test_guard;
 
 fn temp_dir() -> PathBuf {
     let suffix = SystemTime::now()
@@ -259,6 +260,7 @@ async fn workflow_authoring_commands_support_duplicate_and_move() {
 
 #[tokio::test]
 async fn workflow_run_command_executes_named_script() {
+    let _guard = acquire_workflow_test_guard().await;
     let root = temp_dir();
     write_workflow(
         &root,
@@ -289,6 +291,7 @@ async fn workflow_run_command_executes_named_script() {
 
 #[tokio::test]
 async fn workflow_runs_and_last_run_support_explicit_script_path() {
+    let _guard = acquire_workflow_test_guard().await;
     let root = temp_dir();
     write_explicit_workflow(
         &root,
