@@ -166,9 +166,10 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
         default_prompt_label()
     }
 
-    fn prompt_state(&self, session: &AgentSession, _metadata: &ReplMetadata) -> ReplPromptState {
+    fn prompt_state(&self, session: &AgentSession, metadata: &ReplMetadata) -> ReplPromptState {
         prompt_input::prompt_state(
             session,
+            metadata,
             self.language,
             self.has_prior_submit(),
             self.workspace_trusted,

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use hellox_agent::AgentSession;
+use hellox_repl::ReplMetadata;
 use hellox_repl::{ReplCompletion, ReplPromptState};
 
 use crate::startup::AppLanguage;
@@ -203,6 +204,7 @@ const PROMPT_COMMANDS: &[PromptCommandCopy] = &[
 
 pub(super) fn prompt_state(
     session: &AgentSession,
+    metadata: &ReplMetadata,
     language: AppLanguage,
     has_prior_submit: bool,
     workspace_trusted: bool,
@@ -218,7 +220,14 @@ pub(super) fn prompt_state(
 
     ReplPromptState::with_shell(
         placeholder,
-        prompt_shell_lines(language, session.model(), workspace_trusted),
+        prompt_shell_lines(
+            language,
+            session.model(),
+            workspace_trusted,
+            session.permission_mode(),
+            &metadata.config.gateway.listen,
+            metadata.config.session.persist,
+        ),
         PROMPT_COMMANDS
             .iter()
             .map(|command| {

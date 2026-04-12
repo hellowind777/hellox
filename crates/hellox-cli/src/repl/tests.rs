@@ -426,8 +426,13 @@ fn prompt_state_uses_repo_example_before_first_submit() {
     let root = temp_dir();
     fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("write cargo manifest");
     let session = session_in(root);
-    let state =
-        super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, false, true);
+    let state = super::prompt_input::prompt_state(
+        &session,
+        &metadata(),
+        AppLanguage::SimplifiedChinese,
+        false,
+        true,
+    );
 
     assert_eq!(
         state.placeholder.as_deref(),
@@ -442,6 +447,14 @@ fn prompt_state_uses_repo_example_before_first_submit() {
         .iter()
         .any(|line| line.contains("工作区已信任")));
     assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("绕过审批")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("本地持久化")));
+    assert!(state
         .completions
         .iter()
         .any(|item| item.value == "/workflow"));
@@ -455,8 +468,13 @@ fn prompt_state_uses_repo_example_before_first_submit() {
 #[test]
 fn prompt_state_switches_to_continuation_hint_after_submit() {
     let session = session();
-    let state =
-        super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, true, true);
+    let state = super::prompt_input::prompt_state(
+        &session,
+        &metadata(),
+        AppLanguage::SimplifiedChinese,
+        true,
+        true,
+    );
 
     assert_eq!(
         state.placeholder.as_deref(),
@@ -471,7 +489,13 @@ fn prompt_state_switches_to_continuation_hint_after_submit() {
 #[test]
 fn prompt_state_uses_existing_messages_as_continuation_signal() {
     let session = restorable_session_with_tool_turn();
-    let state = super::prompt_input::prompt_state(&session, AppLanguage::English, false, false);
+    let state = super::prompt_input::prompt_state(
+        &session,
+        &metadata(),
+        AppLanguage::English,
+        false,
+        false,
+    );
 
     assert_eq!(
         state.placeholder.as_deref(),
@@ -481,6 +505,14 @@ fn prompt_state_uses_existing_messages_as_continuation_signal() {
         .shell_lines
         .iter()
         .any(|line| line.contains("trust review")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("bypass permissions")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("session persisted")));
 }
 
 #[test]

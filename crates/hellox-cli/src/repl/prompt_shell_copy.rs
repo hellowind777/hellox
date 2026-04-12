@@ -1,13 +1,19 @@
+use hellox_config::PermissionMode;
+
 use crate::startup::AppLanguage;
 
 pub(super) fn prompt_shell_lines(
     language: AppLanguage,
     model: &str,
     workspace_trusted: bool,
+    permission_mode: &PermissionMode,
+    gateway_listen: &str,
+    session_persist: bool,
 ) -> Vec<String> {
     vec![
         shell_status_line(language, model, workspace_trusted),
         shell_quick_commands_line(language),
+        shell_runtime_status_line(language, permission_mode, gateway_listen, session_persist),
         shell_shortcuts_line(language),
     ]
 }
@@ -56,6 +62,45 @@ fn shell_shortcuts_line(language: AppLanguage) -> String {
     }
 }
 
+fn shell_runtime_status_line(
+    language: AppLanguage,
+    permission_mode: &PermissionMode,
+    gateway_listen: &str,
+    session_persist: bool,
+) -> String {
+    match language {
+        AppLanguage::English => format!(
+            "│ {} · gateway {gateway_listen} · {}",
+            permission_mode_label(language, permission_mode),
+            if session_persist {
+                "session persisted"
+            } else {
+                "session-only"
+            }
+        ),
+        AppLanguage::SimplifiedChinese => format!(
+            "│ {} · gateway {gateway_listen} · {}",
+            permission_mode_label(language, permission_mode),
+            if session_persist {
+                "本地持久化"
+            } else {
+                "仅当前会话"
+            }
+        ),
+    }
+}
+
+fn permission_mode_label(language: AppLanguage, permission_mode: &PermissionMode) -> &'static str {
+    match (language, permission_mode) {
+        (AppLanguage::English, PermissionMode::Default) => "default approvals",
+        (AppLanguage::English, PermissionMode::AcceptEdits) => "accept edits",
+        (AppLanguage::English, PermissionMode::BypassPermissions) => "bypass permissions",
+        (AppLanguage::SimplifiedChinese, PermissionMode::Default) => "默认审批",
+        (AppLanguage::SimplifiedChinese, PermissionMode::AcceptEdits) => "接受编辑",
+        (AppLanguage::SimplifiedChinese, PermissionMode::BypassPermissions) => "绕过审批",
+    }
+}
+
 fn truncate_model(model: &str) -> String {
     const MAX_MODEL_CHARS: usize = 18;
     let count = model.chars().count();
@@ -70,19 +115,30 @@ fn truncate_model(model: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use hellox_config::PermissionMode;
+
     use crate::startup::AppLanguage;
 
     use super::prompt_shell_lines;
 
     #[test]
     fn prompt_shell_lines_render_localized_status_and_shortcuts() {
-        let lines = prompt_shell_lines(AppLanguage::SimplifiedChinese, "claude-sonnet-4-5", true);
+        let lines = prompt_shell_lines(
+            AppLanguage::SimplifiedChinese,
+            "claude-sonnet-4-5",
+            true,
+            &PermissionMode::AcceptEdits,
+            "127.0.0.1:7821",
+            true,
+        );
 
-        assert_eq!(lines.len(), 3);
+        assert_eq!(lines.len(), 4);
         assert!(lines[0].contains("本地对话"));
         assert!(lines[0].contains("工作区已信任"));
         assert!(lines[1].contains("/workflow 工作流"));
-        assert!(lines[2].contains("/ + Tab"));
+        assert!(lines[2].contains("接受编辑"));
+        assert!(lines[2].contains("本地持久化"));
+        assert!(lines[3].contains("/ + Tab"));
     }
 
     #[test]
@@ -91,9 +147,14 @@ mod tests {
             AppLanguage::English,
             "this-is-a-very-long-model-name-for-testing",
             false,
+            &PermissionMode::BypassPermissions,
+            "127.0.0.1:9000",
+            false,
         );
 
         assert!(lines[0].contains("trust review"));
+        assert!(lines[2].contains("bypass permissions"));
+        assert!(lines[2].contains("session-only"));
         assert!(lines[0].contains("…"));
     }
 }
