@@ -391,6 +391,7 @@ mod tests {
         let _replay = ThreadReplayGuard::enable(&fixture_path);
         let _record = EnvGuard::remove(super::PANE_HOST_RECORD_ENV);
         let _backend_command = EnvGuard::set("HELLOX_AGENT_BACKEND_COMMAND", "[\"hx\"]");
+        let _iterm_command = EnvGuard::remove(crate::native_pane_backend::ITERM_COMMAND_ENV);
 
         let session_id = "session-2";
         let agent_name = Some("bob");

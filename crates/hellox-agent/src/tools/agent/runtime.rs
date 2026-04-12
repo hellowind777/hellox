@@ -1,26 +1,20 @@
-use std::time::{Duration, SystemTime};
-
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use hellox_config::{load_or_default, session_file_path};
+use hellox_tool_runtime::LocalTool as RuntimeLocalTool;
 use serde_json::{json, Value};
 
 use crate::{default_tool_registry, AgentOptions, AgentSession, GatewayClient, StoredSession};
 
-use super::super::{
-    required_string, LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry,
-};
+use super::super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
 use super::background::{
     agent_status_value, clear_abort_handle, completed_record, failed_record, is_running_session,
     register_abort_handle, running_record, store_background_record,
 };
 use super::process_backend::{
-    launch_process_backend_agent, parse_backend, resolve_backend, AgentBackend,
-    ProcessLaunchOptions,
+    launch_process_backend_agent, resolve_backend, AgentBackend, ProcessLaunchOptions,
 };
-use super::shared::{
-    current_shell_name, optional_string, parse_permission_mode, render_json, AgentRunRequest,
-};
+use super::shared::{current_shell_name, AgentRunRequest};
 use super::team_coordination_support::reconcile_team_runtime_for_session;
 
 pub(super) fn register_tools(registry: &mut ToolRegistry) {
@@ -34,143 +28,74 @@ pub(super) struct AgentStatusTool;
 pub(super) struct AgentWaitTool;
 
 #[async_trait]
+impl hellox_tools_agent::runtime_tool::AgentRuntimeToolContext for ToolExecutionContext {
+    async fn run_agent_prompt(
+        &self,
+        request: hellox_tools_agent::shared::AgentRunRequest,
+    ) -> Result<Value> {
+        run_agent_prompt(self, request).await
+    }
+
+    async fn reconcile_team_runtime_for_session(&self, session_id: &str) -> Result<()> {
+        reconcile_team_runtime_for_session(self, session_id).await
+    }
+
+    fn agent_status_value(&self, session_id: &str) -> Result<Value> {
+        agent_status_value(session_id)
+    }
+}
+
+#[async_trait]
 impl LocalTool for AgentTool {
     fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        hellox_gateway_api::ToolDefinition {
-            name: "Agent".to_string(),
-            description: Some(
-                "Run a nested local agent task and optionally keep it running as a background session."
-                    .to_string(),
-            ),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "prompt": { "type": "string" },
-                    "model": { "type": "string" },
-                    "backend": { "type": "string" },
-                    "permission_mode": { "type": "string" },
-                    "cwd": { "type": "string" },
-                    "session_id": { "type": "string" },
-                    "max_turns": { "type": "integer", "minimum": 1, "maximum": 64 },
-                    "run_in_background": { "type": "boolean" }
-                },
-                "required": ["prompt"]
-            }),
-        }
+        RuntimeLocalTool::<ToolExecutionContext>::definition(
+            &hellox_tools_agent::runtime_tool::AgentTool,
+        )
     }
 
     async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        let prompt = required_string(&input, "prompt")?.trim().to_string();
-        if prompt.is_empty() {
-            return Err(anyhow!("agent prompt cannot be empty"));
-        }
-
-        let value = run_agent_prompt(
+        RuntimeLocalTool::<ToolExecutionContext>::call(
+            &hellox_tools_agent::runtime_tool::AgentTool,
+            input,
             context,
-            AgentRunRequest {
-                prompt,
-                model: optional_string(&input, "model"),
-                backend: parse_backend(&input, "backend")?,
-                permission_mode: parse_permission_mode(&input, "permission_mode")?,
-                agent_name: None,
-                pane_group: None,
-                layout_strategy: None,
-                layout_slot: None,
-                pane_anchor_target: None,
-                cwd: optional_string(&input, "cwd"),
-                session_id: optional_string(&input, "session_id"),
-                max_turns: input
-                    .get("max_turns")
-                    .and_then(Value::as_u64)
-                    .map(|value| value as usize)
-                    .unwrap_or(8),
-                run_in_background: input
-                    .get("run_in_background")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false),
-                allow_interaction: input
-                    .get("run_in_background")
-                    .and_then(Value::as_bool)
-                    .is_none_or(|value| !value),
-            },
         )
-        .await?;
-        Ok(LocalToolResult::text(render_json(value)?))
+        .await
     }
 }
 
 #[async_trait]
 impl LocalTool for AgentStatusTool {
     fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        hellox_gateway_api::ToolDefinition {
-            name: "AgentStatus".to_string(),
-            description: Some(
-                "Inspect a local agent/background session by session id.".to_string(),
-            ),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "session_id": { "type": "string" }
-                },
-                "required": ["session_id"]
-            }),
-        }
+        RuntimeLocalTool::<ToolExecutionContext>::definition(
+            &hellox_tools_agent::runtime_tool::AgentStatusTool,
+        )
     }
 
     async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        let session_id = required_string(&input, "session_id")?;
-        reconcile_team_runtime_for_session(context, session_id).await?;
-        Ok(LocalToolResult::text(render_json(agent_status_value(
-            session_id,
-        )?)?))
+        RuntimeLocalTool::<ToolExecutionContext>::call(
+            &hellox_tools_agent::runtime_tool::AgentStatusTool,
+            input,
+            context,
+        )
+        .await
     }
 }
 
 #[async_trait]
 impl LocalTool for AgentWaitTool {
     fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        hellox_gateway_api::ToolDefinition {
-            name: "AgentWait".to_string(),
-            description: Some("Wait for a background local agent session to finish.".to_string()),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "session_id": { "type": "string" },
-                    "timeout_ms": { "type": "integer", "minimum": 1 },
-                    "poll_interval_ms": { "type": "integer", "minimum": 1 }
-                },
-                "required": ["session_id"]
-            }),
-        }
+        RuntimeLocalTool::<ToolExecutionContext>::definition(
+            &hellox_tools_agent::runtime_tool::AgentWaitTool,
+        )
     }
 
     async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        let session_id = required_string(&input, "session_id")?;
-        let timeout_ms = input
-            .get("timeout_ms")
-            .and_then(Value::as_u64)
-            .unwrap_or(30_000);
-        let poll_interval_ms = input
-            .get("poll_interval_ms")
-            .and_then(Value::as_u64)
-            .unwrap_or(100);
-        let started = SystemTime::now();
-
-        loop {
-            reconcile_team_runtime_for_session(context, session_id).await?;
-            let status = agent_status_value(session_id)?;
-            if status.get("status").and_then(Value::as_str) != Some("running") {
-                return Ok(LocalToolResult::text(render_json(status)?));
-            }
-
-            if started.elapsed().unwrap_or_default() >= Duration::from_millis(timeout_ms) {
-                return Err(anyhow!(
-                    "timed out waiting for background agent `{session_id}`"
-                ));
-            }
-
-            tokio::time::sleep(Duration::from_millis(poll_interval_ms)).await;
-        }
+        RuntimeLocalTool::<ToolExecutionContext>::call(
+            &hellox_tools_agent::runtime_tool::AgentWaitTool,
+            input,
+            context,
+        )
+        .await
     }
 }
 

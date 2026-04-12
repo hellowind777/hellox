@@ -6,6 +6,7 @@ pub mod native_pane_layout;
 pub mod native_pane_runtime;
 pub mod pane_host_harness;
 pub mod remote_trigger_tool;
+pub mod runtime_tool;
 pub mod shared;
 pub mod sleep_tool;
 pub mod supervision_tool;

@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use hellox_gateway_api::ToolDefinition;
-pub(crate) use hellox_tool_runtime::required_string;
 use serde_json::Value;
 
 use crate::permissions::{resolve_permission, ApprovalHandler, PermissionPolicy, QuestionHandler};

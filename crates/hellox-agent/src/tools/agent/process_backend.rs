@@ -3,7 +3,6 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anyhow::{anyhow, Context, Result};
-use serde_json::Value;
 
 use crate::{detached_job_path, AgentSession, DetachedAgentJob};
 
@@ -28,19 +27,6 @@ pub(super) enum AgentBackend {
     DetachedProcess,
     TmuxPane,
     ITermPane,
-}
-
-pub(super) fn parse_backend(input: &Value, key: &str) -> Result<Option<String>> {
-    input
-        .get(key)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_string())
-        .map(Some)
-        .map_or(Ok(None), |value| {
-            validate_backend_name(value.as_deref()).map(|_| value)
-        })
 }
 
 pub(super) fn resolve_backend(
@@ -284,11 +270,6 @@ pub(super) fn terminate_detached_process(pid: u32) -> Result<()> {
             ))
         }
     }
-}
-
-fn validate_backend_name(value: Option<&str>) -> Result<()> {
-    let _ = resolve_backend(value, true)?;
-    Ok(())
 }
 
 fn launcher_command_prefix() -> Result<Vec<String>> {
