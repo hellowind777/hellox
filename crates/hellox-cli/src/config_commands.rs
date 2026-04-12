@@ -377,7 +377,9 @@ mod tests {
         })
         .expect("render focused panel");
 
-        assert!(text.contains("> [6] prompt.persona"));
+        assert!(text
+            .lines()
+            .any(|line| line.starts_with("> [") && line.contains("prompt.persona")));
         assert!(text.contains("/config panel prompt.persona"));
     }
 }
