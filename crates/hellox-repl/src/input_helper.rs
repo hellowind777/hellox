@@ -6,6 +6,8 @@ use rustyline::hint::{Hint, Hinter};
 use rustyline::validate::Validator;
 use rustyline::{Context, Helper, Result};
 
+const SLASH_OVERLAY_MAX_ITEMS: usize = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplCompletion {
     pub value: String,
@@ -89,6 +91,55 @@ impl ReplInputHelper {
         }
         Some(&prefix[..pos])
     }
+
+    fn matching_completions<'a>(&'a self, fragment: &str) -> Vec<&'a ReplCompletion> {
+        self.state
+            .completions
+            .iter()
+            .filter(|candidate| candidate.value.starts_with(fragment))
+            .collect()
+    }
+
+    fn slash_hint_display(&self, fragment: &str, matches: &[&ReplCompletion]) -> String {
+        let inline = matches
+            .first()
+            .map(|candidate| candidate.value[fragment.len()..].to_string())
+            .unwrap_or_default();
+        let overlay = self.render_slash_overlay(matches);
+
+        if overlay.is_empty() {
+            inline
+        } else {
+            format!("{inline}{overlay}")
+        }
+    }
+
+    fn render_slash_overlay(&self, matches: &[&ReplCompletion]) -> String {
+        if matches.is_empty() {
+            return String::new();
+        }
+
+        let mut lines = matches
+            .iter()
+            .take(SLASH_OVERLAY_MAX_ITEMS)
+            .enumerate()
+            .map(|(index, candidate)| self.render_slash_overlay_line(candidate, index == 0))
+            .collect::<Vec<_>>();
+
+        if matches.len() > SLASH_OVERLAY_MAX_ITEMS {
+            lines.push("│   …".to_string());
+        }
+
+        format!("\n{}", lines.join("\n"))
+    }
+
+    fn render_slash_overlay_line(&self, candidate: &ReplCompletion, selected: bool) -> String {
+        let marker = if selected { "›" } else { " " };
+        match candidate.description.as_deref() {
+            Some(description) => format!("│ {marker} {} — {description}", candidate.value),
+            None => format!("│ {marker} {}", candidate.value),
+        }
+    }
 }
 
 impl Completer for ReplInputHelper {
@@ -138,14 +189,17 @@ impl Hinter for ReplInputHelper {
         }
 
         let fragment = Self::slash_fragment(line, pos)?;
-        let candidate = self.state.completions.iter().find(|candidate| {
-            candidate.value.starts_with(fragment) && candidate.value.len() > fragment.len()
-        })?;
+        let matches = self.matching_completions(fragment);
+        let candidate = matches.first()?;
         let remainder = candidate.value[fragment.len()..].to_string();
 
         Some(ReplInlineHint {
-            display: remainder.clone(),
-            completion: Some(remainder),
+            display: self.slash_hint_display(fragment, &matches),
+            completion: if remainder.is_empty() {
+                None
+            } else {
+                Some(remainder)
+            },
         })
     }
 }
@@ -200,8 +254,25 @@ mod tests {
 
         let hint = helper().hint("/st", 3, &context).expect("slash hint");
 
-        assert_eq!(hint.display(), "atus");
+        assert!(hint.display().starts_with("atus"));
+        assert!(hint.display().contains("/status — show the active session"));
         assert_eq!(hint.completion(), Some("atus"));
+    }
+
+    #[test]
+    fn slash_root_hint_renders_overlay_candidates() {
+        let history = DefaultHistory::new();
+        let context = Context::new(&history);
+
+        let hint = helper().hint("/", 1, &context).expect("slash overlay hint");
+
+        assert!(hint
+            .display()
+            .contains("\n│ › /help — show available commands"));
+        assert!(hint
+            .display()
+            .contains("\n│   /status — show the active session"));
+        assert_eq!(hint.completion(), Some("help"));
     }
 
     #[test]
