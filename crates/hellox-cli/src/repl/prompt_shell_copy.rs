@@ -6,12 +6,14 @@ pub(super) fn prompt_shell_lines(
     language: AppLanguage,
     model: &str,
     workspace_trusted: bool,
+    activity_line: String,
     permission_mode: &PermissionMode,
     gateway_listen: &str,
     session_persist: bool,
 ) -> Vec<String> {
     vec![
         shell_status_line(language, model, workspace_trusted),
+        activity_line,
         shell_quick_commands_line(language),
         shell_runtime_status_line(language, permission_mode, gateway_listen, session_persist),
         shell_shortcuts_line(language),
@@ -127,18 +129,21 @@ mod tests {
             AppLanguage::SimplifiedChinese,
             "claude-sonnet-4-5",
             true,
+            "│ 计划进行中 · 2 个计划步骤 · 3 个本地任务 · 1 个进行中".to_string(),
             &PermissionMode::AcceptEdits,
             "127.0.0.1:7821",
             true,
         );
 
-        assert_eq!(lines.len(), 4);
+        assert_eq!(lines.len(), 5);
         assert!(lines[0].contains("本地对话"));
         assert!(lines[0].contains("工作区已信任"));
-        assert!(lines[1].contains("/workflow 工作流"));
-        assert!(lines[2].contains("接受编辑"));
-        assert!(lines[2].contains("本地持久化"));
-        assert!(lines[3].contains("/ + Tab"));
+        assert!(lines[1].contains("计划进行中"));
+        assert!(lines[1].contains("3 个本地任务"));
+        assert!(lines[2].contains("/workflow 工作流"));
+        assert!(lines[3].contains("接受编辑"));
+        assert!(lines[3].contains("本地持久化"));
+        assert!(lines[4].contains("/ + Tab"));
     }
 
     #[test]
@@ -147,14 +152,16 @@ mod tests {
             AppLanguage::English,
             "this-is-a-very-long-model-name-for-testing",
             false,
+            "│ plan ready · no local tasks".to_string(),
             &PermissionMode::BypassPermissions,
             "127.0.0.1:9000",
             false,
         );
 
         assert!(lines[0].contains("trust review"));
-        assert!(lines[2].contains("bypass permissions"));
-        assert!(lines[2].contains("session-only"));
+        assert!(lines[1].contains("plan ready"));
+        assert!(lines[3].contains("bypass permissions"));
+        assert!(lines[3].contains("session-only"));
         assert!(lines[0].contains("…"));
     }
 }

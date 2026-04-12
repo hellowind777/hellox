@@ -5,6 +5,7 @@ use hellox_repl::ReplMetadata;
 use hellox_repl::{ReplCompletion, ReplPromptState};
 
 use crate::startup::AppLanguage;
+use crate::tasks::{load_tasks, TaskItem};
 
 use super::prompt_shell_copy::prompt_shell_lines;
 
@@ -224,6 +225,7 @@ pub(super) fn prompt_state(
             language,
             session.model(),
             workspace_trusted,
+            workspace_activity_line(language, session),
             session.permission_mode(),
             &metadata.config.gateway.listen,
             metadata.config.session.persist,
@@ -241,6 +243,130 @@ pub(super) fn prompt_state(
             })
             .collect(),
     )
+}
+
+fn workspace_activity_line(language: AppLanguage, session: &AgentSession) -> String {
+    let planning = session.planning_state();
+    let plan_part = plan_activity_copy(language, planning.active, planning.plan.len());
+    let tasks_part = match load_tasks(session.working_directory()) {
+        Ok(tasks) => task_activity_copy(language, &tasks),
+        Err(_) => task_error_copy(language).to_string(),
+    };
+    format!("│ {plan_part} · {tasks_part}")
+}
+
+fn plan_activity_copy(language: AppLanguage, plan_active: bool, step_count: usize) -> String {
+    match language {
+        AppLanguage::English => {
+            if plan_active && step_count > 0 {
+                format!(
+                    "plan active · {step_count} {}",
+                    pluralize_english(step_count, "step")
+                )
+            } else if plan_active {
+                "plan active".to_string()
+            } else if step_count > 0 {
+                format!(
+                    "{step_count} planned {}",
+                    pluralize_english(step_count, "step")
+                )
+            } else {
+                "plan ready".to_string()
+            }
+        }
+        AppLanguage::SimplifiedChinese => {
+            if plan_active && step_count > 0 {
+                format!("计划进行中 · {step_count} 个计划步骤")
+            } else if plan_active {
+                "计划进行中".to_string()
+            } else if step_count > 0 {
+                format!("{step_count} 个计划步骤")
+            } else {
+                "计划待命".to_string()
+            }
+        }
+    }
+}
+
+fn task_activity_copy(language: AppLanguage, tasks: &[TaskItem]) -> String {
+    let total = tasks.len();
+    let in_progress = tasks
+        .iter()
+        .filter(|task| task.status == "in_progress")
+        .count();
+    let pending = tasks.iter().filter(|task| task.status == "pending").count();
+    let completed = tasks
+        .iter()
+        .filter(|task| task.status == "completed")
+        .count();
+    let cancelled = tasks
+        .iter()
+        .filter(|task| task.status == "cancelled")
+        .count();
+
+    match language {
+        AppLanguage::English => {
+            if total == 0 {
+                "no local tasks".to_string()
+            } else if in_progress > 0 {
+                format!(
+                    "{total} local {} · {in_progress} in progress",
+                    pluralize_english(total, "task")
+                )
+            } else if pending > 0 {
+                format!(
+                    "{total} local {} · {pending} pending",
+                    pluralize_english(total, "task")
+                )
+            } else if completed == total {
+                format!(
+                    "all {total} local {} completed",
+                    pluralize_english(total, "task")
+                )
+            } else if cancelled == total {
+                format!(
+                    "all {total} local {} cancelled",
+                    pluralize_english(total, "task")
+                )
+            } else {
+                format!("{total} local {}", pluralize_english(total, "task"))
+            }
+        }
+        AppLanguage::SimplifiedChinese => {
+            if total == 0 {
+                "暂无本地任务".to_string()
+            } else if in_progress > 0 {
+                format!("{total} 个本地任务 · {in_progress} 个进行中")
+            } else if pending > 0 {
+                format!("{total} 个本地任务 · {pending} 个待处理")
+            } else if completed == total {
+                format!("{total} 个本地任务 · 已全部完成")
+            } else if cancelled == total {
+                format!("{total} 个本地任务 · 已全部取消")
+            } else {
+                format!("{total} 个本地任务")
+            }
+        }
+    }
+}
+
+fn task_error_copy(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "local tasks unavailable",
+        AppLanguage::SimplifiedChinese => "任务状态不可用",
+    }
+}
+
+fn pluralize_english(count: usize, singular: &'static str) -> &'static str {
+    if count == 1 {
+        singular
+    } else {
+        match singular {
+            "step" => "steps",
+            "task" => "tasks",
+            _ => singular,
+        }
+    }
 }
 
 fn continuation_placeholder(language: AppLanguage) -> String {

@@ -27,7 +27,7 @@ pub(super) fn handle_task_command(command: TaskCommand, session: &AgentSession) 
             content: Some(content),
         } => {
             let task = add_task(session.working_directory(), content, None, None)?;
-            Ok(format!("Added task `{}`.", task.id))
+            Ok(format!("Added task `{}`", task.id))
         }
         TaskCommand::Show { task_id: None } => Ok("Usage: /tasks show <task-id>".to_string()),
         TaskCommand::Show {

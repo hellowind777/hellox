@@ -234,9 +234,10 @@ pub(super) const MEMORY_REPLACEMENTS: &[Replacement] = &[
 ];
 
 pub(super) const SEARCH_REPLACEMENTS: &[Replacement] = &[
-    ("No search hits for `", "未找到 `"),
-    ("`.", "` 的搜索结果。"),
-    ("source\tsource_id\tlocation\tpreview", "来源\t来源 ID\t位置\t预览"),
+    (
+        "source\tsource_id\tlocation\tpreview",
+        "来源\t来源 ID\t位置\t预览",
+    ),
     ("memory\t", "记忆\t"),
     ("session\t", "会话\t"),
     ("transcript\t", "转录\t"),

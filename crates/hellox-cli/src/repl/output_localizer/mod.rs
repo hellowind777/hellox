@@ -58,7 +58,7 @@ pub(crate) fn localize_user_visible_output(language: AppLanguage, text: String) 
             HELP_REPLACEMENTS,
         ]
         .into_iter()
-        .fold(text, apply_replacements),
+        .fold(localize_search_miss_copy(text), apply_replacements),
     )
 }
 
@@ -70,6 +70,31 @@ fn apply_replacements(text: String, replacements: &[Replacement]) -> String {
 
 fn normalize_localized_spacing(text: String) -> String {
     apply_replacements(text, &[("用法： ", "用法："), ("。.", "。")])
+}
+
+fn localize_search_miss_copy(text: String) -> String {
+    let prefix = "No search hits for `";
+    let suffix = "`.";
+    let mut localized = String::new();
+    let mut remaining = text.as_str();
+
+    while let Some(start) = remaining.find(prefix) {
+        let search_start = start + prefix.len();
+        let after_prefix = &remaining[search_start..];
+        let Some(query_end) = after_prefix.find(suffix) else {
+            break;
+        };
+
+        localized.push_str(&remaining[..start]);
+        let query = &after_prefix[..query_end];
+        localized.push_str("未找到 `");
+        localized.push_str(query);
+        localized.push_str("` 的搜索结果。");
+        remaining = &after_prefix[query_end + suffix.len()..];
+    }
+
+    localized.push_str(remaining);
+    localized
 }
 
 #[cfg(test)]
@@ -166,5 +191,15 @@ mod tests {
         assert!(text.contains("计划模式： 未启用"));
         assert!(text.contains("来源\t来源 ID\t位置\t预览"));
         assert!(text.contains("会话\tabc\t第 2 条消息"));
+    }
+
+    #[test]
+    fn search_replacements_do_not_mutate_task_add_copy() {
+        let text = localize_user_visible_output(
+            AppLanguage::SimplifiedChinese,
+            "Added task `task-1`.".to_string(),
+        );
+
+        assert_eq!(text, "已添加任务 `task-1`.");
     }
 }

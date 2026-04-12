@@ -17,6 +17,7 @@ use super::commands::{
 use super::format::{config_text, help_text, help_text_for_workdir, status_text};
 use super::{handle_repl_input, ReplAction, ReplMetadata};
 use crate::startup::AppLanguage;
+use crate::tasks::{save_tasks, TaskItem};
 
 fn temp_dir() -> PathBuf {
     let suffix = SystemTime::now()
@@ -449,6 +450,14 @@ fn prompt_state_uses_repo_example_before_first_submit() {
     assert!(state
         .shell_lines
         .iter()
+        .any(|line| line.contains("计划待命")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("暂无本地任务")));
+    assert!(state
+        .shell_lines
+        .iter()
         .any(|line| line.contains("绕过审批")));
     assert!(state
         .shell_lines
@@ -508,6 +517,14 @@ fn prompt_state_uses_existing_messages_as_continuation_signal() {
     assert!(state
         .shell_lines
         .iter()
+        .any(|line| line.contains("plan ready")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("no local tasks")));
+    assert!(state
+        .shell_lines
+        .iter()
         .any(|line| line.contains("bypass permissions")));
     assert!(state
         .shell_lines
@@ -539,6 +556,95 @@ fn help_text_lists_core_commands() {
     assert!(text.contains("/session panel [id]"));
     assert!(text.contains("/session share <id> [path]"));
     assert!(text.contains("/session list"));
+}
+
+#[test]
+fn prompt_state_surfaces_active_plan_and_task_summary() {
+    let root = temp_dir();
+    let mut session = session_in(root.clone());
+    let mut planning = session.planning_state();
+    planning.enter();
+    planning
+        .add_step(
+            hellox_agent::PlanItem {
+                step: "补齐输入壳对齐".to_string(),
+                status: "in_progress".to_string(),
+            },
+            None,
+        )
+        .expect("add step");
+    session
+        .set_planning_state(planning)
+        .expect("set planning state");
+    save_tasks(
+        &root,
+        &[
+            TaskItem {
+                id: "task-1".to_string(),
+                content: "对齐 footer".to_string(),
+                status: "in_progress".to_string(),
+                priority: None,
+                description: None,
+                output: None,
+            },
+            TaskItem {
+                id: "task-2".to_string(),
+                content: "补齐提示文案".to_string(),
+                status: "pending".to_string(),
+                priority: None,
+                description: None,
+                output: None,
+            },
+        ],
+    )
+    .expect("save tasks");
+
+    let state = super::prompt_input::prompt_state(
+        &session,
+        &metadata_in(&root),
+        AppLanguage::SimplifiedChinese,
+        false,
+        true,
+    );
+
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("计划进行中")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("1 个计划步骤")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("2 个本地任务")));
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("1 个进行中")));
+}
+
+#[test]
+fn prompt_state_reports_task_summary_errors_instead_of_hiding_them() {
+    let root = temp_dir();
+    fs::create_dir_all(root.join(".hellox")).expect("create local config dir");
+    fs::write(root.join(".hellox").join("todos.json"), "{ invalid json")
+        .expect("write invalid tasks");
+    let session = session_in(root.clone());
+
+    let state = super::prompt_input::prompt_state(
+        &session,
+        &metadata_in(&root),
+        AppLanguage::SimplifiedChinese,
+        false,
+        true,
+    );
+
+    assert!(state
+        .shell_lines
+        .iter()
+        .any(|line| line.contains("任务状态不可用")));
 }
 
 #[test]
