@@ -102,6 +102,14 @@ pub struct PromptCompositionConfig {
     pub fragments: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UiConfig {
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub has_completed_onboarding: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ProviderConfig {
@@ -150,6 +158,8 @@ pub struct HelloxConfig {
     #[serde(default)]
     pub prompt: PromptCompositionConfig,
     #[serde(default)]
+    pub ui: UiConfig,
+    #[serde(default)]
     pub scheduler: SchedulerConfig,
     #[serde(default)]
     pub lsp: LspConfig,
@@ -175,6 +185,7 @@ impl Default for HelloxConfig {
             session: default_session(),
             output_style: OutputStyleConfig::default(),
             prompt: PromptCompositionConfig::default(),
+            ui: UiConfig::default(),
             scheduler: SchedulerConfig::default(),
             lsp: LspConfig::default(),
             mcp: McpConfig::default(),

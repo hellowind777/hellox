@@ -65,6 +65,7 @@ use hellox_tui::WorkflowDashboardState;
 use crate::auto_compact::{format_auto_compact_notice, maybe_auto_compact_session};
 use crate::auto_memory::{format_auto_memory_refresh_notice, maybe_auto_refresh_session_memory};
 use crate::search::DEFAULT_SEARCH_LIMIT;
+use crate::startup::{resolve_app_language, AppLanguage};
 use bridge_actions::{handle_bridge_command, handle_ide_command};
 use commands::{
     parse_command, MemoryCommand, ReplCommand, SessionCommand, TaskCommand, WorkflowCommand,
@@ -105,13 +106,20 @@ pub(crate) async fn handle_workflow_command_for_test(
     workflow_actions::handle_workflow_command(command, session).await
 }
 
-pub async fn run_repl(session: &mut AgentSession, metadata: &ReplMetadata) -> Result<ReplExit> {
-    let driver = CliReplDriver::new();
+pub async fn run_repl(
+    session: &mut AgentSession,
+    metadata: &ReplMetadata,
+    workspace_trusted: bool,
+) -> Result<ReplExit> {
+    let driver =
+        CliReplDriver::with_language(resolve_app_language(&metadata.config), workspace_trusted);
     run_repl_loop(session, metadata, &driver).await
 }
 
 #[derive(Debug, Default)]
 struct CliReplDriver {
+    language: AppLanguage,
+    workspace_trusted: bool,
     selector_context: Mutex<Option<SelectorContext>>,
     workflow_panel_focus: Mutex<Option<WorkflowPanelFocus>>,
     workflow_run_focus: Mutex<Option<WorkflowRunFocus>>,
@@ -119,15 +127,24 @@ struct CliReplDriver {
 }
 
 impl CliReplDriver {
+    #[cfg(test)]
     fn new() -> Self {
-        Self::default()
+        Self::with_language(AppLanguage::English, true)
+    }
+
+    fn with_language(language: AppLanguage, workspace_trusted: bool) -> Self {
+        Self {
+            language,
+            workspace_trusted,
+            ..Self::default()
+        }
     }
 }
 
 #[async_trait]
 impl ReplLoopDriver<AgentSession> for CliReplDriver {
     fn banner_lines(&self, session: &AgentSession) -> Vec<String> {
-        welcome_banner_lines(session)
+        welcome_banner_lines(session, self.language, self.workspace_trusted)
     }
 
     fn prompt_label(&self) -> String {
@@ -162,17 +179,62 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
     }
 }
 
-fn welcome_banner_lines(session: &AgentSession) -> Vec<String> {
+fn welcome_banner_lines(
+    session: &AgentSession,
+    language: AppLanguage,
+    workspace_trusted: bool,
+) -> Vec<String> {
     let session_id = session.session_id().unwrap_or("new local session");
-    vec![
-        format!("╭─ Welcome to hellox v{}", env!("CARGO_PKG_VERSION")),
-        String::from("├─ Local-first coding session ready"),
-        format!("├─ cwd     {}", session.working_directory().display()),
-        format!("├─ model   {}", session.model()),
-        format!("├─ session {session_id}"),
-        String::from("├─ commands /help · /status · /resume · /exit"),
-        String::from("╰─ Start typing your task and press Enter"),
-    ]
+    match language {
+        AppLanguage::English => vec![
+            format!(
+                "╭──────────────── Welcome to hellox v{} ────────────────╮",
+                env!("CARGO_PKG_VERSION")
+            ),
+            String::from("│  Local-first coding session aligned with Claude Code  │"),
+            String::from("│  Start with a task, or use a slash command to inspect │"),
+            String::from("╰───────────────────────────────────────────────────────╯"),
+            String::new(),
+            format!("  cwd       {}", session.working_directory().display()),
+            format!("  model     {}", session.model()),
+            format!("  session   {session_id}"),
+            format!(
+                "  trust     {}",
+                if workspace_trusted {
+                    "workspace trusted"
+                } else {
+                    "review required"
+                }
+            ),
+            String::from("  commands  /help · /status · /doctor · /resume · /exit"),
+            String::from("  try       explain this repository"),
+            String::from("  input     Start typing your task and press Enter"),
+        ],
+        AppLanguage::SimplifiedChinese => vec![
+            format!(
+                "╭──────────────── 欢迎使用 hellox v{} ────────────────╮",
+                env!("CARGO_PKG_VERSION")
+            ),
+            String::from("│  面向本地优先的编码会话，交互路径继续对齐 Claude Code │"),
+            String::from("│  直接输入任务，或先用斜杠命令查看当前环境与状态      │"),
+            String::from("╰───────────────────────────────────────────────────────╯"),
+            String::new(),
+            format!("  目录      {}", session.working_directory().display()),
+            format!("  模型      {}", session.model()),
+            format!("  会话      {session_id}"),
+            format!(
+                "  信任      {}",
+                if workspace_trusted {
+                    "当前工作区已信任"
+                } else {
+                    "当前工作区待确认"
+                }
+            ),
+            String::from("  命令      /help · /status · /doctor · /resume · /exit"),
+            String::from("  示例      解释一下这个仓库的结构"),
+            String::from("  输入      直接输入任务后按 Enter"),
+        ],
+    }
 }
 
 fn default_prompt_label() -> String {

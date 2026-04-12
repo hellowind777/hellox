@@ -44,8 +44,7 @@ fn parses_root_prompt_print_continue_and_resume_flags() {
     let prompt = Cli::try_parse_from(["hellox", "summarize repo"]).expect("parse root prompt");
     let print = Cli::try_parse_from(["hellox", "--print", "summarize repo"])
         .expect("parse root print prompt");
-    let continue_last =
-        Cli::try_parse_from(["hellox", "--continue"]).expect("parse root continue");
+    let continue_last = Cli::try_parse_from(["hellox", "--continue"]).expect("parse root continue");
     let resume_picker =
         Cli::try_parse_from(["hellox", "--resume"]).expect("parse root resume picker");
     let resume_session = Cli::try_parse_from(["hellox", "--resume", "session-123", "fix bug"])
@@ -62,7 +61,10 @@ fn parses_root_prompt_print_continue_and_resume_flags() {
 
     assert_eq!(resume_picker.resume, Some(None));
 
-    assert_eq!(resume_session.resume, Some(Some(String::from("session-123"))));
+    assert_eq!(
+        resume_session.resume,
+        Some(Some(String::from("session-123")))
+    );
     assert_eq!(resume_session.prompt.as_deref(), Some("fix bug"));
 }
 

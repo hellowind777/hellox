@@ -47,6 +47,7 @@ mod session_panel;
 mod sessions;
 mod settings_commands;
 mod skills;
+mod startup;
 mod style_command_support;
 mod style_panels;
 mod sync_commands;
@@ -134,14 +135,15 @@ use crate::remote_commands::{
 };
 use crate::repl::{run_repl, ReplExit, ReplMetadata};
 use crate::server_commands::handle_server_command;
+use crate::sessions::{format_session_list, list_sessions, load_session};
 use crate::settings_commands::{handle_model_command, handle_permissions_command};
+use crate::startup::{ensure_workspace_trusted, resolve_app_language};
 use crate::sync_commands::handle_sync_command;
 use crate::task_commands::handle_tasks_command;
 use crate::ui_commands::{handle_brief_command, handle_tools_command};
 use crate::usage::print_usage;
 use crate::worker_runner::run_worker_job;
 use crate::workflow_commands::handle_workflow_command;
-use crate::sessions::{format_session_list, list_sessions, load_session};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -208,8 +210,18 @@ async fn main() -> Result<()> {
             cwd,
             session_id,
             max_turns,
-        }) => run_single_prompt_session(prompt, model, gateway_url, config, cwd, session_id, max_turns)
-            .await?,
+        }) => {
+            run_single_prompt_session(
+                prompt,
+                model,
+                gateway_url,
+                config,
+                cwd,
+                session_id,
+                max_turns,
+            )
+            .await?
+        }
         Some(Commands::Repl {
             model,
             gateway_url,
@@ -222,18 +234,20 @@ async fn main() -> Result<()> {
                 .await?
         }
         Some(Commands::WorkerRunAgent { job }) => run_worker_job(job).await?,
-        None => run_root_command(
-            prompt,
-            print,
-            continue_last,
-            resume,
-            model,
-            gateway_url,
-            config,
-            cwd,
-            max_turns,
-        )
-        .await?,
+        None => {
+            run_root_command(
+                prompt,
+                print,
+                continue_last,
+                resume,
+                model,
+                gateway_url,
+                config,
+                cwd,
+                max_turns,
+            )
+            .await?
+        }
     }
 
     Ok(())
@@ -262,13 +276,30 @@ async fn run_root_command(
     };
 
     if should_run_root_interactive(print, stdin_is_terminal, stdout_is_terminal) {
-        run_interactive_session(model, gateway_url, config, cwd, session_id, max_turns, prompt)
-            .await?;
+        run_interactive_session(
+            model,
+            gateway_url,
+            config,
+            cwd,
+            session_id,
+            max_turns,
+            prompt,
+        )
+        .await?;
         return Ok(());
     }
 
     if let Some(prompt) = prompt {
-        return run_single_prompt_session(prompt, model, gateway_url, config, cwd, session_id, max_turns).await;
+        return run_single_prompt_session(
+            prompt,
+            model,
+            gateway_url,
+            config,
+            cwd,
+            session_id,
+            max_turns,
+        )
+        .await;
     }
 
     if print || session_id.is_some() {
@@ -306,6 +337,13 @@ async fn run_interactive_session(
             active_session_id.clone(),
             max_turns,
         )?;
+        let workspace_trusted = ensure_workspace_trusted(
+            resolve_app_language(&bootstrap.repl_metadata.config),
+            bootstrap.session.working_directory(),
+        )?;
+        if !workspace_trusted {
+            break;
+        }
         if let Some(prompt) = pending_prompt.take() {
             run_prompt_with_session(
                 prompt,
@@ -314,7 +352,13 @@ async fn run_interactive_session(
             )
             .await?;
         }
-        match run_repl(&mut bootstrap.session, &bootstrap.repl_metadata).await? {
+        match run_repl(
+            &mut bootstrap.session,
+            &bootstrap.repl_metadata,
+            workspace_trusted,
+        )
+        .await?
+        {
             ReplExit::Exit => break,
             ReplExit::Resume(session_id) => {
                 active_session_id = Some(session_id);

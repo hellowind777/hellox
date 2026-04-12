@@ -7,8 +7,8 @@ use hellox_agent::{
     default_tool_registry, AgentOptions, AgentSession, GatewayClient, StoredSession,
     StoredSessionMessage, StoredSessionSnapshot,
 };
-use hellox_repl::ReplLoopDriver;
 use hellox_config::{save_config, HelloxConfig, PermissionMode};
+use hellox_repl::ReplLoopDriver;
 use serde_json::json;
 
 use super::commands::{
@@ -363,16 +363,28 @@ fn repl_banner_includes_welcome_context_and_commands() {
 
     assert_eq!(
         lines.first().expect("welcome line"),
-        &format!("╭─ Welcome to hellox v{}", env!("CARGO_PKG_VERSION"))
+        &format!(
+            "╭──────────────── Welcome to hellox v{} ────────────────╮",
+            env!("CARGO_PKG_VERSION")
+        )
     );
-    assert!(lines.iter().any(|line| line.contains("Local-first coding session ready")));
-    assert!(lines.iter().any(|line| line.contains("cwd     ")));
-    assert!(lines.iter().any(|line| line.contains("model   opus")));
-    assert!(lines.iter().any(|line| line.contains("session new local session")));
-    assert!(lines.iter().any(|line| line.contains("/help · /status · /resume · /exit")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("Local-first coding session aligned with Claude Code")));
+    assert!(lines.iter().any(|line| line.contains("cwd       ")));
+    assert!(lines.iter().any(|line| line.contains("model     opus")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("session   new local session")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("/help · /status · /doctor · /resume · /exit")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("trust     workspace trusted")));
     assert_eq!(
         lines.last().expect("closing line"),
-        "╰─ Start typing your task and press Enter"
+        "  input     Start typing your task and press Enter"
     );
 }
 
