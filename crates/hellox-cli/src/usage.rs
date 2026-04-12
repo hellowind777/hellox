@@ -1,7 +1,13 @@
 pub fn print_usage() {
+    println!("hellox starts an interactive session by default. Use -p/--print for non-interactive output.");
+    println!();
     print_section(
         "Core local commands:",
         &[
+            "hellox [prompt]",
+            "hellox -p|--print [prompt]",
+            "hellox -c|--continue [prompt]",
+            "hellox -r|--resume [session-id] [prompt]",
             "hellox gateway serve",
             "hellox gateway print-default-config",
             "hellox brief show|set <message> [--attachment <path>]... [--status <text>] [--cwd <path>]",

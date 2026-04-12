@@ -26,9 +26,28 @@ pub(crate) const DEFAULT_MAX_TURNS: usize = 12;
 #[derive(Debug, Parser)]
 #[command(name = "hellox")]
 #[command(
-    about = "Rust-native CLI and Anthropic-compatible gateway for multi-provider coding models"
+    about = "hellox starts an interactive session by default; use -p/--print for non-interactive output",
+    args_conflicts_with_subcommands = true
 )]
 pub(crate) struct Cli {
+    #[arg(value_name = "PROMPT")]
+    pub(crate) prompt: Option<String>,
+    #[arg(short = 'p', long)]
+    pub(crate) print: bool,
+    #[arg(short = 'c', long = "continue", conflicts_with = "resume")]
+    pub(crate) continue_last: bool,
+    #[arg(short = 'r', long, value_name = "SESSION_ID", num_args = 0..=1)]
+    pub(crate) resume: Option<Option<String>>,
+    #[arg(long)]
+    pub(crate) model: Option<String>,
+    #[arg(long)]
+    pub(crate) gateway_url: Option<String>,
+    #[arg(long)]
+    pub(crate) config: Option<PathBuf>,
+    #[arg(long)]
+    pub(crate) cwd: Option<PathBuf>,
+    #[arg(long, default_value_t = DEFAULT_MAX_TURNS)]
+    pub(crate) max_turns: usize,
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,
 }

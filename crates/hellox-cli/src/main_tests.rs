@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
 use crate::cli_types::{
     AssistantCommands, AuthCommands, BridgeCommands, Cli, Commands, IdeCommands, InstallCommands,
@@ -16,6 +16,10 @@ use hellox_config::PermissionMode;
 #[test]
 fn parses_empty_root_command() {
     let cli = Cli::try_parse_from(["hellox"]).expect("parse root command");
+    assert!(cli.prompt.is_none());
+    assert!(!cli.print);
+    assert!(!cli.continue_last);
+    assert_eq!(cli.resume, None);
     assert!(cli.command.is_none());
 }
 
@@ -25,6 +29,50 @@ fn default_entry_uses_repl_only_for_interactive_terminals() {
     assert!(!crate::should_launch_default_repl(false, true));
     assert!(!crate::should_launch_default_repl(true, false));
     assert!(!crate::should_launch_default_repl(false, false));
+}
+
+#[test]
+fn root_contract_prefers_interactive_only_for_plain_tty_sessions() {
+    assert!(crate::should_run_root_interactive(false, true, true));
+    assert!(!crate::should_run_root_interactive(true, true, true));
+    assert!(!crate::should_run_root_interactive(false, false, true));
+    assert!(!crate::should_run_root_interactive(false, true, false));
+}
+
+#[test]
+fn parses_root_prompt_print_continue_and_resume_flags() {
+    let prompt = Cli::try_parse_from(["hellox", "summarize repo"]).expect("parse root prompt");
+    let print = Cli::try_parse_from(["hellox", "--print", "summarize repo"])
+        .expect("parse root print prompt");
+    let continue_last =
+        Cli::try_parse_from(["hellox", "--continue"]).expect("parse root continue");
+    let resume_picker =
+        Cli::try_parse_from(["hellox", "--resume"]).expect("parse root resume picker");
+    let resume_session = Cli::try_parse_from(["hellox", "--resume", "session-123", "fix bug"])
+        .expect("parse root resume session");
+
+    assert_eq!(prompt.prompt.as_deref(), Some("summarize repo"));
+    assert!(!prompt.print);
+
+    assert_eq!(print.prompt.as_deref(), Some("summarize repo"));
+    assert!(print.print);
+
+    assert!(continue_last.continue_last);
+    assert_eq!(continue_last.resume, None);
+
+    assert_eq!(resume_picker.resume, Some(None));
+
+    assert_eq!(resume_session.resume, Some(Some(String::from("session-123"))));
+    assert_eq!(resume_session.prompt.as_deref(), Some("fix bug"));
+}
+
+#[test]
+fn help_text_describes_default_root_contract() {
+    let help = Cli::command().render_long_help().to_string();
+    assert!(help.contains("starts an interactive session by default"));
+    assert!(help.contains("-p, --print"));
+    assert!(help.contains("-c, --continue"));
+    assert!(help.contains("-r, --resume"));
 }
 
 #[test]

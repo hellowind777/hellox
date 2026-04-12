@@ -96,11 +96,11 @@ mod workflow_test_support;
 mod workflows_tests;
 
 use std::env;
-use std::io::{self, IsTerminal};
-use std::path::PathBuf;
+use std::io::{self, IsTerminal, Read};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use hellox_agent::{
     default_tool_registry, AgentOptions, AgentSession, ConsoleApprovalHandler, GatewayClient,
@@ -120,7 +120,7 @@ use crate::cli_commands::{
     handle_search, handle_session_command, handle_stats_command, handle_status_command,
     handle_usage_command,
 };
-use crate::cli_types::{Cli, Commands, GatewayCommands, DEFAULT_MAX_TURNS};
+use crate::cli_types::{Cli, Commands, GatewayCommands};
 use crate::config_commands::handle_config_command;
 use crate::extension_commands::{handle_hooks_command, handle_skills_command};
 use crate::install_commands::{handle_install_command, handle_upgrade_command};
@@ -141,13 +141,26 @@ use crate::ui_commands::{handle_brief_command, handle_tools_command};
 use crate::usage::print_usage;
 use crate::worker_runner::run_worker_job;
 use crate::workflow_commands::handle_workflow_command;
+use crate::sessions::{format_session_list, list_sessions, load_session};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter("info").init();
     let cli = Cli::parse();
+    let Cli {
+        prompt,
+        print,
+        continue_last,
+        resume,
+        model,
+        gateway_url,
+        config,
+        cwd,
+        max_turns,
+        command,
+    } = cli;
 
-    match cli.command {
+    match command {
         Some(Commands::Gateway { command }) => match command {
             GatewayCommands::Serve { config } => hellox_gateway::serve(config).await?,
             GatewayCommands::PrintDefaultConfig => {
@@ -195,25 +208,8 @@ async fn main() -> Result<()> {
             cwd,
             session_id,
             max_turns,
-        }) => {
-            let mut bootstrap =
-                build_session(config, gateway_url, model, cwd, session_id, max_turns)?;
-            let result = bootstrap.session.run_user_prompt(prompt).await?;
-            println!("{}", result.final_text);
-            match maybe_auto_compact_session(
-                &mut bootstrap.session,
-                &bootstrap.repl_metadata.memory_root,
-            )? {
-                Some(outcome) => println!("{}", format_auto_compact_notice(&outcome)),
-                None => match maybe_auto_refresh_session_memory(
-                    &bootstrap.session,
-                    &bootstrap.repl_metadata.memory_root,
-                )? {
-                    Some(outcome) => println!("{}", format_auto_memory_refresh_notice(&outcome)),
-                    None => {}
-                },
-            }
-        }
+        }) => run_single_prompt_session(prompt, model, gateway_url, config, cwd, session_id, max_turns)
+            .await?,
         Some(Commands::Repl {
             model,
             gateway_url,
@@ -221,18 +217,67 @@ async fn main() -> Result<()> {
             cwd,
             session_id,
             max_turns,
-        }) => run_interactive_session(model, gateway_url, config, cwd, session_id, max_turns)
-            .await?,
-        Some(Commands::WorkerRunAgent { job }) => run_worker_job(job).await?,
-        None => {
-            if should_launch_default_repl(io::stdin().is_terminal(), io::stdout().is_terminal()) {
-                run_interactive_session(None, None, None, None, None, DEFAULT_MAX_TURNS).await?;
-            } else {
-                print_usage();
-            }
+        }) => {
+            run_interactive_session(model, gateway_url, config, cwd, session_id, max_turns, None)
+                .await?
         }
+        Some(Commands::WorkerRunAgent { job }) => run_worker_job(job).await?,
+        None => run_root_command(
+            prompt,
+            print,
+            continue_last,
+            resume,
+            model,
+            gateway_url,
+            config,
+            cwd,
+            max_turns,
+        )
+        .await?,
     }
 
+    Ok(())
+}
+
+async fn run_root_command(
+    prompt: Option<String>,
+    print: bool,
+    continue_last: bool,
+    resume: Option<Option<String>>,
+    model: Option<String>,
+    gateway_url: Option<String>,
+    config: Option<PathBuf>,
+    cwd: Option<PathBuf>,
+    max_turns: usize,
+) -> Result<()> {
+    let stdin_is_terminal = io::stdin().is_terminal();
+    let stdout_is_terminal = io::stdout().is_terminal();
+    let prompt = resolve_root_prompt(prompt, stdin_is_terminal)?;
+    let session_id = match resolve_root_session_id(continue_last, resume, cwd.as_ref())? {
+        RootSessionSelection::Use(session_id) => session_id,
+        RootSessionSelection::PrintListing(listing) => {
+            println!("{listing}");
+            return Ok(());
+        }
+    };
+
+    if should_run_root_interactive(print, stdin_is_terminal, stdout_is_terminal) {
+        run_interactive_session(model, gateway_url, config, cwd, session_id, max_turns, prompt)
+            .await?;
+        return Ok(());
+    }
+
+    if let Some(prompt) = prompt {
+        return run_single_prompt_session(prompt, model, gateway_url, config, cwd, session_id, max_turns).await;
+    }
+
+    if print || session_id.is_some() {
+        return Err(anyhow!(
+            "A prompt argument or piped stdin input is required for non-interactive root mode."
+        ));
+    }
+
+    print_usage();
     Ok(())
 }
 
@@ -243,12 +288,14 @@ async fn run_interactive_session(
     cwd: Option<PathBuf>,
     session_id: Option<String>,
     max_turns: usize,
+    initial_prompt: Option<String>,
 ) -> Result<()> {
     let config_arg = config.clone();
     let gateway_url_arg = gateway_url.clone();
     let cwd_arg = cwd.clone();
     let mut active_session_id = session_id.clone();
     let mut active_model_override = model.clone();
+    let mut pending_prompt = initial_prompt;
 
     loop {
         let mut bootstrap = build_session(
@@ -259,6 +306,14 @@ async fn run_interactive_session(
             active_session_id.clone(),
             max_turns,
         )?;
+        if let Some(prompt) = pending_prompt.take() {
+            run_prompt_with_session(
+                prompt,
+                &mut bootstrap.session,
+                &bootstrap.repl_metadata.memory_root,
+            )
+            .await?;
+        }
         match run_repl(&mut bootstrap.session, &bootstrap.repl_metadata).await? {
             ReplExit::Exit => break,
             ReplExit::Resume(session_id) => {
@@ -276,6 +331,129 @@ pub(crate) fn should_launch_default_repl(
     stdout_is_terminal: bool,
 ) -> bool {
     stdin_is_terminal && stdout_is_terminal
+}
+
+pub(crate) fn should_run_root_interactive(
+    print: bool,
+    stdin_is_terminal: bool,
+    stdout_is_terminal: bool,
+) -> bool {
+    !print && should_launch_default_repl(stdin_is_terminal, stdout_is_terminal)
+}
+
+async fn run_single_prompt_session(
+    prompt: String,
+    model: Option<String>,
+    gateway_url: Option<String>,
+    config: Option<PathBuf>,
+    cwd: Option<PathBuf>,
+    session_id: Option<String>,
+    max_turns: usize,
+) -> Result<()> {
+    let mut bootstrap = build_session(config, gateway_url, model, cwd, session_id, max_turns)?;
+    run_prompt_with_session(
+        prompt,
+        &mut bootstrap.session,
+        &bootstrap.repl_metadata.memory_root,
+    )
+    .await
+}
+
+async fn run_prompt_with_session(
+    prompt: String,
+    session: &mut AgentSession,
+    memory_root: &Path,
+) -> Result<()> {
+    let result = session.run_user_prompt(prompt).await?;
+    println!("{}", result.final_text);
+    match maybe_auto_compact_session(session, memory_root)? {
+        Some(outcome) => println!("{}", format_auto_compact_notice(&outcome)),
+        None => match maybe_auto_refresh_session_memory(session, memory_root)? {
+            Some(outcome) => println!("{}", format_auto_memory_refresh_notice(&outcome)),
+            None => {}
+        },
+    }
+    Ok(())
+}
+
+fn resolve_root_prompt(prompt: Option<String>, stdin_is_terminal: bool) -> Result<Option<String>> {
+    if prompt.is_some() || stdin_is_terminal {
+        return Ok(prompt);
+    }
+
+    let mut buffer = String::new();
+    io::stdin().read_to_string(&mut buffer)?;
+    let trimmed = buffer.trim();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed.to_string()))
+    }
+}
+
+fn resolve_root_session_id(
+    continue_last: bool,
+    resume: Option<Option<String>>,
+    cwd: Option<&PathBuf>,
+) -> Result<RootSessionSelection> {
+    if continue_last {
+        let working_directory = resolve_root_working_directory(cwd)?;
+        let session_id = find_latest_session_for_working_directory(&working_directory)?;
+        return match session_id {
+            Some(session_id) => Ok(RootSessionSelection::Use(Some(session_id))),
+            None => Err(anyhow!(
+                "No persisted session found for `{}`. Use `hellox session list` to inspect available sessions.",
+                normalize_working_directory(&working_directory)
+            )),
+        };
+    }
+
+    match resume {
+        None => Ok(RootSessionSelection::Use(None)),
+        Some(None) => Ok(RootSessionSelection::PrintListing(root_resume_help_text()?)),
+        Some(Some(session_id)) => {
+            load_session(&sessions_root(), &session_id)?;
+            Ok(RootSessionSelection::Use(Some(session_id)))
+        }
+    }
+}
+
+fn resolve_root_working_directory(cwd: Option<&PathBuf>) -> Result<PathBuf> {
+    match cwd {
+        Some(path) if path.is_absolute() => Ok(path.clone()),
+        Some(path) => Ok(env::current_dir()?.join(path)),
+        None => Ok(env::current_dir()?),
+    }
+}
+
+fn find_latest_session_for_working_directory(working_directory: &Path) -> Result<Option<String>> {
+    let expected = normalize_working_directory(working_directory);
+    Ok(list_sessions(&sessions_root())?
+        .into_iter()
+        .find(|session| session.working_directory == expected)
+        .map(|session| session.session_id))
+}
+
+fn normalize_working_directory(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn root_resume_help_text() -> Result<String> {
+    let sessions = list_sessions(&sessions_root())?;
+    if sessions.is_empty() {
+        return Ok(String::from(
+            "No persisted sessions found. Start a session with persistence enabled first.",
+        ));
+    }
+    Ok(format!(
+        "Use `hellox --resume <session-id>` to switch sessions.\n\n{}",
+        format_session_list(&sessions)
+    ))
+}
+
+pub(crate) enum RootSessionSelection {
+    Use(Option<String>),
+    PrintListing(String),
 }
 
 pub(crate) fn build_session(
