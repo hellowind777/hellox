@@ -2,4 +2,6 @@ target/
 .helloagents/
 .idea/
 .vscode/
+# 本地开发文档，仅允许保留在本地工作树
 docs/
+docs/*
