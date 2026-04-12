@@ -1,13 +1,19 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use hellox_config::config_root;
+use hellox_tui::render_cards;
 use serde::{Deserialize, Serialize};
 
+use super::trust_copy::{
+    accepted_cards, dialog_title, invalid_choice_text, prompt_label, trust_cards, TrustChoice,
+    TrustMode,
+};
 use super::AppLanguage;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -23,7 +29,10 @@ struct TrustedWorkspace {
 }
 
 pub fn ensure_workspace_trusted(language: AppLanguage, working_directory: &Path) -> Result<bool> {
-    if is_workspace_trusted(working_directory)? {
+    let normalized = normalize_workspace_path(working_directory)?;
+    let mode = resolve_trust_mode(working_directory)?;
+
+    if is_workspace_trusted(&normalized, mode)? {
         return Ok(true);
     }
 
@@ -31,49 +40,89 @@ pub fn ensure_workspace_trusted(language: AppLanguage, working_directory: &Path)
         return Ok(true);
     }
 
-    prompt_for_workspace_trust(language, working_directory)
+    prompt_for_workspace_trust(language, working_directory, &normalized, mode)
 }
 
-fn is_workspace_trusted(working_directory: &Path) -> Result<bool> {
-    let normalized = normalize_workspace_path(working_directory)?;
-    let store = load_trust_store()?;
-    Ok(store.trusted_workspaces.contains_key(&normalized))
+fn is_workspace_trusted(normalized: &str, mode: TrustMode) -> Result<bool> {
+    match mode {
+        TrustMode::RememberWorkspace => {
+            let store = load_trust_store()?;
+            Ok(store.trusted_workspaces.contains_key(normalized))
+        }
+        TrustMode::SessionOnly => Ok(session_trust_cache()
+            .lock()
+            .expect("session trust cache poisoned")
+            .contains(normalized)),
+    }
 }
 
-fn prompt_for_workspace_trust(language: AppLanguage, working_directory: &Path) -> Result<bool> {
-    let normalized = normalize_workspace_path(working_directory)?;
+fn prompt_for_workspace_trust(
+    language: AppLanguage,
+    working_directory: &Path,
+    normalized: &str,
+    mode: TrustMode,
+) -> Result<bool> {
+    let store_path = workspace_trust_path()
+        .display()
+        .to_string()
+        .replace('\\', "/");
+
     println!();
-    for line in trust_prompt_lines(language, &normalized) {
+    print_title(language, dialog_title(language));
+    for line in render_cards(&trust_cards(language, normalized, mode, &store_path)) {
         println!("{line}");
     }
 
     loop {
-        print!("{}", prompt_label(language));
+        print!("{}", prompt_label(language, mode));
         io::stdout().flush()?;
 
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
 
-        if language.accepts_input(&input) {
-            trust_workspace(working_directory)?;
-            println!();
-            return Ok(true);
+        match TrustChoice::from_input(language, &input) {
+            Some(TrustChoice::Trust) => {
+                remember_workspace_trust(working_directory, normalized, mode)?;
+                println!();
+                for line in render_cards(&accepted_cards(language, normalized, mode)) {
+                    println!("{line}");
+                }
+                println!();
+                return Ok(true);
+            }
+            Some(TrustChoice::Exit) => {
+                println!();
+                return Ok(false);
+            }
+            None => println!("{}", invalid_choice_text(language, mode)),
         }
-        if language.rejects_input(&input) {
-            println!();
-            return Ok(false);
-        }
-        println!("{}", invalid_choice_text(language));
     }
 }
 
-fn trust_workspace(working_directory: &Path) -> Result<()> {
-    let normalized = normalize_workspace_path(working_directory)?;
+fn remember_workspace_trust(
+    working_directory: &Path,
+    normalized: &str,
+    mode: TrustMode,
+) -> Result<()> {
+    match mode {
+        TrustMode::RememberWorkspace => save_persisted_workspace_trust(normalized),
+        TrustMode::SessionOnly => {
+            let _ = working_directory;
+            session_trust_cache()
+                .lock()
+                .expect("session trust cache poisoned")
+                .insert(normalized.to_string());
+            Ok(())
+        }
+    }
+}
+
+fn save_persisted_workspace_trust(normalized: &str) -> Result<()> {
     let mut store = load_trust_store()?;
     store.trusted_workspaces.insert(
-        normalized.clone(),
+        normalized.to_string(),
         TrustedWorkspace {
-            path: normalized,
+            path: normalized.to_string(),
             accepted_at: unix_timestamp(),
         },
     );
@@ -106,6 +155,19 @@ fn workspace_trust_path() -> PathBuf {
     config_root().join("workspace-trust.json")
 }
 
+fn resolve_trust_mode(working_directory: &Path) -> Result<TrustMode> {
+    let normalized = normalize_workspace_path(working_directory)?;
+    let home = user_home_dir()
+        .map(|path| normalize_workspace_path(&path))
+        .transpose()?;
+
+    if home.as_deref() == Some(normalized.as_str()) {
+        return Ok(TrustMode::SessionOnly);
+    }
+
+    Ok(TrustMode::RememberWorkspace)
+}
+
 fn normalize_workspace_path(path: &Path) -> Result<String> {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
@@ -129,38 +191,22 @@ fn normalize_workspace_path(path: &Path) -> Result<String> {
     }
 }
 
-fn trust_prompt_lines(language: AppLanguage, working_directory: &str) -> Vec<String> {
-    match language {
-        AppLanguage::English => vec![
-            "Accessing workspace:".to_string(),
-            format!("  {working_directory}"),
-            "Quick safety check: Is this a project you created or one you trust?".to_string(),
-            "hellox will be able to read, edit, and execute files here.".to_string(),
-            "  1. Yes, I trust this folder".to_string(),
-            "  2. No, exit".to_string(),
-        ],
-        AppLanguage::SimplifiedChinese => vec![
-            "正在访问工作区：".to_string(),
-            format!("  {working_directory}"),
-            "安全确认：这是你创建的项目，或你信任的代码目录吗？".to_string(),
-            "继续后，hellox 将可以在这里读取、编辑并执行文件。".to_string(),
-            "  1. 是的，我信任这个目录".to_string(),
-            "  2. 不，退出".to_string(),
-        ],
-    }
+fn session_trust_cache() -> &'static Mutex<HashSet<String>> {
+    static SESSION_TRUST: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    SESSION_TRUST.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-fn prompt_label(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "Select [1/2]: ",
-        AppLanguage::SimplifiedChinese => "请选择 [1/2]：",
-    }
+fn user_home_dir() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
 }
 
-fn invalid_choice_text(language: AppLanguage) -> &'static str {
+fn print_title(language: AppLanguage, title: &str) {
+    println!();
     match language {
-        AppLanguage::English => "Please enter 1 to trust this folder, or 2 to exit.",
-        AppLanguage::SimplifiedChinese => "请输入 1 表示信任当前目录，或输入 2 退出。",
+        AppLanguage::English => println!("{title}\n{}", "·".repeat(title.len().max(20))),
+        AppLanguage::SimplifiedChinese => println!("{title}\n{}", "·".repeat(24)),
     }
 }
 
@@ -179,8 +225,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        normalize_workspace_path, save_trust_store, workspace_trust_path, WorkspaceTrustStore,
+        normalize_workspace_path, remember_workspace_trust, resolve_trust_mode, save_trust_store,
+        session_trust_cache, workspace_trust_path, WorkspaceTrustStore,
     };
+    use crate::startup::trust_copy::TrustMode;
 
     fn temp_root() -> PathBuf {
         let suffix = SystemTime::now()
@@ -202,6 +250,7 @@ mod tests {
 
     #[test]
     fn save_trust_store_creates_json_file() {
+        let _guard = super::super::test_support::env_lock();
         let root = temp_root();
         let current_home = env::var_os("HOME");
         let current_user_profile = env::var_os("USERPROFILE");
@@ -224,5 +273,69 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(trust_path.exists());
+    }
+
+    #[test]
+    fn home_directory_uses_session_only_trust_mode() {
+        let _guard = super::super::test_support::env_lock();
+        let root = temp_root();
+        let project = root.join("project");
+        fs::create_dir_all(&project).expect("create project");
+        let current_home = env::var_os("HOME");
+        let current_user_profile = env::var_os("USERPROFILE");
+        env::set_var("HOME", &root);
+        env::set_var("USERPROFILE", &root);
+
+        let home_mode = resolve_trust_mode(&root).expect("resolve home mode");
+        let project_mode = resolve_trust_mode(&project).expect("resolve project mode");
+
+        if let Some(value) = current_home {
+            env::set_var("HOME", value);
+        } else {
+            env::remove_var("HOME");
+        }
+        if let Some(value) = current_user_profile {
+            env::set_var("USERPROFILE", value);
+        } else {
+            env::remove_var("USERPROFILE");
+        }
+
+        assert_eq!(home_mode, TrustMode::SessionOnly);
+        assert_eq!(project_mode, TrustMode::RememberWorkspace);
+    }
+
+    #[test]
+    fn session_only_trust_does_not_write_persistent_store() {
+        let _guard = super::super::test_support::env_lock();
+        let root = temp_root();
+        let current_home = env::var_os("HOME");
+        let current_user_profile = env::var_os("USERPROFILE");
+        env::set_var("HOME", &root);
+        env::set_var("USERPROFILE", &root);
+
+        let normalized = normalize_workspace_path(&root).expect("normalize path");
+        let trust_path = workspace_trust_path();
+        let original_store = fs::read_to_string(&trust_path).ok();
+        remember_workspace_trust(&root, &normalized, TrustMode::SessionOnly)
+            .expect("remember session trust");
+        let is_cached = session_trust_cache()
+            .lock()
+            .expect("session trust cache poisoned")
+            .contains(&normalized);
+        let updated_store = fs::read_to_string(&trust_path).ok();
+
+        if let Some(value) = current_home {
+            env::set_var("HOME", value);
+        } else {
+            env::remove_var("HOME");
+        }
+        if let Some(value) = current_user_profile {
+            env::set_var("USERPROFILE", value);
+        } else {
+            env::remove_var("USERPROFILE");
+        }
+
+        assert!(is_cached);
+        assert_eq!(updated_store, original_store);
     }
 }

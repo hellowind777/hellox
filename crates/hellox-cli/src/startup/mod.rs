@@ -2,7 +2,10 @@ mod gateway;
 mod localization;
 mod onboarding;
 mod onboarding_copy;
+#[cfg(test)]
+mod test_support;
 mod trust;
+mod trust_copy;
 
 use std::path::PathBuf;
 

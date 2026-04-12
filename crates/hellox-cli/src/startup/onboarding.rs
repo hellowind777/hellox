@@ -472,6 +472,7 @@ mod tests {
 
     #[test]
     fn persist_onboarding_selection_writes_config_and_auth_store() {
+        let _guard = super::super::test_support::env_lock();
         let root = temp_root();
         let config_path = root.join("config.toml");
         let original_home = env::var_os("HOME");
