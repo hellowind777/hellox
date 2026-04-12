@@ -51,16 +51,16 @@ futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
-toml = "0.8"
+toml = "1.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 regex = "1"
-scraper = "0.24"
-lopdf = "0.35"
-similar = "2"
-rustyline = "14"
+scraper = "0.26"
+lopdf = "0.40"
+similar = "3"
+rustyline = "18"

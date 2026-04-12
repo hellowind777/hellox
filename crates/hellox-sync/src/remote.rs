@@ -225,7 +225,10 @@ where
 
 pub fn compute_document_etag(value: &impl Serialize) -> Result<String> {
     let raw = serde_json::to_vec(value).context("failed to serialize remote document")?;
-    Ok(format!("{:x}", Sha256::digest(raw)))
+    Ok(Sha256::digest(raw)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 pub fn format_managed_settings_document(document: &ManagedSettingsDocument) -> String {
