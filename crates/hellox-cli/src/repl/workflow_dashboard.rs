@@ -3,6 +3,7 @@ use hellox_agent::AgentSession;
 use hellox_tui::WorkflowDashboardState;
 
 use super::*;
+use crate::repl::output_localizer::print_localized_repl_output;
 use crate::workflow_dashboard::{
     complete_workflow_dashboard_run,
     handle_workflow_dashboard_input as handle_dashboard_command_input,
@@ -54,7 +55,7 @@ impl CliReplDriver {
         match handle_dashboard_command_input(session.working_directory(), &mut state, input)? {
             WorkflowDashboardHandleOutcome::NotHandled => Ok(false),
             WorkflowDashboardHandleOutcome::Print(text) => {
-                println!("{text}");
+                print_localized_repl_output(self.language, text);
                 self.set_workflow_dashboard_state(Some(state));
                 Ok(true)
             }
@@ -66,24 +67,27 @@ impl CliReplDriver {
                 match execute_and_record_workflow(session, target.clone(), shared_context, None)
                     .await
                 {
-                    Ok(result_text) => println!(
-                        "{}",
+                    Ok(result_text) => print_localized_repl_output(
+                        self.language,
                         complete_workflow_dashboard_run(
                             session.working_directory(),
                             &mut state,
                             &target,
                             &target_label,
-                            &result_text
-                        )?
+                            &result_text,
+                        )?,
                     ),
-                    Err(error) => println!("{error}"),
+                    Err(error) => print_localized_repl_output(self.language, error.to_string()),
                 }
                 self.set_workflow_dashboard_state(Some(state));
                 Ok(true)
             }
             WorkflowDashboardHandleOutcome::Close | WorkflowDashboardHandleOutcome::Quit => {
                 self.clear_workflow_dashboard_state();
-                println!("Closed workflow dashboard.");
+                print_localized_repl_output(
+                    self.language,
+                    "Closed workflow dashboard.".to_string(),
+                );
                 Ok(true)
             }
         }

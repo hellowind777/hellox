@@ -3,6 +3,7 @@ use super::commands::{
     PersonaCommand, PlanCommand, PluginCommand, PromptFragmentCommand, RemoteEnvCommand,
     SessionCommand, TaskCommand,
 };
+use super::output_localizer::{localized_invalid_selection_text, print_localized_repl_output};
 use super::selectors::SelectorContext;
 use super::*;
 
@@ -29,21 +30,25 @@ impl CliReplDriver {
                 if index == 0 || index > focus_keys.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, focus_keys.len(), "/config panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            focus_keys.len(),
+                            "/config panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let focus_key = focus_keys[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_config_command(
                         ConfigCommand::Panel {
                             focus_key: Some(focus_key),
                         },
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -51,21 +56,25 @@ impl CliReplDriver {
                 if index == 0 || index > session_ids.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, session_ids.len(), "/bridge panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            session_ids.len(),
+                            "/bridge panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let session_id = session_ids[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     crate::repl::bridge_actions::handle_bridge_command(
                         BridgeCommand::Panel {
                             session_id: Some(session_id),
                         },
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -73,7 +82,7 @@ impl CliReplDriver {
                 if index == 0 || index > environment_names.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(
+                        localized_invalid_selection_text(
                             self.language,
                             environment_names.len(),
                             "/remote-env panel",
@@ -84,14 +93,14 @@ impl CliReplDriver {
 
                 let environment_name = environment_names[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     crate::repl::remote_actions::handle_remote_env_command(
                         RemoteEnvCommand::Panel {
                             environment_name: Some(environment_name),
                         },
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -99,21 +108,21 @@ impl CliReplDriver {
                 if index == 0 || index > step_count {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, step_count, "/plan panel")
+                        localized_invalid_selection_text(self.language, step_count, "/plan panel")
                     );
                     return Ok(true);
                 }
 
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_plan_command(
                         PlanCommand::Panel {
                             step_number: Some(index),
                         },
                         session,
                     )
-                    .await?
+                    .await?,
                 );
                 Ok(true)
             }
@@ -121,15 +130,19 @@ impl CliReplDriver {
                 if index == 0 || index > session_ids.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, session_ids.len(), "/session panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            session_ids.len(),
+                            "/session panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let session_id = session_ids[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_session_command(
                         SessionCommand::Panel {
                             session_id: Some(session_id),
@@ -137,7 +150,7 @@ impl CliReplDriver {
                         session,
                         metadata,
                         self.language,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -145,21 +158,25 @@ impl CliReplDriver {
                 if index == 0 || index > task_ids.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, task_ids.len(), "/tasks panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            task_ids.len(),
+                            "/tasks panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let task_id = task_ids[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_task_command(
                         TaskCommand::Panel {
                             task_id: Some(task_id),
                         },
                         session,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -172,15 +189,15 @@ impl CliReplDriver {
                         format!("/memory panel{}", if archived { " --archived" } else { "" });
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, memory_ids.len(), &rerun)
+                        localized_invalid_selection_text(self.language, memory_ids.len(), &rerun)
                     );
                     return Ok(true);
                 }
 
                 let memory_id = memory_ids[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_memory_command(
                         MemoryCommand::Panel {
                             archived,
@@ -189,7 +206,7 @@ impl CliReplDriver {
                         session,
                         metadata,
                         self.language,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -197,15 +214,19 @@ impl CliReplDriver {
                 if index == 0 || index > profile_names.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, profile_names.len(), "/model panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            profile_names.len(),
+                            "/model panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let profile_name = profile_names[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_model_command(
                         ModelCommand::Panel {
                             profile_name: Some(profile_name),
@@ -213,7 +234,7 @@ impl CliReplDriver {
                         session,
                         metadata,
                         self.language,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -221,7 +242,7 @@ impl CliReplDriver {
                 if index == 0 || index > style_names.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(
+                        localized_invalid_selection_text(
                             self.language,
                             style_names.len(),
                             "/output-style panel",
@@ -232,15 +253,15 @@ impl CliReplDriver {
 
                 let style_name = style_names[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_output_style_command(
                         OutputStyleCommand::Panel {
                             style_name: Some(style_name),
                         },
                         session,
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -248,7 +269,7 @@ impl CliReplDriver {
                 if index == 0 || index > persona_names.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(
+                        localized_invalid_selection_text(
                             self.language,
                             persona_names.len(),
                             "/persona panel",
@@ -259,15 +280,15 @@ impl CliReplDriver {
 
                 let persona_name = persona_names[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_persona_command(
                         PersonaCommand::Panel {
                             persona_name: Some(persona_name),
                         },
                         session,
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -275,7 +296,7 @@ impl CliReplDriver {
                 if index == 0 || index > fragment_names.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(
+                        localized_invalid_selection_text(
                             self.language,
                             fragment_names.len(),
                             "/fragment panel",
@@ -286,15 +307,15 @@ impl CliReplDriver {
 
                 let fragment_name = fragment_names[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_prompt_fragment_command(
                         PromptFragmentCommand::Panel {
                             fragment_name: Some(fragment_name),
                         },
                         session,
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -302,21 +323,25 @@ impl CliReplDriver {
                 if index == 0 || index > server_names.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, server_names.len(), "/mcp panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            server_names.len(),
+                            "/mcp panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let server_name = server_names[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_mcp_command(
                         McpCommand::Panel {
                             server_name: Some(server_name),
                         },
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
@@ -324,36 +349,29 @@ impl CliReplDriver {
                 if index == 0 || index > plugin_ids.len() {
                     println!(
                         "{}",
-                        invalid_selection_text(self.language, plugin_ids.len(), "/plugin panel")
+                        localized_invalid_selection_text(
+                            self.language,
+                            plugin_ids.len(),
+                            "/plugin panel"
+                        )
                     );
                     return Ok(true);
                 }
 
                 let plugin_id = plugin_ids[index - 1].clone();
                 self.clear_selector_context();
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     handle_plugin_command(
                         PluginCommand::Panel {
                             plugin_id: Some(plugin_id),
                         },
                         metadata,
-                    )?
+                    )?,
                 );
                 Ok(true)
             }
             _ => Ok(false),
-        }
-    }
-}
-
-fn invalid_selection_text(language: AppLanguage, upper_bound: usize, rerun: &str) -> String {
-    match language {
-        AppLanguage::English => {
-            format!("Invalid selection. Choose 1..{upper_bound} or re-run `{rerun}`.")
-        }
-        AppLanguage::SimplifiedChinese => {
-            format!("选择无效。请选择 1..{upper_bound}，或重新运行 `{rerun}`。")
         }
     }
 }

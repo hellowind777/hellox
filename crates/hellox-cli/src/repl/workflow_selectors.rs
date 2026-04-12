@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use hellox_agent::AgentSession;
 
+use super::output_localizer::{localized_invalid_selection_text, print_localized_repl_output};
 use super::{commands::WorkflowCommand, *};
 use crate::repl::selectors::{WorkflowOverviewFocusTarget, WorkflowRunListTarget};
 use crate::workflow_command_support::{
@@ -316,8 +317,12 @@ impl CliReplDriver {
             SelectorContext::WorkflowOverviewList { items } => {
                 if index == 0 || index > items.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `/workflow overview`.",
-                        items.len()
+                        "{}",
+                        localized_invalid_selection_text(
+                            self.language,
+                            items.len(),
+                            "/workflow overview"
+                        )
                     );
                     return Ok(true);
                 }
@@ -331,7 +336,10 @@ impl CliReplDriver {
                             script_path: None,
                         };
                         self.prepare_workflow_selector_context(session, &command);
-                        println!("{}", handle_workflow_command(command, session).await?);
+                        print_localized_repl_output(
+                            self.language,
+                            handle_workflow_command(command, session).await?,
+                        );
                     }
                     WorkflowOverviewSelectionItem::Run(run_id) => {
                         let command = WorkflowCommand::ShowRun {
@@ -339,7 +347,10 @@ impl CliReplDriver {
                             step_number: None,
                         };
                         self.prepare_workflow_selector_context(session, &command);
-                        println!("{}", handle_workflow_command(command, session).await?);
+                        print_localized_repl_output(
+                            self.language,
+                            handle_workflow_command(command, session).await?,
+                        );
                     }
                 }
                 Ok(true)
@@ -355,9 +366,8 @@ impl CliReplDriver {
                 };
                 if index == 0 || index > items.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `{}`.",
-                        items.len(),
-                        rerun_hint
+                        "{}",
+                        localized_invalid_selection_text(self.language, items.len(), &rerun_hint)
                     );
                     return Ok(true);
                 }
@@ -384,14 +394,21 @@ impl CliReplDriver {
                 };
                 self.clear_selector_context();
                 self.prepare_workflow_selector_context(session, &command);
-                println!("{}", handle_workflow_command(command, session).await?);
+                print_localized_repl_output(
+                    self.language,
+                    handle_workflow_command(command, session).await?,
+                );
                 Ok(true)
             }
             SelectorContext::WorkflowPanelList { workflow_names } => {
                 if index == 0 || index > workflow_names.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `/workflow panel`.",
-                        workflow_names.len()
+                        "{}",
+                        localized_invalid_selection_text(
+                            self.language,
+                            workflow_names.len(),
+                            "/workflow panel"
+                        )
                     );
                     return Ok(true);
                 }
@@ -403,7 +420,10 @@ impl CliReplDriver {
                 };
                 self.clear_selector_context();
                 self.prepare_workflow_selector_context(session, &command);
-                println!("{}", handle_workflow_command(command, session).await?);
+                print_localized_repl_output(
+                    self.language,
+                    handle_workflow_command(command, session).await?,
+                );
                 Ok(true)
             }
             SelectorContext::WorkflowPanelItems {
@@ -413,9 +433,12 @@ impl CliReplDriver {
             } => {
                 if index == 0 || index > items.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `/workflow panel {}`.",
-                        items.len(),
-                        workflow_name
+                        "{}",
+                        localized_invalid_selection_text(
+                            self.language,
+                            items.len(),
+                            &format!("/workflow panel {workflow_name}")
+                        )
                     );
                     return Ok(true);
                 }
@@ -423,8 +446,8 @@ impl CliReplDriver {
                 match &items[index - 1] {
                     WorkflowPanelSelectionItem::Step(step_number) => {
                         self.set_workflow_panel_focus(workflow_name.clone(), None, *step_number);
-                        println!(
-                            "{}",
+                        print_localized_repl_output(
+                            self.language,
                             handle_workflow_command(
                                 WorkflowCommand::Panel {
                                     workflow_name: Some(workflow_name.clone()),
@@ -433,7 +456,7 @@ impl CliReplDriver {
                                 },
                                 session,
                             )
-                            .await?
+                            .await?,
                         );
                     }
                     WorkflowPanelSelectionItem::Run(run_id) => {
@@ -443,7 +466,10 @@ impl CliReplDriver {
                         };
                         self.clear_selector_context();
                         self.prepare_workflow_selector_context(session, &command);
-                        println!("{}", handle_workflow_command(command, session).await?);
+                        print_localized_repl_output(
+                            self.language,
+                            handle_workflow_command(command, session).await?,
+                        );
                     }
                 }
                 Ok(true)
@@ -456,9 +482,12 @@ impl CliReplDriver {
             } => {
                 if index == 0 || index > items.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `/workflow panel --script-path {}`.",
-                        items.len(),
-                        script_path
+                        "{}",
+                        localized_invalid_selection_text(
+                            self.language,
+                            items.len(),
+                            &format!("/workflow panel --script-path {script_path}")
+                        )
                     );
                     return Ok(true);
                 }
@@ -470,8 +499,8 @@ impl CliReplDriver {
                             Some(script_path.clone()),
                             *step_number,
                         );
-                        println!(
-                            "{}",
+                        print_localized_repl_output(
+                            self.language,
                             handle_workflow_command(
                                 WorkflowCommand::Panel {
                                     workflow_name: None,
@@ -480,7 +509,7 @@ impl CliReplDriver {
                                 },
                                 session,
                             )
-                            .await?
+                            .await?,
                         );
                     }
                     WorkflowPanelSelectionItem::Run(run_id) => {
@@ -490,7 +519,10 @@ impl CliReplDriver {
                         };
                         self.clear_selector_context();
                         self.prepare_workflow_selector_context(session, &command);
-                        println!("{}", handle_workflow_command(command, session).await?);
+                        print_localized_repl_output(
+                            self.language,
+                            handle_workflow_command(command, session).await?,
+                        );
                     }
                 }
                 Ok(true)
@@ -507,9 +539,8 @@ impl CliReplDriver {
                 };
                 if index == 0 || index > run_ids.len() {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `{}`.",
-                        run_ids.len(),
-                        rerun_hint
+                        "{}",
+                        localized_invalid_selection_text(self.language, run_ids.len(), &rerun_hint)
                     );
                     return Ok(true);
                 }
@@ -520,14 +551,21 @@ impl CliReplDriver {
                 };
                 self.clear_selector_context();
                 self.prepare_workflow_selector_context(session, &command);
-                println!("{}", handle_workflow_command(command, session).await?);
+                print_localized_repl_output(
+                    self.language,
+                    handle_workflow_command(command, session).await?,
+                );
                 Ok(true)
             }
             SelectorContext::WorkflowRunSteps { run_id, step_count } => {
                 if index == 0 || index > *step_count {
                     println!(
-                        "Invalid selection. Choose 1..{} or re-run `/workflow show-run {}`.",
-                        step_count, run_id
+                        "{}",
+                        localized_invalid_selection_text(
+                            self.language,
+                            *step_count,
+                            &format!("/workflow show-run {run_id}")
+                        )
                     );
                     return Ok(true);
                 }
@@ -539,13 +577,13 @@ impl CliReplDriver {
                     step_count: *step_count,
                 });
                 self.set_workflow_run_focus(run_id.clone(), index);
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    self.language,
                     render_workflow_run_inspect_panel_with_step(
                         session.working_directory(),
                         &record,
                         Some(index),
-                    )
+                    ),
                 );
                 Ok(true)
             }

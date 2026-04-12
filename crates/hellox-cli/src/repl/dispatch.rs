@@ -1,3 +1,4 @@
+use super::output_localizer::print_localized_repl_output;
 use super::*;
 
 pub(super) async fn handle_repl_input_async_impl(
@@ -44,39 +45,42 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Brief(command) => {
-            println!("{}", handle_brief_command(command, session)?);
+            print_localized_repl_output(driver.language, handle_brief_command(command, session)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Tools(command) => {
-            println!("{}", handle_tools_command(command)?);
+            print_localized_repl_output(driver.language, handle_tools_command(command)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Install(command) => {
-            println!("{}", handle_install_command(command)?);
+            print_localized_repl_output(driver.language, handle_install_command(command)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Upgrade(command) => {
-            println!("{}", handle_upgrade_command(command)?);
+            print_localized_repl_output(driver.language, handle_upgrade_command(command)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::OutputStyle(command) => {
             driver.prepare_output_style_selector_context(&command, session, metadata);
-            println!(
-                "{}",
-                handle_output_style_command(command, session, metadata)?
+            print_localized_repl_output(
+                driver.language,
+                handle_output_style_command(command, session, metadata)?,
             );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Persona(command) => {
             driver.prepare_persona_selector_context(&command, session, metadata);
-            println!("{}", handle_persona_command(command, session, metadata)?);
+            print_localized_repl_output(
+                driver.language,
+                handle_persona_command(command, session, metadata)?,
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::PromptFragment(command) => {
             driver.prepare_prompt_fragment_selector_context(&command, session, metadata);
-            println!(
-                "{}",
-                handle_prompt_fragment_command(command, session, metadata)?
+            print_localized_repl_output(
+                driver.language,
+                handle_prompt_fragment_command(command, session, metadata)?,
             );
             Ok(ReplAction::Continue)
         }
@@ -98,43 +102,52 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Skills { name } => {
-            println!("{}", handle_skills_command(name, session)?);
+            print_localized_repl_output(driver.language, handle_skills_command(name, session)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Hooks { name } => {
-            println!("{}", handle_hooks_command(name, session)?);
+            print_localized_repl_output(driver.language, handle_hooks_command(name, session)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::RemoteEnv(command) => {
             driver.prepare_remote_env_selector_context(&command, metadata);
-            println!("{}", handle_remote_env_command(command, metadata)?);
+            print_localized_repl_output(
+                driver.language,
+                handle_remote_env_command(command, metadata)?,
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Teleport(command) => {
-            println!("{}", handle_teleport_command(command, session, metadata)?);
+            print_localized_repl_output(
+                driver.language,
+                handle_teleport_command(command, session, metadata)?,
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Assistant(command) => {
-            println!("{}", handle_assistant_command(command, metadata)?);
+            print_localized_repl_output(
+                driver.language,
+                handle_assistant_command(command, metadata)?,
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Bridge(command) => {
             driver.prepare_bridge_selector_context(&command, metadata);
-            println!("{}", handle_bridge_command(command, metadata)?);
+            print_localized_repl_output(driver.language, handle_bridge_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Ide(command) => {
-            println!("{}", handle_ide_command(command, metadata)?);
+            print_localized_repl_output(driver.language, handle_ide_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Mcp(command) => {
             driver.prepare_mcp_selector_context(&command, metadata);
-            println!("{}", handle_mcp_command(command, metadata)?);
+            print_localized_repl_output(driver.language, handle_mcp_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Plugin(command) => {
             driver.prepare_plugin_selector_context(&command, metadata);
-            println!("{}", handle_plugin_command(command, metadata)?);
+            print_localized_repl_output(driver.language, handle_plugin_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Memory(command) => {
@@ -155,7 +168,7 @@ pub(super) async fn handle_repl_input_async_impl(
         }
         ReplCommand::Tasks(command) => {
             driver.prepare_task_selector_context(&command, session);
-            println!("{}", handle_task_command(command, session)?);
+            print_localized_repl_output(driver.language, handle_task_command(command, session)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Workflow(command) => {
@@ -164,28 +177,34 @@ pub(super) async fn handle_repl_input_async_impl(
                 script_path,
             } = &command
             {
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    driver.language,
                     driver.open_workflow_dashboard(
                         session,
                         workflow_name.clone(),
                         script_path.clone(),
-                    )?
+                    )?,
                 );
                 return Ok(ReplAction::Continue);
             }
             driver.prepare_workflow_selector_context(session, &command);
-            println!("{}", handle_workflow_command(command, session).await?);
+            print_localized_repl_output(
+                driver.language,
+                handle_workflow_command(command, session).await?,
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Config(command) => {
             driver.prepare_config_selector_context(&command, metadata);
-            println!("{}", handle_config_command(command, metadata)?);
+            print_localized_repl_output(driver.language, handle_config_command(command, metadata)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Plan(command) => {
             driver.prepare_plan_selector_context(&command, session);
-            println!("{}", handle_plan_command(command, session).await?);
+            print_localized_repl_output(
+                driver.language,
+                handle_plan_command(command, session).await?,
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Permissions { value } => {
@@ -198,7 +217,7 @@ pub(super) async fn handle_repl_input_async_impl(
         ReplCommand::Resume { session_id } => {
             match handle_resume_command(session_id, metadata, driver.language)? {
                 ResumeAction::Continue(message) => {
-                    println!("{message}");
+                    print_localized_repl_output(driver.language, message);
                     Ok(ReplAction::Continue)
                 }
                 ResumeAction::Resume(session_id) => {
@@ -242,8 +261,8 @@ pub(super) async fn handle_repl_input_async_impl(
             if let Some((workflow_name, shared_context)) =
                 resolve_dynamic_workflow_invocation(input, session.working_directory())?
             {
-                println!(
-                    "{}",
+                print_localized_repl_output(
+                    driver.language,
                     handle_workflow_command(
                         WorkflowCommand::Run {
                             workflow_name: Some(workflow_name),

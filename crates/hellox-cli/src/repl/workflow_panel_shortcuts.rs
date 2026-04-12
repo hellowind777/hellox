@@ -4,6 +4,7 @@ use anyhow::Result;
 use hellox_agent::AgentSession;
 
 use super::*;
+use crate::repl::output_localizer::print_localized_repl_output;
 use crate::workflow_panel::{
     list_workflow_panel_selection_items, list_workflow_panel_selection_items_for_path,
     render_workflow_panel_detail, render_workflow_panel_detail_with_target,
@@ -57,7 +58,7 @@ impl CliReplDriver {
         let shortcut = match shortcut {
             Ok(shortcut) => shortcut,
             Err(usage) => {
-                println!("{usage}");
+                print_localized_repl_output(self.language, usage);
                 return Ok(true);
             }
         };
@@ -81,7 +82,7 @@ impl CliReplDriver {
             )?,
             None => execute_workflow_step_shortcut(root, &workflow_name, selected_step, shortcut)?,
         };
-        println!(
+        let text = format!(
             "{}\n\n{}",
             result.message,
             match explicit_script_path.as_deref() {
@@ -100,6 +101,7 @@ impl CliReplDriver {
                 }
             }
         );
+        print_localized_repl_output(self.language, text);
 
         Ok(true)
     }
@@ -115,7 +117,7 @@ impl CliReplDriver {
         let shortcut = match shortcut {
             Ok(shortcut) => shortcut,
             Err(usage) => {
-                println!("{usage}");
+                print_localized_repl_output(self.language, usage);
                 return Ok(true);
             }
         };
@@ -129,9 +131,12 @@ impl CliReplDriver {
                 let detail =
                     load_named_workflow_detail(session.working_directory(), &workflow_name)?;
                 if step_count == 0 || detail.steps.is_empty() {
-                    println!(
-                        "workflow `{}` has no steps to focus yet.",
-                        detail.summary.name
+                    print_localized_repl_output(
+                        self.language,
+                        format!(
+                            "workflow `{}` has no steps to focus yet.",
+                            detail.summary.name
+                        ),
                     );
                     return Ok(true);
                 }
@@ -149,11 +154,11 @@ impl CliReplDriver {
                     match execute_workflow_step_navigation(selected_step, step_count, shortcut) {
                         Ok(result) => result,
                         Err(message) => {
-                            println!("{message}");
+                            print_localized_repl_output(self.language, message);
                             return Ok(true);
                         }
                     };
-                println!(
+                let text = format!(
                     "{}\n\n{}",
                     navigation_message(shortcut, "workflow step", step_count, result),
                     self.render_workflow_panel_after_change(
@@ -162,6 +167,7 @@ impl CliReplDriver {
                         Some(result.step_number),
                     )?
                 );
+                print_localized_repl_output(self.language, text);
                 Ok(true)
             }
             Some(SelectorContext::WorkflowPanelPathItems {
@@ -176,7 +182,10 @@ impl CliReplDriver {
                     None,
                 )?;
                 if step_count == 0 || detail.steps.is_empty() {
-                    println!("workflow `{}` has no steps to focus yet.", workflow_name);
+                    print_localized_repl_output(
+                        self.language,
+                        format!("workflow `{workflow_name}` has no steps to focus yet."),
+                    );
                     return Ok(true);
                 }
 
@@ -194,11 +203,11 @@ impl CliReplDriver {
                     match execute_workflow_step_navigation(selected_step, step_count, shortcut) {
                         Ok(result) => result,
                         Err(message) => {
-                            println!("{message}");
+                            print_localized_repl_output(self.language, message);
                             return Ok(true);
                         }
                     };
-                println!(
+                let text = format!(
                     "{}\n\n{}",
                     navigation_message(shortcut, "workflow step", step_count, result),
                     self.render_workflow_panel_after_change_for_path(
@@ -208,13 +217,17 @@ impl CliReplDriver {
                         Some(result.step_number),
                     )?
                 );
+                print_localized_repl_output(self.language, text);
                 Ok(true)
             }
             Some(SelectorContext::WorkflowRunSteps { run_id, .. }) => {
                 let record = load_workflow_run(session.working_directory(), &run_id)?;
                 let step_count = record.steps.len();
                 if step_count == 0 {
-                    println!("workflow run `{run_id}` has no recorded steps.");
+                    print_localized_repl_output(
+                        self.language,
+                        format!("workflow run `{run_id}` has no recorded steps."),
+                    );
                     return Ok(true);
                 }
 
@@ -229,11 +242,11 @@ impl CliReplDriver {
                     match execute_workflow_step_navigation(selected_step, step_count, shortcut) {
                         Ok(result) => result,
                         Err(message) => {
-                            println!("{message}");
+                            print_localized_repl_output(self.language, message);
                             return Ok(true);
                         }
                     };
-                println!(
+                let text = format!(
                     "{}\n\n{}",
                     navigation_message(shortcut, "recorded step", step_count, result),
                     self.render_workflow_run_after_navigation(
@@ -242,6 +255,7 @@ impl CliReplDriver {
                         result.step_number,
                     )
                 );
+                print_localized_repl_output(self.language, text);
                 Ok(true)
             }
             _ => Ok(false),

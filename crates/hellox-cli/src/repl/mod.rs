@@ -11,6 +11,7 @@ mod format_copy;
 mod help_copy;
 mod install_actions;
 mod mcp_actions;
+mod output_localizer;
 mod plan_actions;
 mod plugin_actions;
 mod remote_actions;
