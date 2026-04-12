@@ -262,16 +262,15 @@ fn load_replay_file(replay_path: &Path) -> Result<VecDeque<PaneHostRecord>> {
 mod tests {
     use std::env;
     use std::fs;
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::PaneHostRecord;
     use crate::native_pane_backend::launch_native_pane;
     use crate::native_pane_backend_preflight::pane_backend_test_env_lock;
     use crate::native_pane_backend_preflight::NativePaneBackend;
-    use crate::native_pane_layout::{
-        build_iterm_script, build_tmux_new_session_args, build_tmux_select_layout_args,
-        pane_group_name, pane_group_title, pane_title, shell_join,
-    };
+    use crate::native_pane_layout::{pane_group_name, pane_group_title};
+    use crate::native_pane_runtime::{inspect_iterm_group, inspect_tmux_group};
 
     struct EnvGuard {
         key: &'static str,
@@ -310,6 +309,13 @@ mod tests {
         env::temp_dir().join(format!("hellox-pane-host-{label}-{nanos}.jsonl"))
     }
 
+    fn repo_fixture_path(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join("pane-host")
+            .join(name)
+    }
+
     fn write_fixture(path: &std::path::Path, records: &[PaneHostRecord]) {
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
@@ -341,17 +347,30 @@ mod tests {
         }
     }
 
-    #[test]
-    fn pane_host_replay_drives_tmux_launch_sequence() {
-        let _env_lock = pane_backend_test_env_lock()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    fn reset_replay_harness() {
         *super::replay_harness_state()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    }
 
-        let fixture_path = unique_fixture_path("tmux-launch");
-        let _replay = ThreadReplayGuard::enable(&fixture_path);
+    fn enable_fixture_replay(name: &str) -> (PathBuf, ThreadReplayGuard) {
+        let path = repo_fixture_path(name);
+        assert!(
+            path.exists(),
+            "expected pane-host fixture `{}` to exist",
+            path.display()
+        );
+        (path.clone(), ThreadReplayGuard::enable(&path))
+    }
+
+    #[test]
+    fn pane_host_fixture_replay_drives_tmux_launch_and_inspection() {
+        let _env_lock = pane_backend_test_env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reset_replay_harness();
+
+        let (fixture_path, _replay) = enable_fixture_replay("tmux-launch-follow-up.jsonl");
         let _record = EnvGuard::remove(super::PANE_HOST_RECORD_ENV);
         let _backend_command = EnvGuard::set("HELLOX_AGENT_BACKEND_COMMAND", "[\"hx\"]");
 
@@ -362,38 +381,7 @@ mod tests {
         let layout_slot = Some("primary");
         let job_path = std::path::Path::new("job.json");
 
-        let worker_command = shell_join(&[
-            "hx".to_string(),
-            "--job".to_string(),
-            job_path.display().to_string(),
-        ]);
-        let title = pane_title(session_id, agent_name);
         let group = pane_group_name(session_id, pane_group);
-        let launch_args = build_tmux_new_session_args(&group, &title, &worker_command);
-        let layout_args = build_tmux_select_layout_args(&format!("{group}:0"), "main-vertical");
-
-        write_fixture(
-            &fixture_path,
-            &[
-                PaneHostRecord {
-                    context: "tmux pane launch".to_string(),
-                    program: "tmux".to_string(),
-                    argv: launch_args,
-                    success: true,
-                    stdout: "%1\n".to_string(),
-                    stderr: String::new(),
-                },
-                PaneHostRecord {
-                    context: "tmux pane layout".to_string(),
-                    program: "tmux".to_string(),
-                    argv: layout_args,
-                    success: true,
-                    stdout: String::new(),
-                    stderr: String::new(),
-                },
-            ],
-        );
-
         let pane_target = launch_native_pane(
             NativePaneBackend::Tmux,
             session_id,
@@ -407,20 +395,24 @@ mod tests {
         .expect("launch tmux pane via replay");
 
         assert_eq!(pane_target, "%1");
+        let state = inspect_tmux_group(Some(&group)).expect("inspect tmux group");
+        assert_eq!(state.backend, crate::native_pane_backend::TMUX_BACKEND);
+        assert_eq!(
+            state.live_targets,
+            vec![String::from("%1"), String::from("%2")]
+        );
+        assert!(state.inspect_error.is_none());
         super::assert_pane_host_replay_consumed(&fixture_path).expect("replay fully consumed");
     }
 
     #[test]
-    fn pane_host_replay_drives_iterm_launch_sequence() {
+    fn pane_host_fixture_replay_drives_iterm_launch_and_inspection() {
         let _env_lock = pane_backend_test_env_lock()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *super::replay_harness_state()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+        reset_replay_harness();
 
-        let fixture_path = unique_fixture_path("iterm-launch");
-        let _replay = ThreadReplayGuard::enable(&fixture_path);
+        let (fixture_path, _replay) = enable_fixture_replay("iterm-launch-follow-up.jsonl");
         let _record = EnvGuard::remove(super::PANE_HOST_RECORD_ENV);
         let _backend_command = EnvGuard::set("HELLOX_AGENT_BACKEND_COMMAND", "[\"hx\"]");
         let _iterm_command = EnvGuard::remove(crate::native_pane_backend::ITERM_COMMAND_ENV);
@@ -431,27 +423,7 @@ mod tests {
         let layout_slot = Some("right");
         let job_path = std::path::Path::new("job.json");
 
-        let worker_command = shell_join(&[
-            "hx".to_string(),
-            "--job".to_string(),
-            job_path.display().to_string(),
-        ]);
-        let title = pane_title(session_id, agent_name);
         let group = pane_group_title(session_id, pane_group);
-        let script = build_iterm_script(&worker_command, &title, &group, layout_slot, None);
-
-        write_fixture(
-            &fixture_path,
-            &[PaneHostRecord {
-                context: "iTerm pane launch".to_string(),
-                program: "osascript".to_string(),
-                argv: vec!["-e".to_string(), script],
-                success: true,
-                stdout: "123\n".to_string(),
-                stderr: String::new(),
-            }],
-        );
-
         let pane_target = launch_native_pane(
             NativePaneBackend::ITerm,
             session_id,
@@ -465,6 +437,13 @@ mod tests {
         .expect("launch iterm pane via replay");
 
         assert_eq!(pane_target, "123");
+        let state = inspect_iterm_group(Some(&group)).expect("inspect iterm group");
+        assert_eq!(state.backend, crate::native_pane_backend::ITERM_BACKEND);
+        assert_eq!(
+            state.live_targets,
+            vec![String::from("123"), String::from("456")]
+        );
+        assert!(state.inspect_error.is_none());
         super::assert_pane_host_replay_consumed(&fixture_path).expect("replay fully consumed");
     }
 
