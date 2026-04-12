@@ -15,6 +15,7 @@ use super::format::help_text_for_workdir;
 use super::workflow_actions::{handle_workflow_command, resolve_dynamic_workflow_invocation};
 use super::{ReplAction, ReplMetadata};
 use crate::repl::selectors::{WorkflowOverviewFocusTarget, WorkflowRunListTarget};
+use crate::startup::AppLanguage;
 use crate::workflow_overview::WorkflowOverviewSelectionItem;
 use crate::workflow_test_support::acquire_workflow_test_guard;
 
@@ -127,7 +128,7 @@ fn help_text_lists_project_workflow_commands() {
         r#"{ "steps": [{ "prompt": "review release" }] }"#,
     );
 
-    let text = help_text_for_workdir(&root);
+    let text = help_text_for_workdir(&root, AppLanguage::English);
     assert!(text.contains("/workflow dashboard [name]"));
     assert!(text.contains("/workflow dashboard --script-path <path>"));
     assert!(text.contains("/workflow overview [name]"));

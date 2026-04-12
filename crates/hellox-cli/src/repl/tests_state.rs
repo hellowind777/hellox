@@ -151,6 +151,7 @@ fn handle_model_panel_renders_dashboard_and_detail() {
         ModelCommand::Panel { profile_name: None },
         &mut session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("render model list panel");
     assert!(list.contains("Model panel"));
@@ -163,6 +164,7 @@ fn handle_model_panel_renders_dashboard_and_detail() {
         },
         &mut session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("render model detail panel");
     assert!(detail.contains("Model panel: sonnet"));
@@ -220,6 +222,7 @@ fn handle_session_panel_renders_dashboard_and_detail() {
         SessionCommand::Panel { session_id: None },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("render session list panel");
     assert!(list.contains("Session panel"));
@@ -233,6 +236,7 @@ fn handle_session_panel_renders_dashboard_and_detail() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("render session detail panel");
     assert!(detail.contains("Session panel: persisted"));

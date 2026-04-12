@@ -25,7 +25,7 @@ pub fn parse_command(input: &str) -> Option<ReplCommand> {
     let remainder = parts.collect::<Vec<_>>().join(" ");
 
     let command = match name.as_str() {
-        "" => ReplCommand::Unknown(String::new()),
+        "" => ReplCommand::Help,
         "help" => ReplCommand::Help,
         "status" => ReplCommand::Status,
         "doctor" => ReplCommand::Doctor,

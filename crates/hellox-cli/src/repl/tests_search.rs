@@ -163,7 +163,13 @@ fn search_text_combines_transcript_sessions_and_memory() {
         "captured architecture note",
     );
 
-    let rendered = search_text(&session, &metadata, "architecture", DEFAULT_SEARCH_LIMIT);
+    let rendered = search_text(
+        &session,
+        &metadata,
+        "architecture",
+        DEFAULT_SEARCH_LIMIT,
+        crate::startup::AppLanguage::English,
+    );
 
     assert!(rendered.contains("source\tsource_id\tlocation\tpreview"));
     assert!(rendered.contains("transcript\tactive-transcript"));

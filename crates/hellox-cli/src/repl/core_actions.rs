@@ -1,8 +1,6 @@
-use std::path::{Path, PathBuf};
-
 use anyhow::Result;
-use hellox_agent::{AgentSession, CompactMode};
-use hellox_config::{load_or_default, PermissionMode};
+use hellox_agent::AgentSession;
+use hellox_config::PermissionMode;
 
 use crate::memory::{
     archive_memories, capture_memory_from_session, cluster_memories, current_memory_id,
@@ -15,6 +13,16 @@ use crate::memory::{
 };
 use crate::memory_panel::render_memory_panel;
 use crate::model_panel::render_model_panel;
+use crate::repl::core_copy::{
+    captured_memory_text, compacted_session_text, current_model_text, model_help_text,
+    model_set_text, no_history_to_compact_text, no_turn_to_rewind_text, no_workspace_memory_text,
+    rewound_turn_text, shared_transcript_written_text, unable_to_load_memory_text,
+    unable_to_render_memory_panel_text, unable_to_render_model_panel_text,
+    unable_to_render_session_panel_text, unable_to_share_session_text, usage_text,
+};
+use crate::repl::core_paths::{
+    compact_mode_label, format_path, resolve_share_path, runtime_config,
+};
 use crate::repl::format::{
     permissions_text, resume_help_text, session_detail_text, session_list_text, session_text,
 };
@@ -22,9 +30,8 @@ use crate::repl::ReplMetadata;
 use crate::session_panel::render_session_panel;
 use crate::sessions::load_session;
 use crate::settings_commands::model_command_text;
-use crate::transcript::{
-    default_share_path, export_session_markdown, export_stored_session_markdown,
-};
+use crate::startup::AppLanguage;
+use crate::transcript::{export_session_markdown, export_stored_session_markdown};
 
 use super::commands::{MemoryCommand, ModelCommand, SessionCommand};
 
@@ -37,21 +44,18 @@ pub(super) fn handle_memory_command(
     command: MemoryCommand,
     session: &AgentSession,
     metadata: &ReplMetadata,
+    language: AppLanguage,
 ) -> Result<String> {
     match command {
         MemoryCommand::Current => {
             match load_memory(&metadata.memory_root, &current_memory_id(session)) {
                 Ok(memory) => Ok(memory),
-                Err(_) => match load_memory(
-                    &metadata.memory_root,
-                    &current_project_memory_id(session),
-                ) {
-                    Ok(memory) => Ok(memory),
-                    Err(_) => Ok(
-                        "No captured session or project memory found for the current workspace."
-                            .to_string(),
-                    ),
-                },
+                Err(_) => {
+                    match load_memory(&metadata.memory_root, &current_project_memory_id(session)) {
+                        Ok(memory) => Ok(memory),
+                        Err(_) => Ok(no_workspace_memory_text(language)),
+                    }
+                }
             }
         }
         MemoryCommand::Panel {
@@ -60,7 +64,7 @@ pub(super) fn handle_memory_command(
         } => Ok(
             match render_memory_panel(&metadata.memory_root, archived, memory_id.as_deref()) {
                 Ok(panel) => panel,
-                Err(error) => format!("Unable to render memory panel: {error}"),
+                Err(error) => unable_to_render_memory_panel_text(language, &error),
             },
         ),
         MemoryCommand::List { archived } => {
@@ -74,7 +78,7 @@ pub(super) fn handle_memory_command(
         MemoryCommand::Show {
             archived: _,
             memory_id: None,
-        } => Ok("Usage: /memory show <memory-id>".to_string()),
+        } => Ok(usage_text(language, "/memory show <memory-id>")),
         MemoryCommand::Show {
             archived,
             memory_id: Some(memory_id),
@@ -87,13 +91,13 @@ pub(super) fn handle_memory_command(
 
             match markdown {
                 Ok(memory) => Ok(memory),
-                Err(error) => Ok(format!("Unable to load memory `{memory_id}`: {error}")),
+                Err(error) => Ok(unable_to_load_memory_text(language, &memory_id, &error)),
             }
         }
         MemoryCommand::Search {
             archived: _,
             query: None,
-        } => Ok("Usage: /memory search <query>".to_string()),
+        } => Ok(usage_text(language, "/memory search <query>")),
         MemoryCommand::Search {
             archived,
             query: Some(query),
@@ -182,10 +186,10 @@ pub(super) fn handle_memory_command(
                 &metadata.memory_root,
                 instructions.as_deref(),
             )?;
-            Ok(format!(
-                "Captured layered memory using {} mode. {}",
-                compact_mode_label(result.mode),
-                memory_result_targets(&result)
+            Ok(captured_memory_text(
+                language,
+                compact_mode_label(result.mode, language),
+                &memory_result_targets(&result),
             ))
         }
     }
@@ -195,25 +199,26 @@ pub(super) fn handle_session_command(
     command: SessionCommand,
     session: &AgentSession,
     metadata: &ReplMetadata,
+    language: AppLanguage,
 ) -> Result<String> {
     match command {
-        SessionCommand::Current => Ok(session_text(session)),
+        SessionCommand::Current => Ok(session_text(session, language)),
         SessionCommand::Panel { session_id } => Ok(
             match render_session_panel(&metadata.sessions_root, session_id.as_deref()) {
                 Ok(panel) => panel,
-                Err(error) => format!("Unable to render session panel: {error}"),
+                Err(error) => unable_to_render_session_panel_text(language, &error),
             },
         ),
-        SessionCommand::List => Ok(session_list_text(metadata)),
+        SessionCommand::List => Ok(session_list_text(metadata, language)),
         SessionCommand::Show { session_id: None } => {
-            Ok("Usage: /session show <session-id>".to_string())
+            Ok(usage_text(language, "/session show <session-id>"))
         }
         SessionCommand::Show {
             session_id: Some(session_id),
-        } => Ok(session_detail_text(metadata, &session_id)),
+        } => Ok(session_detail_text(metadata, &session_id, language)),
         SessionCommand::Share {
             session_id: None, ..
-        } => Ok("Usage: /session share <session-id> [path]".to_string()),
+        } => Ok(usage_text(language, "/session share <session-id> [path]")),
         SessionCommand::Share {
             session_id: Some(session_id),
             path,
@@ -226,12 +231,12 @@ pub(super) fn handle_session_command(
                     Some(snapshot.session_id.as_str()),
                 );
                 export_stored_session_markdown(&snapshot, &destination)?;
-                Ok(format!(
-                    "Shared transcript written to `{}`.",
-                    format_path(&destination)
+                Ok(shared_transcript_written_text(
+                    language,
+                    &format_path(&destination),
                 ))
             }
-            Err(error) => Ok(format!("Unable to share `{session_id}`: {error}")),
+            Err(error) => Ok(unable_to_share_session_text(language, &session_id, &error)),
         },
     }
 }
@@ -239,29 +244,38 @@ pub(super) fn handle_session_command(
 pub(super) fn handle_permissions_command(
     value: Option<String>,
     session: &mut AgentSession,
+    language: AppLanguage,
 ) -> Result<String> {
     match value {
         Some(value) => match value.parse::<PermissionMode>() {
             Ok(mode) => {
                 session.set_permission_mode(mode.clone())?;
-                Ok(format!("Permission mode set to `{mode}`."))
+                Ok(match language {
+                    AppLanguage::English => format!("Permission mode set to `{mode}`."),
+                    AppLanguage::SimplifiedChinese => format!("权限模式已切换为 `{mode}`。"),
+                })
             }
             Err(error) => Ok(error),
         },
-        None => Ok(permissions_text(session)),
+        None => Ok(permissions_text(session, language)),
     }
 }
 
 pub(super) fn handle_resume_command(
     session_id: Option<String>,
     metadata: &ReplMetadata,
+    language: AppLanguage,
 ) -> Result<ResumeAction> {
     match session_id {
-        None => Ok(ResumeAction::Continue(resume_help_text(metadata))),
+        None => Ok(ResumeAction::Continue(resume_help_text(metadata, language))),
         Some(session_id) => match load_session(&metadata.sessions_root, &session_id) {
             Ok(_) => Ok(ResumeAction::Resume(session_id)),
             Err(error) => Ok(ResumeAction::Continue(format!(
-                "Unable to resume `{session_id}`: {error}"
+                "{}: {error}",
+                match language {
+                    AppLanguage::English => format!("Unable to resume `{session_id}`"),
+                    AppLanguage::SimplifiedChinese => format!("无法恢复会话 `{session_id}`"),
+                }
             ))),
         },
     }
@@ -271,6 +285,7 @@ pub(super) fn handle_share_command(
     path: Option<String>,
     session: &AgentSession,
     metadata: &ReplMetadata,
+    language: AppLanguage,
 ) -> Result<String> {
     let destination = resolve_share_path(
         path.as_deref(),
@@ -279,9 +294,9 @@ pub(super) fn handle_share_command(
         session.session_id(),
     );
     export_session_markdown(session, &destination)?;
-    Ok(format!(
-        "Shared transcript written to `{}`.",
-        format_path(&destination)
+    Ok(shared_transcript_written_text(
+        language,
+        &format_path(&destination),
     ))
 }
 
@@ -289,6 +304,7 @@ pub(super) fn handle_compact_command(
     instructions: Option<String>,
     session: &mut AgentSession,
     metadata: &ReplMetadata,
+    language: AppLanguage,
 ) -> Result<String> {
     let result = session.compact(instructions.as_deref())?;
     let memory_result = write_memory_from_session_summary(
@@ -300,26 +316,27 @@ pub(super) fn handle_compact_command(
     )?;
 
     if result.original_message_count == 0 {
-        Ok("No conversation history to compact.".to_string())
+        Ok(no_history_to_compact_text(language))
     } else {
-        Ok(format!(
-            "Compacted current session in {} mode: {} -> {} message(s). {}",
-            compact_mode_label(result.mode),
+        Ok(compacted_session_text(
+            language,
+            compact_mode_label(result.mode, language),
             result.original_message_count,
             result.retained_message_count,
-            memory_result_targets(&memory_result)
+            &memory_result_targets(&memory_result),
         ))
     }
 }
 
-pub(super) fn handle_rewind_command(session: &mut AgentSession) -> Result<String> {
+pub(super) fn handle_rewind_command(
+    session: &mut AgentSession,
+    language: AppLanguage,
+) -> Result<String> {
     let removed = session.rewind_last_turn()?;
     if removed == 0 {
-        Ok("No conversation turn to rewind.".to_string())
+        Ok(no_turn_to_rewind_text(language))
     } else {
-        Ok(format!(
-            "Rewound the most recent turn ({removed} message(s) removed)."
-        ))
+        Ok(rewound_turn_text(language, removed))
     }
 }
 
@@ -327,9 +344,10 @@ pub(super) fn handle_model_command(
     command: ModelCommand,
     session: &mut AgentSession,
     metadata: &ReplMetadata,
+    language: AppLanguage,
 ) -> Result<String> {
     match command {
-        ModelCommand::Current => Ok(format!("Current model: `{}`", session.model())),
+        ModelCommand::Current => Ok(current_model_text(language, session.model())),
         ModelCommand::Panel { profile_name } => {
             let config = runtime_config(metadata);
             Ok(
@@ -340,7 +358,7 @@ pub(super) fn handle_model_command(
                     Some(session.model()),
                 ) {
                     Ok(panel) => panel,
-                    Err(error) => format!("Unable to render model panel: {error}"),
+                    Err(error) => unable_to_render_model_panel_text(language, &error),
                 },
             )
         }
@@ -355,9 +373,9 @@ pub(super) fn handle_model_command(
         }
         ModelCommand::Use { value: Some(model) } => {
             session.set_model(model.clone())?;
-            Ok(format!("Model set to `{model}`."))
+            Ok(model_set_text(language, &model))
         }
-        ModelCommand::Use { value: None } => Ok("Usage: /model use <name>".to_string()),
+        ModelCommand::Use { value: None } => Ok(usage_text(language, "/model use <name>")),
         ModelCommand::Default {
             profile_name: Some(profile_name),
         } => render_model_command(crate::cli_types::ModelCommands::SetDefault {
@@ -365,61 +383,15 @@ pub(super) fn handle_model_command(
             config: Some(metadata.config_path.clone()),
         }),
         ModelCommand::Default { profile_name: None } => {
-            Ok("Usage: /model default <name>".to_string())
+            Ok(usage_text(language, "/model default <name>"))
         }
-        ModelCommand::Help => Ok(model_help_text().to_string()),
+        ModelCommand::Help => Ok(model_help_text(language).to_string()),
     }
-}
-
-fn model_help_text() -> &'static str {
-    concat!(
-        "Usage:\n",
-        "  /model                 Show the current session model\n",
-        "  /model panel [name]    Show a model dashboard or inspect one profile\n",
-        "  /model list            List configured model profiles\n",
-        "  /model show [name]     Show the current or named model profile\n",
-        "  /model use <name>      Switch the current session model\n",
-        "  /model default <name>  Persist the default model profile"
-    )
 }
 
 fn render_model_command(command: crate::cli_types::ModelCommands) -> Result<String> {
     match model_command_text(command) {
         Ok(text) => Ok(text),
         Err(error) => Ok(error.to_string()),
-    }
-}
-
-fn resolve_share_path(
-    value: Option<&str>,
-    working_directory: &Path,
-    shares_root: &Path,
-    session_id: Option<&str>,
-) -> PathBuf {
-    match value {
-        Some(value) => {
-            let path = PathBuf::from(value);
-            if path.is_absolute() {
-                path
-            } else {
-                working_directory.join(path)
-            }
-        }
-        None => default_share_path(shares_root, session_id),
-    }
-}
-
-fn runtime_config(metadata: &ReplMetadata) -> hellox_config::HelloxConfig {
-    load_or_default(Some(metadata.config_path.clone())).unwrap_or_else(|_| metadata.config.clone())
-}
-
-fn format_path(path: &Path) -> String {
-    path.display().to_string().replace('\\', "/")
-}
-
-fn compact_mode_label(mode: CompactMode) -> &'static str {
-    match mode {
-        CompactMode::Micro => "microcompact",
-        CompactMode::Full => "compact",
     }
 }

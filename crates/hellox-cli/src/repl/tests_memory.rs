@@ -251,6 +251,7 @@ fn memory_panel_renders_selector_and_lens() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("memory panel list");
     assert!(list.contains("== Memory selector =="));
@@ -263,6 +264,7 @@ fn memory_panel_renders_selector_and_lens() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("memory panel detail");
     assert!(detail.contains("== Memory lens =="));
@@ -362,6 +364,7 @@ fn memory_search_returns_ranked_hits_with_age_and_score() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("search memory");
 
@@ -397,6 +400,7 @@ fn memory_clusters_groups_entries_with_token_overlap() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("memory clusters");
 
@@ -432,6 +436,7 @@ fn memory_clusters_support_semantic_mode() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("memory clusters semantic");
 
@@ -463,6 +468,7 @@ fn memory_prune_previews_and_applies_scope_filtered_retention() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("preview prune");
     assert!(preview.contains("Would prune 1 stale memory file(s)"));
@@ -478,6 +484,7 @@ fn memory_prune_previews_and_applies_scope_filtered_retention() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("apply prune");
     assert!(applied.contains("Pruned 1 stale memory file(s)"));
@@ -508,6 +515,7 @@ fn memory_archive_previews_and_applies_scope_filtered_retention() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("preview archive");
     assert!(preview.contains("Would archive 1 stale memory file(s)"));
@@ -523,6 +531,7 @@ fn memory_archive_previews_and_applies_scope_filtered_retention() {
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("apply archive");
     assert!(applied.contains("Archived 1 stale memory file(s)"));
@@ -569,6 +578,7 @@ fn memory_decay_previews_and_applies_summary_truncation_for_archived_memories() 
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("preview decay");
     assert!(preview.contains("Would decay 1 stale archived memory file(s)"));
@@ -585,6 +595,7 @@ fn memory_decay_previews_and_applies_summary_truncation_for_archived_memories() 
         },
         &session,
         &metadata,
+        crate::startup::AppLanguage::English,
     )
     .expect("apply decay");
     assert!(applied.contains("Decayed 1 stale archived memory file(s)"));

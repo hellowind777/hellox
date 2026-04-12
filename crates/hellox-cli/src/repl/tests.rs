@@ -14,8 +14,9 @@ use serde_json::json;
 use super::commands::{
     ModelCommand, OutputStyleCommand, ReplCommand, SessionCommand, WorkflowCommand,
 };
-use super::format::{config_text, help_text};
+use super::format::{config_text, help_text, help_text_for_workdir, status_text};
 use super::{handle_repl_input, ReplAction, ReplMetadata};
+use crate::startup::AppLanguage;
 
 fn temp_dir() -> PathBuf {
     let suffix = SystemTime::now()
@@ -363,14 +364,9 @@ fn repl_banner_includes_welcome_context_and_commands() {
 
     assert_eq!(
         lines.first().expect("welcome line"),
-        &format!(
-            "╭──────────────── Welcome to hellox v{} ────────────────╮",
-            env!("CARGO_PKG_VERSION")
-        )
+        &format!("Welcome to hellox v{} ", env!("CARGO_PKG_VERSION"))
     );
-    assert!(lines
-        .iter()
-        .any(|line| line.contains("Local-first coding session aligned with Claude Code")));
+    assert!(lines.iter().any(|line| line.contains("██▄█████▄██")));
     assert!(lines.iter().any(|line| line.contains("cwd       ")));
     assert!(lines.iter().any(|line| line.contains("model     opus")));
     assert!(lines
@@ -378,13 +374,33 @@ fn repl_banner_includes_welcome_context_and_commands() {
         .any(|line| line.contains("session   new local session")));
     assert!(lines
         .iter()
-        .any(|line| line.contains("/help · /status · /doctor · /resume · /exit")));
+        .any(|line| line.contains("/ · /help · /status · /doctor · /resume · /exit")));
     assert!(lines
         .iter()
         .any(|line| line.contains("trust     workspace trusted")));
     assert_eq!(
         lines.last().expect("closing line"),
         "  input     Start typing your task and press Enter"
+    );
+}
+
+#[test]
+fn repl_banner_supports_simplified_chinese_copy() {
+    let session = session();
+    let lines = super::CliReplDriver::with_language(AppLanguage::SimplifiedChinese, true)
+        .banner_lines(&session);
+
+    assert_eq!(
+        lines.first().expect("welcome line"),
+        &format!("欢迎使用 hellox v{} ", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(lines.iter().any(|line| line.contains("██▄█████▄██")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("命令      / · /help · /status · /doctor · /resume · /exit")));
+    assert_eq!(
+        lines.last().expect("closing line"),
+        "  输入      直接输入任务后按 Enter"
     );
 }
 
@@ -417,6 +433,35 @@ fn help_text_lists_core_commands() {
     assert!(text.contains("/session panel [id]"));
     assert!(text.contains("/session share <id> [path]"));
     assert!(text.contains("/session list"));
+}
+
+#[test]
+fn help_text_localizes_long_tail_commands_for_chinese() {
+    let root = temp_dir();
+    let text = help_text_for_workdir(&root, AppLanguage::SimplifiedChinese);
+
+    assert!(text.contains("可用斜杠命令："));
+    assert!(text.contains("显示计划面板或聚焦一个已接受步骤"));
+    assert!(text.contains("显示本地 bridge 运行状态"));
+    assert!(text.contains("显示会话面板或查看某个已持久化会话"));
+    assert!(!text.contains("Show a plan dashboard"));
+}
+
+#[test]
+fn status_text_localizes_active_fields_for_chinese() {
+    let root = temp_dir();
+    let metadata = metadata_in(&root);
+    let session = session_in(root);
+    let text = status_text(&session, &metadata, AppLanguage::SimplifiedChinese);
+
+    assert!(text.contains("当前输出风格："));
+    assert!(text.contains("当前人设："));
+    assert!(!text.contains("active_output_style"));
+}
+
+#[test]
+fn parse_single_slash_opens_help() {
+    assert_eq!(super::commands::parse_command("/"), Some(ReplCommand::Help));
 }
 
 #[test]

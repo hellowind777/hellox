@@ -17,27 +17,30 @@ pub(super) async fn handle_repl_input_async_impl(
     match command {
         ReplCommand::Exit => Ok(ReplAction::Exit),
         ReplCommand::Help => {
-            println!("{}", help_text_for_workdir(session.working_directory()));
+            println!(
+                "{}",
+                help_text_for_workdir(session.working_directory(), driver.language)
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Status => {
-            println!("{}", status_text(session, metadata));
+            println!("{}", status_text(session, metadata, driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Doctor => {
-            println!("{}", doctor_text(session, metadata));
+            println!("{}", doctor_text(session, metadata, driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Usage => {
-            println!("{}", usage_text(session));
+            println!("{}", usage_text(session, driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Stats => {
-            println!("{}", stats_text(session));
+            println!("{}", stats_text(session, driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Cost => {
-            println!("{}", cost_text(session));
+            println!("{}", cost_text(session, driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Brief(command) => {
@@ -78,13 +81,19 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Search { query: None } => {
-            println!("Usage: /search <query>");
+            println!("{}", search_usage_text(driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Search { query: Some(query) } => {
             println!(
                 "{}",
-                search_text(session, metadata, &query, DEFAULT_SEARCH_LIMIT)
+                search_text(
+                    session,
+                    metadata,
+                    &query,
+                    DEFAULT_SEARCH_LIMIT,
+                    driver.language
+                )
             );
             Ok(ReplAction::Continue)
         }
@@ -130,12 +139,18 @@ pub(super) async fn handle_repl_input_async_impl(
         }
         ReplCommand::Memory(command) => {
             driver.prepare_memory_selector_context(&command, metadata);
-            println!("{}", handle_memory_command(command, session, metadata)?);
+            println!(
+                "{}",
+                handle_memory_command(command, session, metadata, driver.language)?
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Session(command) => {
             driver.prepare_session_selector_context(&command, metadata);
-            println!("{}", handle_session_command(command, session, metadata)?);
+            println!(
+                "{}",
+                handle_session_command(command, session, metadata, driver.language)?
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Tasks(command) => {
@@ -174,42 +189,53 @@ pub(super) async fn handle_repl_input_async_impl(
             Ok(ReplAction::Continue)
         }
         ReplCommand::Permissions { value } => {
-            println!("{}", handle_permissions_command(value, session)?);
+            println!(
+                "{}",
+                handle_permissions_command(value, session, driver.language)?
+            );
             Ok(ReplAction::Continue)
         }
-        ReplCommand::Resume { session_id } => match handle_resume_command(session_id, metadata)? {
-            ResumeAction::Continue(message) => {
-                println!("{message}");
-                Ok(ReplAction::Continue)
+        ReplCommand::Resume { session_id } => {
+            match handle_resume_command(session_id, metadata, driver.language)? {
+                ResumeAction::Continue(message) => {
+                    println!("{message}");
+                    Ok(ReplAction::Continue)
+                }
+                ResumeAction::Resume(session_id) => {
+                    println!("{}", resuming_session_text(driver.language, &session_id));
+                    Ok(ReplAction::Resume(session_id))
+                }
             }
-            ResumeAction::Resume(session_id) => {
-                println!("Resuming session `{session_id}`...");
-                Ok(ReplAction::Resume(session_id))
-            }
-        },
+        }
         ReplCommand::Share { path } => {
-            println!("{}", handle_share_command(path, session, metadata)?);
+            println!(
+                "{}",
+                handle_share_command(path, session, metadata, driver.language)?
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Compact { instructions } => {
             println!(
                 "{}",
-                handle_compact_command(instructions, session, metadata)?
+                handle_compact_command(instructions, session, metadata, driver.language)?
             );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Rewind => {
-            println!("{}", handle_rewind_command(session)?);
+            println!("{}", handle_rewind_command(session, driver.language)?);
             Ok(ReplAction::Continue)
         }
         ReplCommand::Clear => {
             let cleared = session.clear_messages()?;
-            println!("Cleared {cleared} message(s) from the current session.");
+            println!("{}", cleared_messages_text(driver.language, cleared));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Model(command) => {
             driver.prepare_model_selector_context(&command, session, metadata);
-            println!("{}", handle_model_command(command, session, metadata)?);
+            println!(
+                "{}",
+                handle_model_command(command, session, metadata, driver.language)?
+            );
             Ok(ReplAction::Continue)
         }
         ReplCommand::Unknown(name) => {
@@ -230,8 +256,44 @@ pub(super) async fn handle_repl_input_async_impl(
                 );
                 return Ok(ReplAction::Continue);
             }
-            println!("Unknown command `/{name}`. Use `/help` to list available commands.");
+            println!("{}", unknown_command_text(driver.language, &name));
             Ok(ReplAction::Continue)
+        }
+    }
+}
+
+fn search_usage_text(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Usage: /search <query>",
+        AppLanguage::SimplifiedChinese => "用法：/search <query>",
+    }
+}
+
+fn resuming_session_text(language: AppLanguage, session_id: &str) -> String {
+    match language {
+        AppLanguage::English => format!("Resuming session `{session_id}`..."),
+        AppLanguage::SimplifiedChinese => format!("正在恢复会话 `{session_id}`……"),
+    }
+}
+
+fn cleared_messages_text(language: AppLanguage, cleared: usize) -> String {
+    match language {
+        AppLanguage::English => {
+            format!("Cleared {cleared} message(s) from the current session.")
+        }
+        AppLanguage::SimplifiedChinese => {
+            format!("已从当前会话中清除 {cleared} 条消息。")
+        }
+    }
+}
+
+fn unknown_command_text(language: AppLanguage, name: &str) -> String {
+    match language {
+        AppLanguage::English => {
+            format!("Unknown command `/{name}`. Use `/help` to list available commands.")
+        }
+        AppLanguage::SimplifiedChinese => {
+            format!("未知命令 `/{name}`。请使用 `/help` 查看可用命令。")
         }
     }
 }

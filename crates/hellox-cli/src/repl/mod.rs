@@ -2,14 +2,19 @@ mod bridge_actions;
 mod commands;
 mod config_actions;
 mod core_actions;
+mod core_copy;
+mod core_paths;
 mod dispatch;
 mod extension_actions;
 mod format;
+mod format_copy;
+mod help_copy;
 mod install_actions;
 mod mcp_actions;
 mod plan_actions;
 mod plugin_actions;
 mod remote_actions;
+mod selector_input;
 mod selectors;
 mod style_actions;
 mod task_actions;
@@ -88,7 +93,7 @@ use plugin_actions::handle_plugin_command;
 use remote_actions::{
     handle_assistant_command, handle_remote_env_command, handle_teleport_command,
 };
-use selectors::parse_selector_index;
+use selector_input::parse_selector_index;
 use selectors::SelectorContext;
 use style_actions::{
     handle_output_style_command, handle_persona_command, handle_prompt_fragment_command,
@@ -201,13 +206,16 @@ fn welcome_banner_lines(
     let session_id = session.session_id().unwrap_or("new local session");
     match language {
         AppLanguage::English => vec![
-            format!(
-                "╭──────────────── Welcome to hellox v{} ────────────────╮",
-                env!("CARGO_PKG_VERSION")
-            ),
-            String::from("│  Local-first coding session aligned with Claude Code  │"),
-            String::from("│  Start with a task, or use a slash command to inspect │"),
-            String::from("╰───────────────────────────────────────────────────────╯"),
+            format!("Welcome to hellox v{} ", env!("CARGO_PKG_VERSION")),
+            String::from("······················································"),
+            String::from(""),
+            String::from("                    ░░░░"),
+            String::from("                ░░░░░░░░░░"),
+            String::from("            ░░░░░░░░░░░░░░░░"),
+            String::from("          █████████"),
+            String::from("          ██▄█████▄██"),
+            String::from("          █████████"),
+            String::from("·······█ █   █ █······································"),
             String::new(),
             format!("  cwd       {}", session.working_directory().display()),
             format!("  model     {}", session.model()),
@@ -220,18 +228,21 @@ fn welcome_banner_lines(
                     "review required"
                 }
             ),
-            String::from("  commands  /help · /status · /doctor · /resume · /exit"),
+            String::from("  commands  / · /help · /status · /doctor · /resume · /exit"),
             String::from("  try       explain this repository"),
             String::from("  input     Start typing your task and press Enter"),
         ],
         AppLanguage::SimplifiedChinese => vec![
-            format!(
-                "╭──────────────── 欢迎使用 hellox v{} ────────────────╮",
-                env!("CARGO_PKG_VERSION")
-            ),
-            String::from("│  面向本地优先的编码会话，交互路径继续对齐 Claude Code │"),
-            String::from("│  直接输入任务，或先用斜杠命令查看当前环境与状态      │"),
-            String::from("╰───────────────────────────────────────────────────────╯"),
+            format!("欢迎使用 hellox v{} ", env!("CARGO_PKG_VERSION")),
+            String::from("······················································"),
+            String::from(""),
+            String::from("                    ░░░░"),
+            String::from("                ░░░░░░░░░░"),
+            String::from("            ░░░░░░░░░░░░░░░░"),
+            String::from("          █████████"),
+            String::from("          ██▄█████▄██"),
+            String::from("          █████████"),
+            String::from("·······█ █   █ █······································"),
             String::new(),
             format!("  目录      {}", session.working_directory().display()),
             format!("  模型      {}", session.model()),
@@ -244,7 +255,7 @@ fn welcome_banner_lines(
                     "当前工作区待确认"
                 }
             ),
-            String::from("  命令      /help · /status · /doctor · /resume · /exit"),
+            String::from("  命令      / · /help · /status · /doctor · /resume · /exit"),
             String::from("  示例      解释一下这个仓库的结构"),
             String::from("  输入      直接输入任务后按 Enter"),
         ],

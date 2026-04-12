@@ -139,7 +139,7 @@ use crate::sessions::{format_session_list, list_sessions, load_session};
 use crate::settings_commands::{handle_model_command, handle_permissions_command};
 use crate::startup::{
     ensure_workspace_trusted, format_prompt_submission_error, prepare_interactive_session_launch,
-    prepare_noninteractive_session_launch, resolve_app_language, LaunchPreparation,
+    prepare_noninteractive_session_launch, resolve_app_language, AppLanguage, LaunchPreparation,
 };
 use crate::sync_commands::handle_sync_command;
 use crate::task_commands::handle_tasks_command;
@@ -281,14 +281,16 @@ async fn run_root_command(
 ) -> Result<()> {
     let stdin_is_terminal = io::stdin().is_terminal();
     let stdout_is_terminal = io::stdout().is_terminal();
+    let app_language = resolve_cli_language(config.as_ref());
     let prompt = resolve_root_prompt(prompt, stdin_is_terminal)?;
-    let session_id = match resolve_root_session_id(continue_last, resume, cwd.as_ref())? {
-        RootSessionSelection::Use(session_id) => session_id,
-        RootSessionSelection::PrintListing(listing) => {
-            println!("{listing}");
-            return Ok(());
-        }
-    };
+    let session_id =
+        match resolve_root_session_id(continue_last, resume, cwd.as_ref(), app_language)? {
+            RootSessionSelection::Use(session_id) => session_id,
+            RootSessionSelection::PrintListing(listing) => {
+                println!("{listing}");
+                return Ok(());
+            }
+        };
 
     if should_run_root_interactive(print, stdin_is_terminal, stdout_is_terminal) {
         run_interactive_session(
@@ -318,12 +320,10 @@ async fn run_root_command(
     }
 
     if print || session_id.is_some() {
-        return Err(anyhow!(
-            "A prompt argument or piped stdin input is required for non-interactive root mode."
-        ));
+        return Err(anyhow!(noninteractive_prompt_required_text(app_language)));
     }
 
-    print_usage();
+    print_usage(app_language);
     Ok(())
 }
 
@@ -486,22 +486,25 @@ fn resolve_root_session_id(
     continue_last: bool,
     resume: Option<Option<String>>,
     cwd: Option<&PathBuf>,
+    language: AppLanguage,
 ) -> Result<RootSessionSelection> {
     if continue_last {
         let working_directory = resolve_root_working_directory(cwd)?;
         let session_id = find_latest_session_for_working_directory(&working_directory)?;
         return match session_id {
             Some(session_id) => Ok(RootSessionSelection::Use(Some(session_id))),
-            None => Err(anyhow!(
-                "No persisted session found for `{}`. Use `hellox session list` to inspect available sessions.",
-                normalize_working_directory(&working_directory)
-            )),
+            None => Err(anyhow!(no_persisted_session_for_directory_text(
+                language,
+                &normalize_working_directory(&working_directory)
+            ))),
         };
     }
 
     match resume {
         None => Ok(RootSessionSelection::Use(None)),
-        Some(None) => Ok(RootSessionSelection::PrintListing(root_resume_help_text()?)),
+        Some(None) => Ok(RootSessionSelection::PrintListing(root_resume_help_text(
+            language,
+        )?)),
         Some(Some(session_id)) => {
             load_session(&sessions_root(), &session_id)?;
             Ok(RootSessionSelection::Use(Some(session_id)))
@@ -529,17 +532,64 @@ fn normalize_working_directory(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-fn root_resume_help_text() -> Result<String> {
+fn root_resume_help_text(language: AppLanguage) -> Result<String> {
     let sessions = list_sessions(&sessions_root())?;
     if sessions.is_empty() {
-        return Ok(String::from(
-            "No persisted sessions found. Start a session with persistence enabled first.",
-        ));
+        return Ok(no_persisted_sessions_text(language).to_string());
     }
     Ok(format!(
-        "Use `hellox --resume <session-id>` to switch sessions.\n\n{}",
+        "{}\n\n{}",
+        root_resume_usage_text(language),
         format_session_list(&sessions)
     ))
+}
+
+fn resolve_cli_language(config_path: Option<&PathBuf>) -> AppLanguage {
+    let path = config_path.cloned().unwrap_or_else(default_config_path);
+    let config =
+        load_or_default(Some(path)).unwrap_or_else(|_| hellox_config::HelloxConfig::default());
+    resolve_app_language(&config)
+}
+
+fn noninteractive_prompt_required_text(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => {
+            "A prompt argument or piped stdin input is required for non-interactive root mode."
+        }
+        AppLanguage::SimplifiedChinese => {
+            "非交互根命令模式需要提供 prompt 参数，或通过 stdin 管道输入内容。"
+        }
+    }
+}
+
+fn no_persisted_sessions_text(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => {
+            "No persisted sessions found. Start a session with persistence enabled first."
+        }
+        AppLanguage::SimplifiedChinese => "未找到已持久化会话。请先启动一个启用了持久化的会话。",
+    }
+}
+
+fn root_resume_usage_text(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Use `hellox --resume <session-id>` to switch sessions.",
+        AppLanguage::SimplifiedChinese => "使用 `hellox --resume <session-id>` 可切换到指定会话。",
+    }
+}
+
+fn no_persisted_session_for_directory_text(
+    language: AppLanguage,
+    working_directory: &str,
+) -> String {
+    match language {
+        AppLanguage::English => format!(
+            "No persisted session found for `{working_directory}`. Use `hellox session list` to inspect available sessions."
+        ),
+        AppLanguage::SimplifiedChinese => format!(
+            "目录 `{working_directory}` 还没有已持久化会话。请先使用 `hellox session list` 查看可用会话。"
+        ),
+    }
 }
 
 pub(crate) enum RootSessionSelection {

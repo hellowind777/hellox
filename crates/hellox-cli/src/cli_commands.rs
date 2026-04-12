@@ -40,6 +40,7 @@ use crate::memory_panel::render_memory_panel;
 use crate::search::{format_search_results, merge_search_hits, search_memories, search_sessions};
 use crate::session_panel::render_session_panel;
 use crate::sessions::{format_session_detail, format_session_list, list_sessions, load_session};
+use crate::startup::resolve_app_language;
 use crate::transcript::{default_share_path, export_stored_session_markdown};
 
 pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
@@ -244,7 +245,15 @@ pub fn handle_doctor_command() -> Result<()> {
     let config_path = default_config_path();
     let config = load_or_default(Some(config_path.clone()))?;
     let workspace_root = env::current_dir()?;
-    println!("{}", doctor_text(&workspace_root, &config_path, &config)?);
+    println!(
+        "{}",
+        doctor_text(
+            &workspace_root,
+            &config_path,
+            &config,
+            resolve_app_language(&config)
+        )?
+    );
     Ok(())
 }
 
@@ -255,22 +264,30 @@ pub fn handle_status_command() -> Result<()> {
     let stats = gather_workspace_stats(&workspace_root)?;
     println!(
         "{}",
-        status_text(&workspace_root, &config_path, &config, &stats)
+        status_text(
+            &workspace_root,
+            &config_path,
+            &config,
+            &stats,
+            resolve_app_language(&config)
+        )
     );
     Ok(())
 }
 
 pub fn handle_usage_command() -> Result<()> {
     let workspace_root = env::current_dir()?;
+    let config = load_or_default(Some(default_config_path()))?;
     let stats = gather_workspace_stats(&workspace_root)?;
-    println!("{}", usage_text(&stats));
+    println!("{}", usage_text(&stats, resolve_app_language(&config)));
     Ok(())
 }
 
 pub fn handle_stats_command() -> Result<()> {
     let workspace_root = env::current_dir()?;
+    let config = load_or_default(Some(default_config_path()))?;
     let stats = gather_workspace_stats(&workspace_root)?;
-    println!("{}", stats_text(&stats));
+    println!("{}", stats_text(&stats, resolve_app_language(&config)));
     Ok(())
 }
 
@@ -279,7 +296,10 @@ pub fn handle_cost_command() -> Result<()> {
     let config_path = default_config_path();
     let config = load_or_default(Some(config_path))?;
     let stats = gather_workspace_stats(&workspace_root)?;
-    println!("{}", cost_text(&stats, &config));
+    println!(
+        "{}",
+        cost_text(&stats, &config, resolve_app_language(&config))
+    );
     Ok(())
 }
 

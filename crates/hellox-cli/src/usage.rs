@@ -1,8 +1,10 @@
-pub fn print_usage() {
-    println!("hellox starts an interactive session by default. Use -p/--print for non-interactive output.");
+use crate::startup::AppLanguage;
+
+pub fn print_usage(language: AppLanguage) {
+    println!("{}", usage_intro(language));
     println!();
     print_section(
-        "Core local commands:",
+        core_local_commands_title(language),
         &[
             "hellox [prompt]",
             "hellox -p|--print [prompt]",
@@ -77,7 +79,7 @@ pub fn print_usage() {
     );
     println!();
     print_section(
-        "Local integration commands:",
+        local_integration_commands_title(language),
         &[
             "hellox bridge status|panel [session-id]|sessions|show-session <session-id>|stdio",
             "hellox ide status|panel",
@@ -114,7 +116,7 @@ pub fn print_usage() {
     );
     println!();
     print_section(
-        "User-managed remote commands:",
+        user_managed_remote_commands_title(language),
         &[
             "hellox auth status|accounts|show <account-id>",
             "hellox auth login <account-id> --access-token <token> [--provider <name>]",
@@ -148,5 +150,37 @@ fn print_section(title: &str, commands: &[&str]) {
     println!("{title}");
     for command in commands {
         println!("  {command}");
+    }
+}
+
+fn usage_intro(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => {
+            "hellox starts an interactive session by default. Use -p/--print for non-interactive output."
+        }
+        AppLanguage::SimplifiedChinese => {
+            "hellox 默认启动交互式会话。如需非交互输出，请使用 -p/--print。"
+        }
+    }
+}
+
+fn core_local_commands_title(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Core local commands:",
+        AppLanguage::SimplifiedChinese => "核心本地命令：",
+    }
+}
+
+fn local_integration_commands_title(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Local integration commands:",
+        AppLanguage::SimplifiedChinese => "本地集成命令：",
+    }
+}
+
+fn user_managed_remote_commands_title(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "User-managed remote commands:",
+        AppLanguage::SimplifiedChinese => "用户自管远程命令：",
     }
 }
