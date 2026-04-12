@@ -144,7 +144,7 @@ fn materialize_local_file_references_in(
         other => other,
     };
 
-    let mut messages = Vec::with_capacity(request.messages.len());
+    let mut messages = Vec::new();
     for mut message in request.messages {
         message.content =
             materialize_message_content(files_root, message.content, allow_unresolved_file_source)?;
@@ -213,7 +213,7 @@ fn materialize_blocks(
     blocks: Vec<ContentBlock>,
     allow_unresolved_file_source: bool,
 ) -> Result<Vec<ContentBlock>, GatewayHttpError> {
-    let mut output = Vec::with_capacity(blocks.len());
+    let mut output = Vec::new();
     for block in blocks {
         output.push(materialize_block(
             files_root,

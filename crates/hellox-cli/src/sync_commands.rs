@@ -190,11 +190,7 @@ fn build_remote_sync_client(environment_name: &str) -> Result<RemoteSyncClient> 
     let config = load_or_default(None)?;
     let auth_store = LocalAuthStoreBackend::default().load_auth_store()?;
     let access = remote_environment_access(&config, &auth_store, environment_name)?;
-    Ok(RemoteSyncClient::new(
-        access.server_url,
-        access.access_token,
-        access.device_token,
-    ))
+    RemoteSyncClient::new(access.server_url, access.access_token, access.device_token)
 }
 
 fn read_json<T>(path: &Path) -> Result<T>

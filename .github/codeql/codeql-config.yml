@@ -1,0 +1,7 @@
+name: HelloX CodeQL
+
+query-filters:
+  - exclude:
+      id: rust/cleartext-logging
+  - exclude:
+      id: rust/path-injection

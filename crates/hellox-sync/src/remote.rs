@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -6,7 +8,7 @@ use anyhow::{anyhow, Context, Result};
 use hellox_config::config_root;
 use reqwest::blocking::{Client, RequestBuilder};
 use reqwest::header::{AUTHORIZATION, ETAG, IF_NONE_MATCH};
-use reqwest::{Method, StatusCode};
+use reqwest::{Method, StatusCode, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -57,7 +59,7 @@ pub enum RemoteFetch<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteSyncClient {
-    server_url: String,
+    server_url: Url,
     access_token: String,
     device_token: Option<String>,
 }
@@ -67,19 +69,19 @@ impl RemoteSyncClient {
         server_url: impl Into<String>,
         access_token: impl Into<String>,
         device_token: Option<String>,
-    ) -> Self {
-        Self {
-            server_url: server_url.into().trim_end_matches('/').to_string(),
+    ) -> Result<Self> {
+        Ok(Self {
+            server_url: parse_sensitive_base_url(&server_url.into())?,
             access_token: access_token.into(),
             device_token,
-        }
+        })
     }
 
     pub fn push_settings_snapshot(
         &self,
         snapshot: &SettingsSyncSnapshot,
     ) -> Result<SettingsSyncSnapshot> {
-        self.request(Method::PUT, "/sync/settings")
+        self.request(Method::PUT, &["sync", "settings"])
             .json(snapshot)
             .send()
             .context("failed to upload settings snapshot")
@@ -88,7 +90,7 @@ impl RemoteSyncClient {
 
     pub fn pull_settings_snapshot(&self) -> Result<Option<SettingsSyncSnapshot>> {
         let response = self
-            .request(Method::GET, "/sync/settings")
+            .request(Method::GET, &["sync", "settings"])
             .send()
             .context("failed to download settings snapshot")?;
         if response.status() == StatusCode::NOT_FOUND {
@@ -102,7 +104,7 @@ impl RemoteSyncClient {
         repo_id: &str,
         snapshot: &TeamMemorySnapshot,
     ) -> Result<TeamMemorySnapshot> {
-        self.request(Method::PUT, &format!("/sync/team-memory/{repo_id}"))
+        self.request(Method::PUT, &["sync", "team-memory", repo_id])
             .json(snapshot)
             .send()
             .context("failed to sync team memory snapshot")
@@ -113,24 +115,29 @@ impl RemoteSyncClient {
         &self,
         etag: Option<&str>,
     ) -> Result<RemoteFetch<ManagedSettingsDocument>> {
-        self.fetch_document("/managed-settings", etag)
+        self.fetch_document(&["managed-settings"], etag)
     }
 
     pub fn fetch_policy_limits(
         &self,
         etag: Option<&str>,
     ) -> Result<RemoteFetch<PolicyLimitsDocument>> {
-        self.fetch_document("/policy-limits", etag)
+        self.fetch_document(&["policy-limits"], etag)
     }
 
-    fn fetch_document<T>(&self, path: &str, etag: Option<&str>) -> Result<RemoteFetch<T>>
+    fn fetch_document<T>(
+        &self,
+        path_segments: &[&str],
+        etag: Option<&str>,
+    ) -> Result<RemoteFetch<T>>
     where
         T: DeserializeOwned,
     {
-        let mut request = self.request(Method::GET, path);
+        let mut request = self.request(Method::GET, path_segments);
         if let Some(etag) = etag {
             request = request.header(IF_NONE_MATCH, etag);
         }
+        let path = format!("/{}", path_segments.join("/"));
         let response = request
             .send()
             .with_context(|| format!("failed to fetch remote document from {path}"))?;
@@ -147,15 +154,54 @@ impl RemoteSyncClient {
         }
     }
 
-    fn request(&self, method: Method, path: &str) -> RequestBuilder {
+    fn request(&self, method: Method, path_segments: &[&str]) -> RequestBuilder {
+        let mut url = self.server_url.clone();
+        {
+            let mut segments = url
+                .path_segments_mut()
+                .expect("validated HTTP(S) base URL must support path segments");
+            segments.pop_if_empty();
+            for segment in path_segments {
+                segments.push(segment);
+            }
+        }
         let mut request = Client::new()
-            .request(method, format!("{}{}", self.server_url, path))
+            .request(method, url)
             .header(AUTHORIZATION, format!("Bearer {}", self.access_token));
         if let Some(device_token) = self.device_token.as_deref() {
             request = request.header("x-hellox-device-token", device_token);
         }
         request
     }
+}
+
+fn parse_sensitive_base_url(value: &str) -> Result<Url> {
+    let trimmed = value.trim().trim_end_matches('/');
+    let url = Url::parse(&format!("{trimmed}/")).context("failed to parse remote server URL")?;
+    if is_sensitive_http_url_allowed(&url) {
+        Ok(url)
+    } else {
+        Err(anyhow!(
+            "remote server URL must use HTTPS or loopback HTTP for token transport"
+        ))
+    }
+}
+
+fn is_sensitive_http_url_allowed(url: &Url) -> bool {
+    if url.scheme() == "https" {
+        return true;
+    }
+    if url.scheme() != "http" {
+        return false;
+    }
+
+    url.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<IpAddr>()
+                .map(|address| address.is_loopback())
+                .unwrap_or(false)
+    })
 }
 
 pub fn cache_root() -> PathBuf {

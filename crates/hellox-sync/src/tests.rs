@@ -131,7 +131,8 @@ async fn remote_sync_client_handles_snapshots_and_etag_documents() {
         format!("http://{address}"),
         "access-token-123",
         Some("device-token-123".to_string()),
-    );
+    )
+    .expect("build remote sync client");
 
     let uploaded = tokio::task::spawn_blocking({
         let client = client.clone();
@@ -233,6 +234,13 @@ async fn remote_sync_client_handles_snapshots_and_etag_documents() {
         }
         other => panic!("unexpected policy fetch result: {other:?}"),
     }
+}
+
+#[test]
+fn remote_sync_client_requires_https_or_loopback_http() {
+    assert!(RemoteSyncClient::new("http://remote.example.test", "access-token-123", None).is_err());
+    assert!(RemoteSyncClient::new("https://remote.example.test", "access-token-123", None).is_ok());
+    assert!(RemoteSyncClient::new("http://127.0.0.1:7821", "access-token-123", None).is_ok());
 }
 
 #[derive(Default)]

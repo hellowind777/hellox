@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use reqwest::{blocking::Client, Url};
@@ -153,11 +155,12 @@ pub fn generate_state() -> String {
 }
 
 fn request_token(token_url: &str, form: Vec<(String, String)>) -> Result<OAuthTokenResponse> {
+    let token_url = parse_sensitive_http_url(token_url, "OAuth token URL")?;
     let response = Client::new()
-        .post(token_url)
+        .post(token_url.clone())
         .form(&form)
         .send()
-        .with_context(|| format!("failed to send OAuth request to {token_url}"))?;
+        .with_context(|| format!("failed to send OAuth request to {}", token_url.as_str()))?;
     let status = response.status();
     if !status.is_success() {
         let body = response
@@ -170,10 +173,41 @@ fn request_token(token_url: &str, form: Vec<(String, String)>) -> Result<OAuthTo
         ));
     }
 
-    let raw: RawOAuthTokenResponse = response
-        .json()
-        .with_context(|| format!("failed to parse OAuth token response from {token_url}"))?;
+    let raw: RawOAuthTokenResponse = response.json().with_context(|| {
+        format!(
+            "failed to parse OAuth token response from {}",
+            token_url.as_str()
+        )
+    })?;
     Ok(raw.into_response())
+}
+
+fn parse_sensitive_http_url(value: &str, label: &str) -> Result<Url> {
+    let url = Url::parse(value).with_context(|| format!("failed to parse {label}"))?;
+    if is_sensitive_http_url_allowed(&url) {
+        Ok(url)
+    } else {
+        Err(anyhow!(
+            "{label} must use HTTPS or loopback HTTP for token transport"
+        ))
+    }
+}
+
+fn is_sensitive_http_url_allowed(url: &Url) -> bool {
+    if url.scheme() == "https" {
+        return true;
+    }
+    if url.scheme() != "http" {
+        return false;
+    }
+
+    url.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<IpAddr>()
+                .map(|address| address.is_loopback())
+                .unwrap_or(false)
+    })
 }
 
 fn append_resource_param(params: &mut Vec<(String, String)>, config: &OAuthClientConfig) {

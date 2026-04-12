@@ -168,6 +168,24 @@ async fn oauth_exchange_and_refresh_store_tokens() {
     assert!(account.expires_at.is_some());
 }
 
+#[test]
+fn oauth_token_exchange_rejects_non_loopback_http() {
+    let config = OAuthClientConfig {
+        provider: "hellox-cloud".to_string(),
+        client_id: "client-123".to_string(),
+        authorize_url: "https://auth.example.test/authorize".to_string(),
+        token_url: "http://auth.example.test/token".to_string(),
+        redirect_url: "http://127.0.0.1:8910/callback".to_string(),
+        resource: None,
+        scopes: vec!["user:profile".to_string()],
+        login_hint: None,
+    };
+
+    let err = exchange_oauth_authorization_code(&config, "auth-code-123", "verifier-123")
+        .expect_err("non-loopback HTTP token URL must fail before request");
+    assert!(err.to_string().contains("HTTPS or loopback HTTP"));
+}
+
 #[derive(Debug, Deserialize)]
 struct OAuthTokenForm {
     grant_type: String,
