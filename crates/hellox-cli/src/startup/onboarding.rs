@@ -5,7 +5,14 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use hellox_auth::{get_provider_key, set_provider_key, LocalAuthStoreBackend};
 use hellox_config::{save_config, HelloxConfig, ProviderConfig};
+use hellox_tui::{render_cards, Card};
 
+use super::onboarding_copy::{
+    api_key_prompt, detected_finish_prompt, endpoint_cards, endpoint_prompt, existing_setup_cards,
+    finish_prompt, intro_cards, model_cards, model_invalid, model_prompt, onboarding_title,
+    provider_cards, provider_invalid, provider_prompt, required_value_invalid, review_cards,
+    step_label, success_cards, ModelPreset, ProviderOption,
+};
 use super::AppLanguage;
 
 #[derive(Clone, Debug)]
@@ -71,36 +78,195 @@ pub fn run_interactive_provider_onboarding(
         return Ok(OnboardingOutcome::default());
     }
 
-    println!();
-    for line in onboarding_intro_lines(language) {
-        println!("{line}");
-    }
+    print_title(language, onboarding_title(language));
+    print_cards(&intro_cards(language));
 
     if readiness.has_api_key {
-        config.ui.has_completed_onboarding = true;
-        save_config(Some(config_path.to_path_buf()), config)?;
-        println!("{}", onboarding_existing_config_text(language));
-        println!();
+        handle_existing_setup(config_path, config, selected_model, language, &readiness)?;
         return Ok(OnboardingOutcome::default());
     }
 
-    let selection = prompt_provider_selection(language)?;
-    if selection == 3 {
+    let provider = select_provider(language)?;
+    if provider == ProviderOption::Exit {
         return Ok(OnboardingOutcome {
             exit_requested: true,
             model_override: None,
         });
     }
 
+    let model = select_model(language, provider)?;
+    let base_url = collect_provider_connection(language, provider, config)?;
+    let api_key = prompt_required(language, api_key_prompt(language))?;
+
+    println!();
+    println!(
+        "{}",
+        step_label(
+            language,
+            4,
+            4,
+            match language {
+                AppLanguage::English => "Review and continue",
+                AppLanguage::SimplifiedChinese => "确认并继续",
+            }
+        )
+    );
+    print_cards(&review_cards(language, provider, model, &base_url));
+    prompt_enter(finish_prompt(language))?;
+
+    persist_onboarding_selection(
+        config_path,
+        config,
+        selected_model,
+        provider,
+        model,
+        base_url,
+        api_key,
+    )?;
+
+    println!();
+    print_cards(&success_cards(
+        language,
+        provider,
+        model,
+        &current_provider_base_url(
+            config,
+            provider
+                .config_key()
+                .ok_or_else(|| anyhow!("provider selection missing config key"))?,
+        ),
+    ));
+    println!();
+    Ok(OnboardingOutcome {
+        exit_requested: false,
+        model_override: Some(selected_model.clone()),
+    })
+}
+
+fn handle_existing_setup(
+    config_path: &Path,
+    config: &mut HelloxConfig,
+    selected_model: &str,
+    language: AppLanguage,
+    readiness: &ProviderReadiness,
+) -> Result<()> {
+    let base_url = current_provider_base_url(config, &readiness.provider_name);
+    println!();
+    println!(
+        "{}",
+        step_label(
+            language,
+            1,
+            1,
+            match language {
+                AppLanguage::English => "Detected setup",
+                AppLanguage::SimplifiedChinese => "检测到现有配置",
+            }
+        )
+    );
+    print_cards(&existing_setup_cards(
+        language,
+        &readiness.provider_name,
+        readiness.provider_kind,
+        selected_model,
+        &base_url,
+    ));
+    prompt_enter(detected_finish_prompt(language))?;
+    config.ui.has_completed_onboarding = true;
+    save_config(Some(config_path.to_path_buf()), config)?;
+    println!();
+    Ok(())
+}
+
+fn select_provider(language: AppLanguage) -> Result<ProviderOption> {
+    println!();
+    println!(
+        "{}",
+        step_label(
+            language,
+            1,
+            4,
+            match language {
+                AppLanguage::English => "Provider",
+                AppLanguage::SimplifiedChinese => "选择 provider",
+            }
+        )
+    );
+    print_cards(&provider_cards(language));
+    prompt_choice(
+        provider_prompt(language),
+        ProviderOption::OpenAiCompatible,
+        ProviderOption::from_input,
+        provider_invalid(language),
+    )
+}
+
+fn select_model(language: AppLanguage, provider: ProviderOption) -> Result<ModelPreset> {
+    println!();
+    println!(
+        "{}",
+        step_label(
+            language,
+            2,
+            4,
+            match language {
+                AppLanguage::English => "Default model",
+                AppLanguage::SimplifiedChinese => "选择默认模型",
+            }
+        )
+    );
+    print_cards(&model_cards(language, provider));
+    let default = match provider {
+        ProviderOption::OpenAiCompatible => ModelPreset::OpenAiOpus,
+        ProviderOption::Anthropic => ModelPreset::AnthropicOpus,
+        ProviderOption::Exit => return Err(anyhow!("cannot choose model for exit option")),
+    };
+    prompt_choice(
+        model_prompt(language, provider),
+        default,
+        |value| ModelPreset::from_input(provider, value),
+        model_invalid(language, provider),
+    )
+}
+
+fn collect_provider_connection(
+    language: AppLanguage,
+    provider: ProviderOption,
+    config: &HelloxConfig,
+) -> Result<String> {
+    println!();
+    println!(
+        "{}",
+        step_label(
+            language,
+            3,
+            4,
+            match language {
+                AppLanguage::English => "Endpoint and API key",
+                AppLanguage::SimplifiedChinese => "配置连接入口与 API Key",
+            }
+        )
+    );
+    print_cards(&endpoint_cards(language, provider));
+    let provider_name = provider
+        .config_key()
+        .ok_or_else(|| anyhow!("provider selection does not map to config key"))?;
+    let current = current_provider_base_url(config, provider_name);
+    prompt_optional(&endpoint_prompt(language, provider, &current), current)
+}
+
+fn persist_onboarding_selection(
+    config_path: &Path,
+    config: &mut HelloxConfig,
+    selected_model: &mut String,
+    provider: ProviderOption,
+    model: ModelPreset,
+    base_url: String,
+    api_key: String,
+) -> Result<()> {
     let mut auth_store = LocalAuthStoreBackend::default().load_auth_store()?;
-    match selection {
-        1 => {
-            let base_url = prompt_optional(
-                language,
-                anthropic_base_url_prompt(language),
-                current_anthropic_base_url(config),
-            )?;
-            let api_key = prompt_required(language, api_key_prompt(language))?;
+    match provider {
+        ProviderOption::Anthropic => {
             config.providers.insert(
                 "anthropic".to_string(),
                 ProviderConfig::Anthropic {
@@ -109,16 +275,9 @@ pub fn run_interactive_provider_onboarding(
                     api_key_env: current_anthropic_env(config),
                 },
             );
-            config.session.model = "opus".to_string();
-            *selected_model = "opus".to_string();
             set_provider_key(&mut auth_store, "anthropic".to_string(), api_key);
         }
-        2 => {
-            let base_url = prompt_required(
-                language,
-                &openai_base_url_prompt(language, current_openai_base_url(config)),
-            )?;
-            let api_key = prompt_required(language, api_key_prompt(language))?;
+        ProviderOption::OpenAiCompatible => {
             config.providers.insert(
                 "openai".to_string(),
                 ProviderConfig::OpenAiCompatible {
@@ -126,42 +285,17 @@ pub fn run_interactive_provider_onboarding(
                     api_key_env: current_openai_env(config),
                 },
             );
-            config.session.model = "openai_opus".to_string();
-            *selected_model = "openai_opus".to_string();
             set_provider_key(&mut auth_store, "openai".to_string(), api_key);
         }
-        _ => return Err(anyhow!("unsupported onboarding selection `{selection}`")),
+        ProviderOption::Exit => return Err(anyhow!("cannot persist exit provider selection")),
     }
 
+    config.session.model = model.profile_name().to_string();
+    *selected_model = model.profile_name().to_string();
     config.ui.has_completed_onboarding = true;
     save_config(Some(config_path.to_path_buf()), config)?;
     LocalAuthStoreBackend::default().save_auth_store(&auth_store)?;
-
-    println!("{}", onboarding_success_text(language, selected_model));
-    println!();
-    Ok(OnboardingOutcome {
-        exit_requested: false,
-        model_override: Some(selected_model.clone()),
-    })
-}
-
-fn prompt_provider_selection(language: AppLanguage) -> Result<u8> {
-    loop {
-        for line in provider_selection_lines(language) {
-            println!("{line}");
-        }
-        print!("{}", provider_selection_prompt(language));
-        io::stdout().flush()?;
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        match input.trim() {
-            "1" => return Ok(1),
-            "2" => return Ok(2),
-            "3" => return Ok(3),
-            _ => println!("{}", provider_selection_invalid(language)),
-        }
-    }
+    Ok(())
 }
 
 fn prompt_required(language: AppLanguage, prompt: &str) -> Result<String> {
@@ -178,7 +312,7 @@ fn prompt_required(language: AppLanguage, prompt: &str) -> Result<String> {
     }
 }
 
-fn prompt_optional(_language: AppLanguage, prompt: &str, fallback: String) -> Result<String> {
+fn prompt_optional(prompt: &str, fallback: String) -> Result<String> {
     print!("{prompt}");
     io::stdout().flush()?;
     let mut input = String::new();
@@ -191,99 +325,46 @@ fn prompt_optional(_language: AppLanguage, prompt: &str, fallback: String) -> Re
     }
 }
 
-fn onboarding_intro_lines(language: AppLanguage) -> Vec<&'static str> {
-    match language {
-        AppLanguage::English => vec![
-            "First-time setup:",
-            "hellox uses third-party providers through the local gateway and converts requests into Anthropic Messages-compatible calls.",
-        ],
-        AppLanguage::SimplifiedChinese => vec![
-            "首次配置：",
-            "hellox 会通过本地 gateway 接入第三方 provider，并统一转换成 Anthropic Messages 兼容请求。",
-        ],
-    }
-}
-
-fn onboarding_existing_config_text(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => {
-            "Existing provider credentials were detected. Setup is marked as complete."
+fn prompt_choice<T, F>(prompt: &str, default: T, parser: F, invalid_text: &str) -> Result<T>
+where
+    T: Copy,
+    F: Fn(&str) -> Option<T>,
+{
+    loop {
+        print!("{prompt}");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Ok(default);
         }
-        AppLanguage::SimplifiedChinese => "已检测到现有 provider 凭据，首次引导已标记完成。",
-    }
-}
-
-fn provider_selection_lines(language: AppLanguage) -> Vec<&'static str> {
-    match language {
-        AppLanguage::English => vec![
-            "Choose an API provider:",
-            "  1. Anthropic-compatible endpoint",
-            "  2. OpenAI-compatible endpoint (recommended for third-party channels)",
-            "  3. Exit",
-        ],
-        AppLanguage::SimplifiedChinese => vec![
-            "请选择 API provider：",
-            "  1. Anthropic 兼容接口",
-            "  2. OpenAI Compatible 接口（推荐，适配第三方渠道）",
-            "  3. 退出",
-        ],
-    }
-}
-
-fn provider_selection_prompt(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "Select [1/2/3]: ",
-        AppLanguage::SimplifiedChinese => "请选择 [1/2/3]：",
-    }
-}
-
-fn provider_selection_invalid(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "Please enter 1, 2, or 3.",
-        AppLanguage::SimplifiedChinese => "请输入 1、2 或 3。",
-    }
-}
-
-fn required_value_invalid(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "This value cannot be empty.",
-        AppLanguage::SimplifiedChinese => "此项不能为空。",
-    }
-}
-
-fn api_key_prompt(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "API key: ",
-        AppLanguage::SimplifiedChinese => "API Key：",
-    }
-}
-
-fn anthropic_base_url_prompt(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "Anthropic base URL (press Enter to keep current): ",
-        AppLanguage::SimplifiedChinese => "Anthropic Base URL（直接回车保持当前值）：",
-    }
-}
-
-fn openai_base_url_prompt(language: AppLanguage, current: String) -> String {
-    match language {
-        AppLanguage::English => {
-            format!("OpenAI-compatible base URL (current: {current}): ")
+        if let Some(choice) = parser(trimmed) {
+            return Ok(choice);
         }
-        AppLanguage::SimplifiedChinese => {
-            format!("OpenAI Compatible Base URL（当前：{current}）：")
-        }
+        println!("{invalid_text}");
     }
 }
 
-fn onboarding_success_text(language: AppLanguage, model: &str) -> String {
+fn prompt_enter(prompt: &str) -> Result<()> {
+    print!("{prompt}");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(())
+}
+
+fn print_title(language: AppLanguage, title: &str) {
+    println!();
     match language {
-        AppLanguage::English => {
-            format!("Provider setup completed. Default session model is now `{model}`.")
-        }
-        AppLanguage::SimplifiedChinese => {
-            format!("Provider 配置完成，默认会话模型已切换为 `{model}`。")
-        }
+        AppLanguage::English => println!("{title}\n{}", "·".repeat(title.len().max(12))),
+        AppLanguage::SimplifiedChinese => println!("{title}\n{}", "·".repeat(24)),
+    }
+}
+
+fn print_cards(cards: &[Card]) {
+    for line in render_cards(cards) {
+        println!("{line}");
     }
 }
 
@@ -324,12 +405,38 @@ fn current_openai_env(config: &HelloxConfig) -> String {
     }
 }
 
+fn current_provider_base_url(config: &HelloxConfig, provider_name: &str) -> String {
+    match provider_name {
+        "anthropic" => current_anthropic_base_url(config),
+        "openai" => current_openai_base_url(config),
+        _ => current_openai_base_url(config),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use hellox_auth::{get_provider_key, LocalAuthStoreBackend};
     use hellox_config::HelloxConfig;
     use std::env;
 
-    use super::resolve_provider_readiness;
+    use super::{
+        current_provider_base_url, persist_onboarding_selection, resolve_provider_readiness,
+    };
+    use crate::startup::onboarding_copy::{ModelPreset, ProviderOption};
+
+    fn temp_root() -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let root = env::temp_dir().join(format!("hellox-onboarding-tests-{suffix}"));
+        fs::create_dir_all(&root).expect("create temp root");
+        root
+    }
 
     #[test]
     fn provider_readiness_detects_env_keys() {
@@ -348,5 +455,67 @@ mod tests {
         } else {
             env::remove_var("OPENAI_API_KEY");
         }
+    }
+
+    #[test]
+    fn current_provider_base_url_matches_provider_name() {
+        let config = HelloxConfig::default();
+        assert_eq!(
+            current_provider_base_url(&config, "openai"),
+            "https://api.openai.com/v1"
+        );
+        assert_eq!(
+            current_provider_base_url(&config, "anthropic"),
+            "https://api.anthropic.com"
+        );
+    }
+
+    #[test]
+    fn persist_onboarding_selection_writes_config_and_auth_store() {
+        let root = temp_root();
+        let config_path = root.join("config.toml");
+        let original_home = env::var_os("HOME");
+        let original_user_profile = env::var_os("USERPROFILE");
+        env::set_var("HOME", &root);
+        env::set_var("USERPROFILE", &root);
+
+        let mut config = HelloxConfig::default();
+        let mut selected_model = String::new();
+        persist_onboarding_selection(
+            &config_path,
+            &mut config,
+            &mut selected_model,
+            ProviderOption::OpenAiCompatible,
+            ModelPreset::OpenAiOpus,
+            "https://openrouter.ai/api/v1".to_string(),
+            "sk-test".to_string(),
+        )
+        .expect("persist onboarding selection");
+
+        let auth_store = LocalAuthStoreBackend::default()
+            .load_auth_store()
+            .expect("load auth store");
+
+        if let Some(value) = original_home {
+            env::set_var("HOME", value);
+        } else {
+            env::remove_var("HOME");
+        }
+        if let Some(value) = original_user_profile {
+            env::set_var("USERPROFILE", value);
+        } else {
+            env::remove_var("USERPROFILE");
+        }
+
+        assert!(config.ui.has_completed_onboarding);
+        assert_eq!(config.session.model, "openai_opus");
+        assert_eq!(selected_model, "openai_opus");
+        assert!(config_path.exists());
+        assert_eq!(
+            get_provider_key(&auth_store, "openai")
+                .expect("openai provider key")
+                .api_key,
+            "sk-test"
+        );
     }
 }

@@ -1,6 +1,7 @@
 mod gateway;
 mod localization;
 mod onboarding;
+mod onboarding_copy;
 mod trust;
 
 use std::path::PathBuf;
