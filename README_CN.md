@@ -261,17 +261,17 @@ Hellox 用一个 Rust workspace 把这些组合起来：
 
 ## 📖 文档入口
 
-### 建议先看
+GitHub 公开仓库只保留轻量公开说明。
+内部 AI 开发文档仅保留在本地开发环境中，不上传到 GitHub。
 
-| 文档 | 作用 |
+### 公开参考入口
+
+| 参考项 | 作用 |
 |------|------|
-| `docs/README.md` | 面向 AI 开发的文档地图和阅读顺序 |
-| `docs/AI_DEVELOPMENT_WORKFLOW.md` | AI 开发流程与源码对照规则 |
-| `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` | 当前本地能力覆盖度与剩余缺口 |
-| `docs/HELLOX_LOCAL_FIRST_BOUNDARIES.md` | local-first / remote-capable 产品边界 |
-| `docs/HELLOX_FEATURE_MATRIX.md` | 从 Claude Code 到 Rust crates 的能力映射 |
-| `docs/reference/claude-code/ARCHITECTURE.md` | 已归档的原始源码结构分析基线 |
-| `docs/HELLOX_PANE_HOST_RECORD_REPLAY.md` | pane-host 回放夹具设计 |
+| `README.md` | 项目公开总览、定位与快速开始 |
+| `README_CN.md` | 中文总览与上手说明 |
+| `Cargo.toml` | workspace 成员与共享依赖事实源 |
+| `crates/*` | 当前运行时行为、命令实现与测试的真实入口 |
 
 ### Workspace 结构
 
@@ -327,7 +327,7 @@ Hellox 用一个 Rust workspace 把这些组合起来：
 <details>
 <summary><strong>Q：如果我要贡献，从哪里开始最合适？</strong></summary>
 
-**A：** 建议先读 `docs/README.md` 和 `docs/AI_DEVELOPMENT_WORKFLOW.md`，再把 `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` 与相关源码 crate 对照起来看。
+**A：** 建议先读 `README.md`、`CONTRIBUTING.md`、`Cargo.toml`，再结合相关 `crates/*` 源码和测试开始。
 </details>
 
 ## 🛠️ 故障排除

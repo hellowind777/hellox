@@ -261,17 +261,18 @@ Hellox keeps those concerns in one Rust workspace:
 
 ## 📖 Documentation
 
-### Start here
+Public GitHub references are intentionally kept lightweight.
+The internal AI development docs live only in the local development workspace and are
+not published to GitHub.
 
-| Document | Purpose |
+### Public references
+
+| Reference | Purpose |
 |------|------|
-| `docs/README.md` | AI-oriented documentation map and reading order |
-| `docs/AI_DEVELOPMENT_WORKFLOW.md` | AI development workflow and source comparison rules |
-| `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` | Current local feature coverage and remaining gaps |
-| `docs/HELLOX_LOCAL_FIRST_BOUNDARIES.md` | Product boundary: local-first, remote-capable |
-| `docs/HELLOX_FEATURE_MATRIX.md` | Feature mapping from Claude Code to Rust crates |
-| `docs/reference/claude-code/ARCHITECTURE.md` | Archived source architecture analysis baseline |
-| `docs/HELLOX_PANE_HOST_RECORD_REPLAY.md` | Pane-host replay harness design |
+| `README.md` | Public project overview, positioning, and quick start |
+| `README_CN.md` | Chinese overview and onboarding |
+| `Cargo.toml` | Workspace members and shared dependency facts |
+| `crates/*` | Current source of truth for runtime behavior, commands, and tests |
 
 ### Workspace structure
 
@@ -327,7 +328,7 @@ Hellox keeps those concerns in one Rust workspace:
 <details>
 <summary><strong>Q: Where should I look first if I want to contribute?</strong></summary>
 
-**A:** Start with `docs/README.md` and `docs/AI_DEVELOPMENT_WORKFLOW.md`, then compare `docs/HELLOX_LOCAL_FEATURE_AUDIT.md` with the relevant source crates.
+**A:** Start with `README.md`, `CONTRIBUTING.md`, `Cargo.toml`, and the relevant `crates/*` source and tests.
 </details>
 
 ## 🛠️ Troubleshooting

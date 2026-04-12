@@ -5,8 +5,8 @@ Thanks for considering a contribution to Hellox.
 ## Before you start
 
 - Read [README.md](./README.md) or [README_CN.md](./README_CN.md)
-- Review the current local-first boundary in `docs/HELLOX_LOCAL_FIRST_BOUNDARIES.md`
-- Check current implementation status in `docs/HELLOX_LOCAL_FEATURE_AUDIT.md`
+- Review the current public repository boundary and workspace structure in the README files
+- Use `Cargo.toml` and the relevant `crates/*` sources as the current implementation truth
 - Follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 
 ## Recommended contribution flow

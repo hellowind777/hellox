@@ -67,9 +67,8 @@ body:
   - type: textarea
     id: references
     attributes:
-      label: Relevant docs or source paths
+      label: Relevant source paths
       description: Optional paths that help narrow the problem
       placeholder: |
-        docs/README.md
         crates/hellox-cli/src/workflow_commands.rs
-
+        crates/hellox-agent/src/tools

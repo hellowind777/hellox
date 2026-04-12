@@ -44,13 +44,12 @@ body:
   - type: textarea
     id: scope
     attributes:
-      label: Affected docs or source paths
+      label: Affected source paths
       description: Optional pointers for faster evaluation
       placeholder: |
-        docs/HELLOX_LOCAL_FEATURE_AUDIT.md
         crates/hellox-tui/src
+        crates/hellox-cli/src
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
-
