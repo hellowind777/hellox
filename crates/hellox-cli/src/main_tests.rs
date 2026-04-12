@@ -14,6 +14,20 @@ use crate::search::DEFAULT_SEARCH_LIMIT;
 use hellox_config::PermissionMode;
 
 #[test]
+fn parses_empty_root_command() {
+    let cli = Cli::try_parse_from(["hellox"]).expect("parse root command");
+    assert!(cli.command.is_none());
+}
+
+#[test]
+fn default_entry_uses_repl_only_for_interactive_terminals() {
+    assert!(crate::should_launch_default_repl(true, true));
+    assert!(!crate::should_launch_default_repl(false, true));
+    assert!(!crate::should_launch_default_repl(true, false));
+    assert!(!crate::should_launch_default_repl(false, false));
+}
+
+#[test]
 fn parses_session_share_command() {
     let cli = Cli::try_parse_from([
         "hellox",

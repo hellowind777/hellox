@@ -21,6 +21,8 @@ pub(crate) use crate::cli_ui_types::{BriefCommands, ToolsCommands};
 pub(crate) use crate::cli_workflow_types::WorkflowCommands;
 use hellox_config::PermissionMode;
 
+pub(crate) const DEFAULT_MAX_TURNS: usize = 12;
+
 #[derive(Debug, Parser)]
 #[command(name = "hellox")]
 #[command(
@@ -165,7 +167,7 @@ pub(crate) enum Commands {
         cwd: Option<PathBuf>,
         #[arg(long)]
         session_id: Option<String>,
-        #[arg(long, default_value_t = 12)]
+        #[arg(long, default_value_t = DEFAULT_MAX_TURNS)]
         max_turns: usize,
     },
     Repl {
@@ -179,7 +181,7 @@ pub(crate) enum Commands {
         cwd: Option<PathBuf>,
         #[arg(long)]
         session_id: Option<String>,
-        #[arg(long, default_value_t = 12)]
+        #[arg(long, default_value_t = DEFAULT_MAX_TURNS)]
         max_turns: usize,
     },
     #[command(hide = true)]

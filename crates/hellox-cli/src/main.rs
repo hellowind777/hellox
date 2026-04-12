@@ -96,6 +96,7 @@ mod workflow_test_support;
 mod workflows_tests;
 
 use std::env;
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -119,7 +120,7 @@ use crate::cli_commands::{
     handle_search, handle_session_command, handle_stats_command, handle_status_command,
     handle_usage_command,
 };
-use crate::cli_types::{Cli, Commands, GatewayCommands};
+use crate::cli_types::{Cli, Commands, GatewayCommands, DEFAULT_MAX_TURNS};
 use crate::config_commands::handle_config_command;
 use crate::extension_commands::{handle_hooks_command, handle_skills_command};
 use crate::install_commands::{handle_install_command, handle_upgrade_command};
@@ -220,36 +221,61 @@ async fn main() -> Result<()> {
             cwd,
             session_id,
             max_turns,
-        }) => {
-            let config_arg = config.clone();
-            let gateway_url_arg = gateway_url.clone();
-            let cwd_arg = cwd.clone();
-            let mut active_session_id = session_id.clone();
-            let mut active_model_override = model.clone();
-
-            loop {
-                let mut bootstrap = build_session(
-                    config_arg.clone(),
-                    gateway_url_arg.clone(),
-                    active_model_override.clone(),
-                    cwd_arg.clone(),
-                    active_session_id.clone(),
-                    max_turns,
-                )?;
-                match run_repl(&mut bootstrap.session, &bootstrap.repl_metadata).await? {
-                    ReplExit::Exit => break,
-                    ReplExit::Resume(session_id) => {
-                        active_session_id = Some(session_id);
-                        active_model_override = None;
-                    }
-                }
+        }) => run_interactive_session(model, gateway_url, config, cwd, session_id, max_turns)
+            .await?,
+        Some(Commands::WorkerRunAgent { job }) => run_worker_job(job).await?,
+        None => {
+            if should_launch_default_repl(io::stdin().is_terminal(), io::stdout().is_terminal()) {
+                run_interactive_session(None, None, None, None, None, DEFAULT_MAX_TURNS).await?;
+            } else {
+                print_usage();
             }
         }
-        Some(Commands::WorkerRunAgent { job }) => run_worker_job(job).await?,
-        None => print_usage(),
     }
 
     Ok(())
+}
+
+async fn run_interactive_session(
+    model: Option<String>,
+    gateway_url: Option<String>,
+    config: Option<PathBuf>,
+    cwd: Option<PathBuf>,
+    session_id: Option<String>,
+    max_turns: usize,
+) -> Result<()> {
+    let config_arg = config.clone();
+    let gateway_url_arg = gateway_url.clone();
+    let cwd_arg = cwd.clone();
+    let mut active_session_id = session_id.clone();
+    let mut active_model_override = model.clone();
+
+    loop {
+        let mut bootstrap = build_session(
+            config_arg.clone(),
+            gateway_url_arg.clone(),
+            active_model_override.clone(),
+            cwd_arg.clone(),
+            active_session_id.clone(),
+            max_turns,
+        )?;
+        match run_repl(&mut bootstrap.session, &bootstrap.repl_metadata).await? {
+            ReplExit::Exit => break,
+            ReplExit::Resume(session_id) => {
+                active_session_id = Some(session_id);
+                active_model_override = None;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn should_launch_default_repl(
+    stdin_is_terminal: bool,
+    stdout_is_terminal: bool,
+) -> bool {
+    stdin_is_terminal && stdout_is_terminal
 }
 
 pub(crate) fn build_session(
