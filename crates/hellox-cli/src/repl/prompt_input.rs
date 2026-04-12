@@ -207,7 +207,10 @@ pub(super) fn prompt_state(
     let placeholder = if has_prior_submit || session.message_count() > 0 {
         Some(continuation_placeholder(language))
     } else {
-        Some(example_placeholder(language, session.working_directory()))
+        Some(example_placeholder_for_workdir(
+            language,
+            session.working_directory(),
+        ))
     };
 
     ReplPromptState::with_placeholder_and_completions(
@@ -239,7 +242,10 @@ fn continuation_placeholder(language: AppLanguage) -> String {
     }
 }
 
-fn example_placeholder(language: AppLanguage, working_directory: &Path) -> String {
+pub(super) fn example_placeholder_for_workdir(
+    language: AppLanguage,
+    working_directory: &Path,
+) -> String {
     let is_rust_workspace = working_directory.join("Cargo.toml").exists();
     let is_js_workspace = working_directory.join("package.json").exists();
 

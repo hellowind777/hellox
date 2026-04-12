@@ -367,21 +367,23 @@ fn repl_banner_includes_welcome_context_and_commands() {
         &format!("Welcome to hellox v{} ", env!("CARGO_PKG_VERSION"))
     );
     assert!(lines.iter().any(|line| line.contains("██▄█████▄██")));
-    assert!(lines.iter().any(|line| line.contains("cwd       ")));
-    assert!(lines.iter().any(|line| line.contains("model     opus")));
+    assert!(lines.iter().any(|line| line.contains("[workspace]")));
+    assert!(lines.iter().any(|line| line.contains("cwd: ")));
+    assert!(lines.iter().any(|line| line.contains("model: opus")));
     assert!(lines
         .iter()
-        .any(|line| line.contains("session   new local session")));
+        .any(|line| line.contains("session: new local session")));
     assert!(lines
         .iter()
-        .any(|line| line.contains("/ · /help · /status · /doctor · /resume · /exit")));
+        .any(|line| line.contains("trust: workspace trusted")));
+    assert!(lines.iter().any(|line| line.contains("[start here]")));
     assert!(lines
         .iter()
-        .any(|line| line.contains("trust     workspace trusted")));
-    assert_eq!(
-        lines.last().expect("closing line"),
-        "  input     Start typing your task and press Enter"
-    );
+        .any(|line| line.contains("slash: type `/` then press Tab to browse commands")));
+    assert!(lines.iter().any(|line| line.contains("[quick commands]")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("/doctor — verify gateway and provider readiness")));
 }
 
 #[test]
@@ -395,13 +397,19 @@ fn repl_banner_supports_simplified_chinese_copy() {
         &format!("欢迎使用 hellox v{} ", env!("CARGO_PKG_VERSION"))
     );
     assert!(lines.iter().any(|line| line.contains("██▄█████▄██")));
+    assert!(lines.iter().any(|line| line.contains("[工作区]")));
+    assert!(lines.iter().any(|line| line.contains("目录：")));
     assert!(lines
         .iter()
-        .any(|line| line.contains("命令      / · /help · /status · /doctor · /resume · /exit")));
-    assert_eq!(
-        lines.last().expect("closing line"),
-        "  输入      直接输入任务后按 Enter"
-    );
+        .any(|line| line.contains("信任：当前工作区已信任")));
+    assert!(lines.iter().any(|line| line.contains("[开始使用]")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("斜杠：输入 `/` 后按 Tab 浏览命令")));
+    assert!(lines.iter().any(|line| line.contains("[快捷命令]")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("/workflow —— 浏览或运行本地工作流")));
 }
 
 #[test]

@@ -21,6 +21,7 @@ mod selectors;
 mod style_actions;
 mod task_actions;
 mod ui_actions;
+mod welcome_banner;
 mod workflow_actions;
 mod workflow_dashboard;
 mod workflow_panel_shortcuts;
@@ -157,7 +158,7 @@ impl CliReplDriver {
 #[async_trait]
 impl ReplLoopDriver<AgentSession> for CliReplDriver {
     fn banner_lines(&self, session: &AgentSession) -> Vec<String> {
-        welcome_banner_lines(session, self.language, self.workspace_trusted)
+        welcome_banner::welcome_banner_lines(session, self.language, self.workspace_trusted)
     }
 
     fn prompt_label(&self, _session: &AgentSession, _metadata: &ReplMetadata) -> String {
@@ -213,70 +214,6 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
             },
         }
         Ok(())
-    }
-}
-
-fn welcome_banner_lines(
-    session: &AgentSession,
-    language: AppLanguage,
-    workspace_trusted: bool,
-) -> Vec<String> {
-    let session_id = session.session_id().unwrap_or("new local session");
-    match language {
-        AppLanguage::English => vec![
-            format!("Welcome to hellox v{} ", env!("CARGO_PKG_VERSION")),
-            String::from("······················································"),
-            String::from(""),
-            String::from("                    ░░░░"),
-            String::from("                ░░░░░░░░░░"),
-            String::from("            ░░░░░░░░░░░░░░░░"),
-            String::from("          █████████"),
-            String::from("          ██▄█████▄██"),
-            String::from("          █████████"),
-            String::from("·······█ █   █ █······································"),
-            String::new(),
-            format!("  cwd       {}", session.working_directory().display()),
-            format!("  model     {}", session.model()),
-            format!("  session   {session_id}"),
-            format!(
-                "  trust     {}",
-                if workspace_trusted {
-                    "workspace trusted"
-                } else {
-                    "review required"
-                }
-            ),
-            String::from("  commands  / · /help · /status · /doctor · /resume · /exit"),
-            String::from("  try       explain this repository"),
-            String::from("  input     Start typing your task and press Enter"),
-        ],
-        AppLanguage::SimplifiedChinese => vec![
-            format!("欢迎使用 hellox v{} ", env!("CARGO_PKG_VERSION")),
-            String::from("······················································"),
-            String::from(""),
-            String::from("                    ░░░░"),
-            String::from("                ░░░░░░░░░░"),
-            String::from("            ░░░░░░░░░░░░░░░░"),
-            String::from("          █████████"),
-            String::from("          ██▄█████▄██"),
-            String::from("          █████████"),
-            String::from("·······█ █   █ █······································"),
-            String::new(),
-            format!("  目录      {}", session.working_directory().display()),
-            format!("  模型      {}", session.model()),
-            format!("  会话      {session_id}"),
-            format!(
-                "  信任      {}",
-                if workspace_trusted {
-                    "当前工作区已信任"
-                } else {
-                    "当前工作区待确认"
-                }
-            ),
-            String::from("  命令      / · /help · /status · /doctor · /resume · /exit"),
-            String::from("  示例      解释一下这个仓库的结构"),
-            String::from("  输入      直接输入任务后按 Enter"),
-        ],
     }
 }
 
