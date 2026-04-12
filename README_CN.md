@@ -381,6 +381,8 @@ cargo run -p hellox-cli -- doctor
 ## 🤝 参与贡献
 
 详见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+参与协作时请遵循 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，敏感安全问题请按
+[SECURITY.md](./SECURITY.md) 处理。
 
 当前最值得投入的方向包括：
 

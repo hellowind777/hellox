@@ -381,6 +381,8 @@ cargo run -p hellox-cli -- doctor
 ## 🤝 Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md).
+Please also follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), and use
+[SECURITY.md](./SECURITY.md) for sensitive security reports.
 
 For practical first issues, the most valuable contribution areas right now are:
 
