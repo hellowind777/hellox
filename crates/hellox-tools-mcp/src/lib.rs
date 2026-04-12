@@ -3,6 +3,7 @@ mod config;
 mod oauth;
 mod registry;
 mod runtime;
+mod tools;
 
 pub use auth::{
     auth_backend_for_config_path, clear_bearer_token, default_auth_backend, format_auth_status,
@@ -28,4 +29,8 @@ pub use runtime::{
     call_tool, format_prompt_get, format_prompt_list, format_resource_list, format_resource_read,
     format_tool_call, format_tool_list, get_prompt, list_prompts, list_resources, list_tools,
     parse_prompt_arguments, parse_tool_call_arguments, read_resource,
+};
+pub use tools::{
+    register_tools, GetMcpPromptTool, ListMcpPromptsTool, ListMcpResourcesTool, McpAuthTool,
+    McpTool, McpToolContext, ReadMcpResourceTool,
 };

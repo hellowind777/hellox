@@ -1132,8 +1132,11 @@ name = "hellox-tools-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "hellox-auth",
  "hellox-config",
+ "hellox-gateway-api",
+ "hellox-tool-runtime",
  "reqwest",
  "serde",
  "serde_json",
