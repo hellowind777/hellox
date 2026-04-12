@@ -1,82 +1,32 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use serde_json::{json, Value};
 
-use super::{LocalTool, LocalToolResult, ToolExecutionContext, ToolRegistry};
+use super::{ToolExecutionContext, ToolRegistry};
 use crate::permissions::UserQuestion;
 
 pub(super) fn register_tools(registry: &mut ToolRegistry) {
-    registry.register(AskUserQuestionTool);
+    registry.register_runtime(hellox_tool_runtime::AskUserQuestionTool);
 }
 
-struct AskUserQuestionTool;
-
 #[async_trait]
-impl LocalTool for AskUserQuestionTool {
-    fn definition(&self) -> hellox_gateway_api::ToolDefinition {
-        hellox_gateway_api::ToolDefinition {
-            name: "AskUserQuestion".to_string(),
-            description: Some("Ask the user one or more blocking questions".to_string()),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "questions": {
-                        "type": "array",
-                        "items": {
-                            "oneOf": [
-                                { "type": "string" },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "question": { "type": "string" },
-                                        "header": { "type": "string" }
-                                    },
-                                    "required": ["question"]
-                                }
-                            ]
-                        }
-                    }
-                },
-                "required": ["questions"]
-            }),
-        }
-    }
-
-    async fn call(&self, input: Value, context: &ToolExecutionContext) -> Result<LocalToolResult> {
-        let questions = parse_questions(&input)?;
-        let handler = context
+impl hellox_tool_runtime::QuestionToolContext for ToolExecutionContext {
+    async fn ask_questions(
+        &self,
+        questions: &[hellox_tool_runtime::BlockingQuestion],
+    ) -> Result<Vec<String>> {
+        let handler = self
             .question_handler
             .clone()
             .ok_or_else(|| anyhow!("question handler is not configured"))?;
-        let answers = handler.ask_questions(&questions).await?;
-
-        Ok(LocalToolResult::text(
-            serde_json::to_string_pretty(&json!({
-                "answers": answers,
-            }))
-            .context("failed to serialize AskUserQuestion result")?,
-        ))
+        let questions = questions
+            .iter()
+            .map(|question| UserQuestion {
+                question: question.question.clone(),
+                header: question.header.clone(),
+            })
+            .collect::<Vec<_>>();
+        handler.ask_questions(&questions).await
     }
-}
-
-fn parse_questions(input: &Value) -> Result<Vec<UserQuestion>> {
-    let questions = input
-        .get("questions")
-        .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("missing required array field `questions`"))?;
-
-    questions
-        .iter()
-        .map(|item| match item {
-            Value::String(question) => Ok(UserQuestion {
-                question: question.clone(),
-                header: None,
-            }),
-            Value::Object(_) => serde_json::from_value::<UserQuestion>(item.clone())
-                .context("failed to parse question object"),
-            _ => Err(anyhow!("questions must contain strings or objects")),
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -88,12 +38,14 @@ mod tests {
 
     use anyhow::Result;
     use async_trait::async_trait;
+    use hellox_gateway_api::ToolResultContent;
     use serde_json::json;
     use uuid::Uuid;
 
-    use super::{parse_questions, AskUserQuestionTool, LocalTool, ToolExecutionContext};
+    use super::ToolExecutionContext;
     use crate::permissions::{PermissionPolicy, QuestionHandler, UserQuestion};
     use crate::planning::PlanningState;
+    use crate::tools::default_tool_registry;
     use hellox_config::PermissionMode;
 
     struct TestWorkspace {
@@ -141,15 +93,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ask_user_question_returns_handler_answers() {
+    async fn ask_user_question_bridge_returns_handler_answers() {
         let workspace = TestWorkspace::new();
         let handler: Arc<dyn QuestionHandler> = Arc::new(StaticQuestionHandler {
             answers: vec![String::from("yes"), String::from("rust")],
         });
         let ctx = context(workspace.root.clone(), Some(handler));
 
-        let result = AskUserQuestionTool
-            .call(
+        let result = default_tool_registry()
+            .execute(
+                "AskUserQuestion",
                 json!({
                     "questions": [
                         "Continue?",
@@ -158,29 +111,14 @@ mod tests {
                 }),
                 &ctx,
             )
-            .await
-            .expect("ask questions");
+            .await;
+        assert!(!result.is_error);
 
         let output = match result.content {
-            hellox_gateway_api::ToolResultContent::Text(text) => text,
+            ToolResultContent::Text(text) => text,
             _ => panic!("expected text output"),
         };
         assert!(output.contains("\"yes\""), "{output}");
         assert!(output.contains("\"rust\""), "{output}");
-    }
-
-    #[test]
-    fn question_parser_supports_strings_and_objects() {
-        let questions = parse_questions(&json!({
-            "questions": [
-                "Continue?",
-                { "header": "scope", "question": "Need MCP next?" }
-            ]
-        }))
-        .expect("parse questions");
-
-        assert_eq!(questions.len(), 2);
-        assert_eq!(questions[0].question, "Continue?");
-        assert_eq!(questions[1].header.as_deref(), Some("scope"));
     }
 }

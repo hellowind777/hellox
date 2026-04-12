@@ -1,3 +1,5 @@
+mod question;
+
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -6,6 +8,8 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use hellox_gateway_api::{ToolDefinition, ToolResultContent};
 use serde_json::Value;
+
+pub use question::{AskUserQuestionTool, BlockingQuestion, QuestionToolContext};
 
 /// Represents a local tool execution result and whether it should be treated as an error.
 #[derive(Debug, Clone)]
