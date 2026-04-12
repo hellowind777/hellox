@@ -280,7 +280,7 @@ mod tests {
             name: "tmux-team".to_string(),
             layout: TeamLayoutRecord {
                 strategy: "horizontal".to_string(),
-                pane_group: Some("hellox-tmux-team".to_string()),
+                pane_group: None,
             },
             members: vec![
                 TeamMemberRecord {
