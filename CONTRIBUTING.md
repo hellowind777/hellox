@@ -7,6 +7,7 @@ Thanks for considering a contribution to Hellox.
 - Read [README.md](./README.md) or [README_CN.md](./README_CN.md)
 - Review the current local-first boundary in `docs/HELLOX_LOCAL_FIRST_BOUNDARIES.md`
 - Check current implementation status in `docs/HELLOX_LOCAL_FEATURE_AUDIT.md`
+- Follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 
 ## Recommended contribution flow
 
@@ -61,6 +62,11 @@ Simple commit messages are fine. Conventional commit style is recommended:
 ## Questions
 
 If something is unclear, open an issue or discussion in the repository.
+
+## Security
+
+For sensitive security issues, please follow [SECURITY.md](./SECURITY.md) instead of
+opening a public issue.
 
 ---
 

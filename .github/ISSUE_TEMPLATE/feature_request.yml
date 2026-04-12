@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a focused enhancement for Hellox
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please keep proposals concrete and aligned with the project's local-first boundary.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What do you want to add or improve?
+      placeholder: Add focused step filters to workflow run history
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What workflow or pain point does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful version
+    validations:
+      required: true
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Boundary fit
+      description: Which product path best matches this request?
+      options:
+        - Local-first main path
+        - User-managed remote or direct-connect seam
+        - Long-term or exploratory idea
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Affected docs or source paths
+      description: Optional pointers for faster evaluation
+      placeholder: |
+        docs/HELLOX_LOCAL_FEATURE_AUDIT.md
+        crates/hellox-tui/src
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+

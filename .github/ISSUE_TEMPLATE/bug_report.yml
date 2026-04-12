@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible problem in Hellox
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report.
+        Please include the smallest reproducible path you can.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: Workflow panel selector does not open the expected run
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release version, branch, or commit hash
+      placeholder: main @ 10d9777
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, shell, Rust toolchain, and any relevant local setup
+      placeholder: |
+        Windows 11
+        PowerShell 7
+        rustc 1.xx
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Share the shortest repeatable path
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste errors, warnings, or screenshots if available
+  - type: textarea
+    id: references
+    attributes:
+      label: Relevant docs or source paths
+      description: Optional paths that help narrow the problem
+      placeholder: |
+        docs/README.md
+        crates/hellox-cli/src/workflow_commands.rs
+
