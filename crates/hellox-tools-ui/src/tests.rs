@@ -164,3 +164,46 @@ async fn tool_search_filters_available_definitions_through_registry() {
     assert!(text.contains("\"name\": \"MCP\""), "{text}");
     assert!(!text.contains("\"name\": \"Workflow\""), "{text}");
 }
+
+#[tokio::test]
+async fn skill_tool_loads_project_skill_through_registry() {
+    let workspace = TestWorkspace::new();
+    let skills_root = workspace.root.join(".hellox").join("skills");
+    fs::create_dir_all(&skills_root).expect("create skills root");
+    fs::write(
+        skills_root.join("review.md"),
+        r#"---
+name: review
+description: Review the change set.
+whenToUse: Use when checking correctness.
+allowedTools: [Read, Grep]
+hooks: [pre_tool]
+---
+Review the current patch carefully."#,
+    )
+    .expect("write skill");
+
+    let mut registry = ToolRegistry::<TestContext>::default();
+    register_tools(&mut registry);
+
+    let text = text_result(
+        registry
+            .execute(
+                "Skill",
+                json!({
+                    "skill": "review",
+                    "args": ["src/lib.rs", "src/main.rs"]
+                }),
+                &workspace.context(),
+            )
+            .await,
+    );
+
+    assert!(text.contains("\"name\": \"review\""), "{text}");
+    assert!(text.contains("\"scope\": \"project\""), "{text}");
+    assert!(
+        text.contains("Review the current patch carefully."),
+        "{text}"
+    );
+    assert!(text.contains("\"src/lib.rs\""), "{text}");
+}

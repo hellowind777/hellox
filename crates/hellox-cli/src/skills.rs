@@ -1,38 +1,6 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
-use hellox_config::config_root;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SkillDefinition {
-    pub name: String,
-    pub scope: String,
-    pub path: PathBuf,
-    pub description: Option<String>,
-    pub when_to_use: Option<String>,
-    pub allowed_tools: Vec<String>,
-    pub hooks: Vec<String>,
-}
-
-pub fn discover_skills(cwd: &Path) -> Result<Vec<SkillDefinition>> {
-    let mut skills = Vec::new();
-    collect_skills(&config_root().join("skills"), "user", &mut skills)?;
-    collect_skills(&cwd.join(".hellox").join("skills"), "project", &mut skills)?;
-    skills.sort_by(|left, right| {
-        left.name
-            .cmp(&right.name)
-            .then(left.scope.cmp(&right.scope))
-    });
-    Ok(skills)
-}
-
-pub fn find_skill<'a>(skills: &'a [SkillDefinition], name: &str) -> Result<&'a SkillDefinition> {
-    skills
-        .iter()
-        .find(|skill| skill.name.eq_ignore_ascii_case(name))
-        .ok_or_else(|| anyhow!("Skill `{name}` was not found"))
-}
+pub use hellox_config::{discover_skills, find_skill, SkillDefinition};
 
 pub fn format_skill_list(skills: &[SkillDefinition]) -> String {
     if skills.is_empty() {
@@ -85,123 +53,6 @@ pub fn format_skill_detail(skill: &SkillDefinition) -> String {
     lines.join("\n")
 }
 
-fn collect_skills(root: &Path, scope: &str, skills: &mut Vec<SkillDefinition>) -> Result<()> {
-    if !root.exists() {
-        return Ok(());
-    }
-
-    for path in collect_markdown_files(root)? {
-        skills.push(parse_skill(&path, scope)?);
-    }
-
-    Ok(())
-}
-
-fn parse_skill(path: &Path, scope: &str) -> Result<SkillDefinition> {
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("failed to read skill file {}", path.display()))?;
-    let (frontmatter, body) = split_frontmatter(&raw);
-    let name = frontmatter
-        .get("name")
-        .cloned()
-        .or_else(|| {
-            path.file_stem()
-                .map(|stem| stem.to_string_lossy().to_string())
-        })
-        .ok_or_else(|| anyhow!("skill file `{}` is missing a name", path.display()))?;
-
-    Ok(SkillDefinition {
-        name,
-        scope: scope.to_string(),
-        path: path.to_path_buf(),
-        description: frontmatter
-            .get("description")
-            .cloned()
-            .or_else(|| first_body_line(&body)),
-        when_to_use: frontmatter.get("whenToUse").cloned(),
-        allowed_tools: frontmatter_list(&frontmatter, "allowedTools"),
-        hooks: frontmatter_list(&frontmatter, "hooks"),
-    })
-}
-
-fn split_frontmatter(raw: &str) -> (std::collections::BTreeMap<String, String>, String) {
-    let normalized = raw.replace("\r\n", "\n");
-    if !normalized.starts_with("---\n") {
-        return (std::collections::BTreeMap::new(), normalized);
-    }
-
-    if let Some(remainder) = normalized.strip_prefix("---\n") {
-        if let Some((frontmatter, body)) = remainder.split_once("\n---\n") {
-            return (parse_frontmatter(frontmatter), body.to_string());
-        }
-    }
-
-    (std::collections::BTreeMap::new(), normalized)
-}
-
-fn parse_frontmatter(raw: &str) -> std::collections::BTreeMap<String, String> {
-    let mut values = std::collections::BTreeMap::new();
-    for line in raw.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        if let Some((key, value)) = trimmed.split_once(':') {
-            values.insert(
-                key.trim().to_string(),
-                value.trim().trim_matches('"').to_string(),
-            );
-        }
-    }
-    values
-}
-
-fn frontmatter_list(
-    frontmatter: &std::collections::BTreeMap<String, String>,
-    key: &str,
-) -> Vec<String> {
-    frontmatter
-        .get(key)
-        .map(|value| {
-            value
-                .trim()
-                .trim_start_matches('[')
-                .trim_end_matches(']')
-                .split(',')
-                .map(|item| item.trim().trim_matches('"'))
-                .filter(|item| !item.is_empty())
-                .map(ToString::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn first_body_line(body: &str) -> Option<String> {
-    body.lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .map(ToString::to_string)
-}
-
-fn collect_markdown_files(root: &Path) -> Result<Vec<PathBuf>> {
-    let mut files = Vec::new();
-    for entry in fs::read_dir(root)
-        .with_context(|| format!("failed to read skills root {}", root.display()))?
-    {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            files.extend(collect_markdown_files(&path)?);
-        } else if path
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
-        {
-            files.push(path);
-        }
-    }
-    Ok(files)
-}
-
 fn normalize_path(path: &Path) -> String {
     path.display().to_string().replace('\\', "/")
 }
@@ -219,7 +70,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("time")
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("hellox-skills-{suffix}"));
+        let root = std::env::temp_dir().join(format!("hellox-cli-skills-{suffix}"));
         fs::create_dir_all(&root).expect("create temp dir");
         root
     }

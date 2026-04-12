@@ -2,6 +2,7 @@ mod mcp;
 mod plugin;
 mod remote;
 mod server;
+mod skills;
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -16,6 +17,7 @@ pub use plugin::{MarketplaceConfig, PluginConfig, PluginEntryConfig, PluginSourc
 pub use remote::{RemoteConfig, RemoteEnvironmentConfig};
 use serde::{Deserialize, Serialize};
 pub use server::ServerConfig;
+pub use skills::{discover_skills, find_skill, SkillDefinition};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayConfig {

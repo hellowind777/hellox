@@ -1,6 +1,7 @@
 mod brief;
 mod config;
 mod search;
+mod skill;
 
 #[cfg(test)]
 mod tests;
@@ -14,6 +15,7 @@ use hellox_tool_runtime::ToolRegistry;
 pub use brief::{load_brief, BriefAttachment, BriefRecord, BriefTool};
 pub use config::ConfigTool;
 pub use search::ToolSearchTool;
+pub use skill::SkillTool;
 
 /// Minimal context contract shared by UI-facing local tools.
 #[async_trait]
@@ -38,5 +40,6 @@ where
 {
     registry.register(BriefTool);
     registry.register(ConfigTool);
+    registry.register(SkillTool);
     registry.register(ToolSearchTool);
 }

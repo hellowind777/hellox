@@ -5,6 +5,7 @@ use super::{ToolExecutionContext, ToolRegistry};
 pub(super) fn register_tools(registry: &mut ToolRegistry) {
     registry.register_runtime(hellox_tools_ui::BriefTool);
     registry.register_runtime(hellox_tools_ui::ConfigTool);
+    registry.register_runtime(hellox_tools_ui::SkillTool);
     registry.register_runtime(hellox_tools_ui::ToolSearchTool);
 }
 
@@ -127,5 +128,34 @@ mod tests {
         .await;
         // ToolSearch returns canonical tool names (Claude Code naming).
         assert!(text.contains("\"name\": \"SendUserMessage\""), "{text}");
+    }
+
+    #[tokio::test]
+    async fn skill_tool_is_available_in_default_registry() {
+        let workspace = TestWorkspace::new();
+        let skills_root = workspace.root.join(".hellox").join("skills");
+        fs::create_dir_all(&skills_root).expect("create skills root");
+        fs::write(
+            skills_root.join("review.md"),
+            r#"---
+name: review
+description: Review the current change set.
+---
+Focus on correctness first."#,
+        )
+        .expect("write skill");
+
+        let text = execute(
+            "Skill",
+            json!({
+                "skill": "review",
+                "args": "src/lib.rs"
+            }),
+            &workspace.context(),
+        )
+        .await;
+
+        assert!(text.contains("\"name\": \"review\""), "{text}");
+        assert!(text.contains("Focus on correctness first."), "{text}");
     }
 }
