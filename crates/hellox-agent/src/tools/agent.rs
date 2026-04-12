@@ -10,6 +10,7 @@ mod team_member_support;
 mod team_registry;
 mod team_registry_support;
 mod workflow;
+mod worktree_support;
 
 use super::ToolRegistry;
 

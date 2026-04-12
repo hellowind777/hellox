@@ -72,6 +72,9 @@ where
                     prompt,
                     model: step.model,
                     backend: step.backend,
+                    isolation: None,
+                    worktree_name: None,
+                    worktree_base_ref: None,
                     permission_mode,
                     agent_name: Some(step_name.clone()),
                     pane_group: None,
@@ -81,6 +84,7 @@ where
                     cwd: step.cwd,
                     session_id: step.session_id,
                     max_turns: step.max_turns.map(|value| value as usize).unwrap_or(8),
+                    reuse_existing_worktree: false,
                     run_in_background: step.run_in_background.unwrap_or(false),
                     allow_interaction: false,
                 })

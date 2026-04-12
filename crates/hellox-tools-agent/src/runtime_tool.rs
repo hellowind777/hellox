@@ -45,6 +45,10 @@ where
                     "prompt": { "type": "string" },
                     "model": { "type": "string" },
                     "backend": { "type": "string" },
+                    "isolation": { "type": "string", "enum": ["worktree"] },
+                    "worktree_name": { "type": "string" },
+                    "worktree_base_ref": { "type": "string" },
+                    "reuse_existing_worktree": { "type": "boolean" },
                     "permission_mode": { "type": "string" },
                     "cwd": { "type": "string" },
                     "session_id": { "type": "string" },
@@ -71,6 +75,9 @@ where
                 prompt,
                 model: optional_string(&input, "model"),
                 backend: optional_string(&input, "backend"),
+                isolation: optional_string(&input, "isolation"),
+                worktree_name: optional_string(&input, "worktree_name"),
+                worktree_base_ref: optional_string(&input, "worktree_base_ref"),
                 permission_mode: parse_permission_mode(&input, "permission_mode")?,
                 agent_name: None,
                 pane_group: None,
@@ -84,6 +91,10 @@ where
                     .and_then(Value::as_u64)
                     .map(|value| value as usize)
                     .unwrap_or(8),
+                reuse_existing_worktree: input
+                    .get("reuse_existing_worktree")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
                 run_in_background,
                 allow_interaction: input
                     .get("run_in_background")
@@ -223,6 +234,9 @@ mod tests {
                 json!({
                     "prompt": "review this diff",
                     "backend": "detached_process",
+                    "isolation": "worktree",
+                    "worktree_name": "review-agent",
+                    "reuse_existing_worktree": true,
                     "max_turns": 4,
                     "run_in_background": true
                 }),
@@ -240,6 +254,9 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].prompt, "review this diff");
         assert_eq!(requests[0].backend.as_deref(), Some("detached_process"));
+        assert_eq!(requests[0].isolation.as_deref(), Some("worktree"));
+        assert_eq!(requests[0].worktree_name.as_deref(), Some("review-agent"));
+        assert!(requests[0].reuse_existing_worktree);
         assert!(requests[0].run_in_background);
     }
 

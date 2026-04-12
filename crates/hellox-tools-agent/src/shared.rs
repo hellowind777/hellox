@@ -10,6 +10,9 @@ pub struct AgentRunRequest {
     pub prompt: String,
     pub model: Option<String>,
     pub backend: Option<String>,
+    pub isolation: Option<String>,
+    pub worktree_name: Option<String>,
+    pub worktree_base_ref: Option<String>,
     pub permission_mode: Option<PermissionMode>,
     pub agent_name: Option<String>,
     pub pane_group: Option<String>,
@@ -19,6 +22,7 @@ pub struct AgentRunRequest {
     pub cwd: Option<String>,
     pub session_id: Option<String>,
     pub max_turns: usize,
+    pub reuse_existing_worktree: bool,
     pub run_in_background: bool,
     pub allow_interaction: bool,
 }

@@ -139,6 +139,9 @@ where
                 prompt: content,
                 model: None,
                 backend,
+                isolation: None,
+                worktree_name: None,
+                worktree_base_ref: None,
                 permission_mode: None,
                 agent_name,
                 pane_group,
@@ -152,6 +155,7 @@ where
                     .and_then(Value::as_u64)
                     .map(|value| value as usize)
                     .unwrap_or(8),
+                reuse_existing_worktree: false,
                 run_in_background,
                 allow_interaction: false,
             })
@@ -262,6 +266,9 @@ where
                         prompt,
                         model: None,
                         backend,
+                        isolation: None,
+                        worktree_name: None,
+                        worktree_base_ref: None,
                         permission_mode: None,
                         agent_name: Some(member_name),
                         pane_group: Some(pane_group),
@@ -271,6 +278,7 @@ where
                         cwd: None,
                         session_id: Some(member.session_id.clone()),
                         max_turns,
+                        reuse_existing_worktree: false,
                         run_in_background,
                         allow_interaction: false,
                     })
@@ -366,6 +374,9 @@ async fn maybe_run_coordinator(
             prompt: coordinator_input,
             model: optional_string(input, "coordinator_model"),
             backend: optional_string(input, "coordinator_backend"),
+            isolation: None,
+            worktree_name: None,
+            worktree_base_ref: None,
             permission_mode: None,
             agent_name: Some(format!("{team_name}-coordinator")),
             pane_group: Some(pane_group.to_string()),
@@ -379,6 +390,7 @@ async fn maybe_run_coordinator(
                 .and_then(Value::as_u64)
                 .map(|value| value as usize)
                 .unwrap_or(8),
+            reuse_existing_worktree: false,
             run_in_background: false,
             allow_interaction: false,
         })

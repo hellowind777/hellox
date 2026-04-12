@@ -15,6 +15,7 @@ use super::process_backend::{
 };
 use super::shared::{current_shell_name, AgentRunRequest};
 use super::team_coordination_support::reconcile_team_runtime_for_session;
+use super::worktree_support::resolve_child_working_directory;
 
 pub(super) use hellox_tools_agent::runtime_tool::{AgentStatusTool, AgentTool, AgentWaitTool};
 
@@ -60,6 +61,11 @@ pub(super) async fn run_agent_prompt(
         request.model,
         request.permission_mode,
         request.cwd.as_deref(),
+        request.isolation.as_deref(),
+        request.worktree_name.as_deref(),
+        request.worktree_base_ref.as_deref(),
+        request.reuse_existing_worktree,
+        request.agent_name.as_deref(),
         request.max_turns,
         request.session_id,
         request.allow_interaction,
@@ -185,6 +191,11 @@ pub(super) fn build_child_session(
     model_override: Option<String>,
     permission_mode_override: Option<hellox_config::PermissionMode>,
     cwd_override: Option<&str>,
+    isolation: Option<&str>,
+    worktree_name: Option<&str>,
+    worktree_base_ref: Option<&str>,
+    reuse_existing_worktree: bool,
+    agent_name: Option<&str>,
     max_turns: usize,
     session_id: Option<String>,
     allow_interaction: bool,
@@ -205,9 +216,9 @@ pub(super) fn build_child_session(
 
     if let Some(existing_session_id) = session_id.as_deref() {
         if session_file_path(existing_session_id).exists() {
-            if cwd_override.is_some() {
+            if cwd_override.is_some() || isolation.is_some() {
                 return Err(anyhow!(
-                    "cannot override `cwd` while resuming an existing agent session"
+                    "cannot override `cwd` or `isolation` while resuming an existing agent session"
                 ));
             }
 
@@ -236,19 +247,15 @@ pub(super) fn build_child_session(
         }
     }
 
-    let working_directory = match cwd_override {
-        Some(raw) => {
-            let path = context.resolve_path(raw);
-            if !path.is_dir() {
-                return Err(anyhow!(
-                    "agent working directory does not exist or is not a directory: {}",
-                    path.display()
-                ));
-            }
-            path
-        }
-        None => context.working_directory.clone(),
-    };
+    let working_directory = resolve_child_working_directory(
+        context,
+        cwd_override,
+        isolation,
+        worktree_name,
+        worktree_base_ref,
+        reuse_existing_worktree,
+        agent_name,
+    )?;
     let options = AgentOptions {
         output_style: hellox_style::resolve_configured_output_style(&config, &working_directory)?,
         persona: hellox_style::resolve_configured_persona(&config, &working_directory)?,
