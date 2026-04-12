@@ -60,7 +60,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 regex = "1"
-scraper = "0.24"
+scraper = "0.26"
 lopdf = "0.35"
 similar = "2"
 rustyline = "14"
