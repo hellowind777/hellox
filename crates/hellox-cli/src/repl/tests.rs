@@ -406,7 +406,55 @@ fn repl_banner_supports_simplified_chinese_copy() {
 
 #[test]
 fn repl_prompt_label_matches_claude_style_prefix() {
-    assert_eq!(super::CliReplDriver::new().prompt_label(), "❯ ");
+    let session = session();
+    assert_eq!(
+        super::CliReplDriver::new().prompt_label(&session, &metadata()),
+        "❯ "
+    );
+}
+
+#[test]
+fn prompt_state_uses_repo_example_before_first_submit() {
+    let root = temp_dir();
+    fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("write cargo manifest");
+    let session = session_in(root);
+    let state = super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, false);
+
+    assert_eq!(
+        state.placeholder.as_deref(),
+        Some("解释这个 Rust 工作区的结构")
+    );
+    assert!(state
+        .completions
+        .iter()
+        .any(|item| item.value == "/workflow"));
+    assert!(state
+        .completions
+        .iter()
+        .any(|item| item.value == "/workflow"
+            && item.description.as_deref() == Some("浏览或运行本地工作流")));
+}
+
+#[test]
+fn prompt_state_switches_to_continuation_hint_after_submit() {
+    let session = session();
+    let state = super::prompt_input::prompt_state(&session, AppLanguage::SimplifiedChinese, true);
+
+    assert_eq!(
+        state.placeholder.as_deref(),
+        Some("继续输入任务，输入 `/` 查看命令，或按 ↑ 编辑上一条输入")
+    );
+}
+
+#[test]
+fn prompt_state_uses_existing_messages_as_continuation_signal() {
+    let session = restorable_session_with_tool_turn();
+    let state = super::prompt_input::prompt_state(&session, AppLanguage::English, false);
+
+    assert_eq!(
+        state.placeholder.as_deref(),
+        Some("Type another task, use `/` for commands, or press ↑ to edit the previous input")
+    );
 }
 
 #[test]

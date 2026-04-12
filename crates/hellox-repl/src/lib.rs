@@ -1,5 +1,6 @@
 mod command_parser;
 mod command_types;
+mod input_helper;
 mod mcp_command_types;
 mod plan_command_parser;
 mod plugin_command_types;
@@ -18,6 +19,7 @@ pub use command_types::{
     ReplCommand, SessionCommand, TaskCommand, TeleportCommand, ToolsCommand, UpgradeCommand,
     WorkflowCommand,
 };
+pub use input_helper::{ReplCompletion, ReplPromptState};
 pub use runtime::{run_repl_loop, ReplAction, ReplExit, ReplLoopDriver, ReplMetadata};
 
 #[cfg(test)]

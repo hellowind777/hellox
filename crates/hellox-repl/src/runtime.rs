@@ -6,7 +6,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use hellox_config::HelloxConfig;
 use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
+use rustyline::history::DefaultHistory;
+use rustyline::{CompletionType, Config, Editor};
+
+use crate::input_helper::{ReplInputHelper, ReplPromptState};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplAction {
@@ -41,8 +44,12 @@ pub trait ReplLoopDriver<Session> {
         ]
     }
 
-    fn prompt_label(&self) -> String {
+    fn prompt_label(&self, _session: &Session, _metadata: &ReplMetadata) -> String {
         String::from("❯ ")
+    }
+
+    fn prompt_state(&self, _session: &Session, _metadata: &ReplMetadata) -> ReplPromptState {
+        ReplPromptState::default()
     }
 
     async fn handle_input(
@@ -83,7 +90,11 @@ where
     }
 
     loop {
-        let prompt = driver.prompt_label();
+        let prompt_state = driver.prompt_state(session, metadata);
+        let prompt = driver.prompt_label(session, metadata);
+        if let Some(placeholder) = prompt_state.placeholder.as_deref() {
+            println!("{placeholder}");
+        }
         print!("{prompt}");
         io::stdout().flush()?;
 
@@ -106,8 +117,15 @@ where
     }
 }
 
-fn init_rustyline(metadata: &ReplMetadata) -> Result<DefaultEditor> {
-    let mut editor = DefaultEditor::new()?;
+fn init_rustyline(metadata: &ReplMetadata) -> Result<Editor<ReplInputHelper, DefaultHistory>> {
+    let config = Config::builder()
+        .history_ignore_space(true)
+        .completion_type(CompletionType::List)
+        .completion_show_all_if_ambiguous(true)
+        .completion_prompt_limit(40)
+        .build();
+    let mut editor = Editor::with_config(config)?;
+    editor.set_helper(Some(ReplInputHelper::default()));
     let history_path = repl_history_path(metadata);
     if let Some(parent) = history_path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -119,7 +137,7 @@ fn init_rustyline(metadata: &ReplMetadata) -> Result<DefaultEditor> {
 }
 
 async fn run_rustyline_loop<Session, Driver>(
-    mut editor: DefaultEditor,
+    mut editor: Editor<ReplInputHelper, DefaultHistory>,
     session: &mut Session,
     metadata: &ReplMetadata,
     driver: &Driver,
@@ -130,7 +148,11 @@ where
     let history_path = repl_history_path(metadata);
 
     let result = loop {
-        let prompt = driver.prompt_label();
+        let prompt = driver.prompt_label(session, metadata);
+        let prompt_state = driver.prompt_state(session, metadata);
+        if let Some(helper) = editor.helper_mut() {
+            helper.set_state(prompt_state);
+        }
         match editor.readline(&prompt) {
             Ok(line) => {
                 let trimmed = line.trim();

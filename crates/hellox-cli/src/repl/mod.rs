@@ -14,6 +14,7 @@ mod mcp_actions;
 mod output_localizer;
 mod plan_actions;
 mod plugin_actions;
+mod prompt_input;
 mod remote_actions;
 mod selector_input;
 mod selectors;
@@ -59,12 +60,13 @@ mod tests_workflow;
 #[cfg(test)]
 mod tests_workflow_shortcuts;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use hellox_agent::AgentSession;
-use hellox_repl::{run_repl_loop, ReplLoopDriver};
+use hellox_repl::{run_repl_loop, ReplLoopDriver, ReplPromptState};
 pub use hellox_repl::{ReplAction, ReplExit, ReplMetadata};
 use hellox_tui::WorkflowDashboardState;
 
@@ -126,6 +128,7 @@ pub async fn run_repl(
 struct CliReplDriver {
     language: AppLanguage,
     workspace_trusted: bool,
+    submit_count: AtomicUsize,
     selector_context: Mutex<Option<SelectorContext>>,
     workflow_panel_focus: Mutex<Option<WorkflowPanelFocus>>,
     workflow_run_focus: Mutex<Option<WorkflowRunFocus>>,
@@ -145,6 +148,10 @@ impl CliReplDriver {
             ..Self::default()
         }
     }
+
+    fn has_prior_submit(&self) -> bool {
+        self.submit_count.load(Ordering::Relaxed) > 0
+    }
 }
 
 #[async_trait]
@@ -153,8 +160,12 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
         welcome_banner_lines(session, self.language, self.workspace_trusted)
     }
 
-    fn prompt_label(&self) -> String {
+    fn prompt_label(&self, _session: &AgentSession, _metadata: &ReplMetadata) -> String {
         default_prompt_label()
+    }
+
+    fn prompt_state(&self, session: &AgentSession, _metadata: &ReplMetadata) -> ReplPromptState {
+        prompt_input::prompt_state(session, self.language, self.has_prior_submit())
     }
 
     async fn handle_input(
@@ -163,7 +174,13 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
         session: &mut AgentSession,
         metadata: &ReplMetadata,
     ) -> Result<ReplAction> {
-        self.handle_repl_input_async(input, session, metadata).await
+        let action = self
+            .handle_repl_input_async(input, session, metadata)
+            .await?;
+        if matches!(action, ReplAction::Submit(_)) {
+            self.submit_count.fetch_add(1, Ordering::Relaxed);
+        }
+        Ok(action)
     }
 
     async fn handle_submit(
