@@ -157,3 +157,16 @@ async fn plan_mode_tools_update_context_state() {
         vec![String::from("continue implementation")]
     );
 }
+
+#[tokio::test]
+async fn default_task_registry_exposes_cron_tools() {
+    let registry = default_tool_registry();
+    let names = registry
+        .definitions()
+        .into_iter()
+        .map(|definition| definition.name)
+        .collect::<Vec<_>>();
+    assert!(names.iter().any(|name| name == "CronCreate"));
+    assert!(names.iter().any(|name| name == "CronDelete"));
+    assert!(names.iter().any(|name| name == "CronList"));
+}

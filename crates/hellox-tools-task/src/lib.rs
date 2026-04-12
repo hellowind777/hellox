@@ -1,3 +1,6 @@
+mod cron;
+mod cron_storage;
+mod cron_tools;
 mod planning;
 mod storage;
 mod task_tools;
@@ -14,6 +17,7 @@ use hellox_tool_runtime::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use cron_tools::{CronCreateTool, CronDeleteTool, CronListTool};
 pub use planning::{EnterPlanModeTool, ExitPlanModeTool};
 pub use storage::task_file_path;
 pub use task_tools::{
@@ -55,6 +59,9 @@ pub trait TaskToolContext: Send + Sync {
     /// Returns the current workspace root.
     fn working_directory(&self) -> &Path;
 
+    /// Returns the active config path for user-level task storage.
+    fn config_path(&self) -> &Path;
+
     /// Validates whether a write to the provided path is allowed.
     async fn ensure_write_allowed(&self, path: &Path) -> anyhow::Result<()>;
 
@@ -74,6 +81,7 @@ pub fn register_tools<C>(registry: &mut ToolRegistry<C>)
 where
     C: TaskToolContext + Send + Sync + 'static,
 {
+    cron_tools::register_cron_tools(registry);
     task_tools::register_task_tools(registry);
     planning::register_planning_tools(registry);
     todo::register_todo_tools(registry);

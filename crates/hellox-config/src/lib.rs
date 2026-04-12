@@ -2,6 +2,7 @@ mod lsp;
 mod mcp;
 mod plugin;
 mod remote;
+mod scheduler;
 mod server;
 mod skills;
 
@@ -17,6 +18,7 @@ pub use lsp::{LspConfig, LspServerConfig};
 pub use mcp::{McpConfig, McpOAuthConfig, McpScope, McpServerConfig, McpTransportConfig};
 pub use plugin::{MarketplaceConfig, PluginConfig, PluginEntryConfig, PluginSourceConfig};
 pub use remote::{RemoteConfig, RemoteEnvironmentConfig};
+pub use scheduler::SchedulerConfig;
 use serde::{Deserialize, Serialize};
 pub use server::ServerConfig;
 pub use skills::{discover_skills, find_skill, SkillDefinition};
@@ -148,6 +150,8 @@ pub struct HelloxConfig {
     #[serde(default)]
     pub prompt: PromptCompositionConfig,
     #[serde(default)]
+    pub scheduler: SchedulerConfig,
+    #[serde(default)]
     pub lsp: LspConfig,
     #[serde(default)]
     pub mcp: McpConfig,
@@ -171,6 +175,7 @@ impl Default for HelloxConfig {
             session: default_session(),
             output_style: OutputStyleConfig::default(),
             prompt: PromptCompositionConfig::default(),
+            scheduler: SchedulerConfig::default(),
             lsp: LspConfig::default(),
             mcp: McpConfig::default(),
             plugins: PluginConfig::default(),
@@ -202,6 +207,25 @@ pub fn shares_root() -> PathBuf {
 
 pub fn logs_root() -> PathBuf {
     config_root().join("logs")
+}
+
+pub fn tasks_root() -> PathBuf {
+    config_root().join("tasks")
+}
+
+pub fn tasks_root_for(config_path: &std::path::Path) -> PathBuf {
+    config_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("tasks")
+}
+
+pub fn scheduled_tasks_path() -> PathBuf {
+    tasks_root().join("scheduled_tasks.json")
+}
+
+pub fn scheduled_tasks_path_for(config_path: &std::path::Path) -> PathBuf {
+    tasks_root_for(config_path).join("scheduled_tasks.json")
 }
 
 pub fn plugins_root() -> PathBuf {

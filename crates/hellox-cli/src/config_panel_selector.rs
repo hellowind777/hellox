@@ -83,11 +83,32 @@ fn resolved_values(config: &HelloxConfig) -> Vec<ConfigValueEntry> {
             description: "Gateway listen address",
         },
         ConfigValueEntry {
+            key: "scheduler.enabled",
+            value: config.scheduler.enabled.to_string(),
+            kind: "bool",
+            clearable: false,
+            description: "Enable or disable the local cron scheduler",
+        },
+        ConfigValueEntry {
+            key: "scheduler.max_jobs",
+            value: config.scheduler.max_jobs.to_string(),
+            kind: "integer",
+            clearable: false,
+            description: "Maximum number of scheduled cron jobs",
+        },
+        ConfigValueEntry {
             key: "permissions.mode",
             value: config.permissions.mode.to_string(),
             kind: "string",
             clearable: false,
             description: "Default permission mode",
+        },
+        ConfigValueEntry {
+            key: "lsp.servers",
+            value: config.lsp.servers.len().to_string(),
+            kind: "integer",
+            clearable: false,
+            description: "Configured local LSP server count",
         },
         ConfigValueEntry {
             key: "session.model",

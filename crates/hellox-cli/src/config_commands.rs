@@ -75,6 +75,8 @@ fn format_supported_config_keys() -> String {
     [
         "key\tvalue_type\tclearable\tdescription",
         "gateway.listen\tstring\tno\tGateway listen address",
+        "scheduler.enabled\tbool\tno\tEnable or disable the local cron scheduler",
+        "scheduler.max_jobs\tinteger\tno\tMaximum number of scheduled cron jobs",
         "output_style.default\tstring\tyes\tDefault output style name",
         "permissions.mode\tstring\tno\tDefault permission mode",
         "prompt.fragments\tstring-list\tyes\tDefault prompt fragments (comma-separated)",
@@ -106,6 +108,12 @@ fn apply_config_update(
         }
         "gateway.listen" => {
             config.gateway.listen = required_string_value(value, clear, key)?;
+        }
+        "scheduler.enabled" => {
+            config.scheduler.enabled = required_bool_value(value, clear, key)?;
+        }
+        "scheduler.max_jobs" => {
+            config.scheduler.max_jobs = required_usize_value(value, clear, key)?;
         }
         "output_style.default" => {
             config.output_style.default = if clear {
@@ -144,6 +152,8 @@ fn render_resolved_value(config: &HelloxConfig, key: &str) -> String {
         "session.persist" => config.session.persist.to_string(),
         "permissions.mode" => config.permissions.mode.to_string(),
         "gateway.listen" => config.gateway.listen.clone(),
+        "scheduler.enabled" => config.scheduler.enabled.to_string(),
+        "scheduler.max_jobs" => config.scheduler.max_jobs.to_string(),
         "output_style.default" => config
             .output_style
             .default
@@ -213,6 +223,18 @@ fn required_string_list_value(value: Option<&str>, clear: bool, key: &str) -> Re
     }
 
     Ok(values)
+}
+
+fn required_usize_value(value: Option<&str>, clear: bool, key: &str) -> Result<usize> {
+    if clear {
+        return Err(anyhow!("config key `{key}` does not support `clear`"));
+    }
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow!("config key `{key}` requires a positive integer value"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("config key `{key}` requires a positive integer value"))
 }
 
 fn normalize_path(path: &Path) -> String {
@@ -285,6 +307,29 @@ mod tests {
             current.prompt.fragments,
             vec![String::from("safety"), String::from("reviewer")]
         );
+    }
+
+    #[test]
+    fn set_scheduler_values_updates_config() {
+        let root = temp_dir();
+        let config_path = root.join("config.toml");
+
+        config_command_text(ConfigCommands::Set {
+            key: "scheduler.enabled".to_string(),
+            value: "false".to_string(),
+            config: Some(config_path.clone()),
+        })
+        .expect("set scheduler enabled");
+        config_command_text(ConfigCommands::Set {
+            key: "scheduler.max_jobs".to_string(),
+            value: "12".to_string(),
+            config: Some(config_path.clone()),
+        })
+        .expect("set scheduler max jobs");
+
+        let current = load_or_default(Some(config_path)).expect("load config");
+        assert!(!current.scheduler.enabled);
+        assert_eq!(current.scheduler.max_jobs, 12);
     }
 
     #[test]

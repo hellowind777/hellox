@@ -8,6 +8,8 @@ authors.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+chrono.workspace = true
+hellox-config = { path = "../hellox-config" }
 hellox-gateway-api = { path = "../hellox-gateway-api" }
 hellox-tool-runtime = { path = "../hellox-tool-runtime" }
 serde.workspace = true

@@ -45,6 +45,7 @@ anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros", "multipart"] }
 base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"] }
 dirs = "6"
 futures-util = "0.3"

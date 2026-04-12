@@ -41,6 +41,7 @@ impl TestWorkspace {
     fn context(&self) -> TestContext {
         TestContext {
             root: self.root.clone(),
+            config_path: self.root.join("config.toml"),
             planning_state: Arc::new(Mutex::new(TestPlanningState::default())),
         }
     }
@@ -55,6 +56,7 @@ impl Drop for TestWorkspace {
 #[derive(Clone)]
 struct TestContext {
     root: PathBuf,
+    config_path: PathBuf,
     planning_state: Arc<Mutex<TestPlanningState>>,
 }
 
@@ -62,6 +64,10 @@ struct TestContext {
 impl TaskToolContext for TestContext {
     fn working_directory(&self) -> &Path {
         &self.root
+    }
+
+    fn config_path(&self) -> &Path {
+        &self.config_path
     }
 
     async fn ensure_write_allowed(&self, _path: &Path) -> anyhow::Result<()> {
@@ -231,4 +237,43 @@ async fn todo_write_persists_and_returns_previous_items() {
     let stored =
         fs::read_to_string(workspace.root.join(".hellox").join("todos.json")).expect("read todos");
     assert!(stored.contains("verify runtime"), "{stored}");
+}
+
+#[tokio::test]
+async fn cron_tools_create_list_and_delete_scheduled_tasks() {
+    crate::cron_storage::reset_session_tasks();
+    let workspace = TestWorkspace::new();
+    let context = workspace.context();
+    let mut registry = ToolRegistry::<TestContext>::default();
+    register_tools(&mut registry);
+
+    let created = text_result(
+        registry
+            .execute(
+                "CronCreate",
+                json!({
+                    "cron": "*/5 * * * *",
+                    "prompt": "Check staging health",
+                    "durable": true
+                }),
+                &context,
+            )
+            .await,
+    );
+    assert!(created.contains("\"id\": \"cron-1\""), "{created}");
+    assert!(created.contains("Check staging health"), "{created}");
+
+    let listed = text_result(registry.execute("CronList", json!({}), &context).await);
+    assert!(listed.contains("\"cron-1\""), "{listed}");
+    assert!(listed.contains("Check staging health"), "{listed}");
+
+    let deleted = text_result(
+        registry
+            .execute("CronDelete", json!({ "id": "cron-1" }), &context)
+            .await,
+    );
+    assert!(deleted.contains("cron-1"), "{deleted}");
+
+    let after = text_result(registry.execute("CronList", json!({}), &context).await);
+    assert!(after.contains("\"tasks\": []"), "{after}");
 }

@@ -127,6 +127,9 @@ fn resolve_tool_alias(name: &str) -> Option<&'static str> {
         "enter_plan_mode" => "EnterPlanMode",
         "exit_plan_mode" => "ExitPlanMode",
         "todo_write" => "TodoWrite",
+        "cron_create" => "CronCreate",
+        "cron_delete" => "CronDelete",
+        "cron_list" => "CronList",
         // User interaction tools.
         "ask_user_question" => "AskUserQuestion",
         // Agent/team/workflow tools.
@@ -153,6 +156,7 @@ fn resolve_tool_alias(name: &str) -> Option<&'static str> {
         "list_mcp_prompts" => "ListMcpPrompts",
         "get_mcp_prompt" => "GetMcpPrompt",
         "mcp_auth" => "McpAuth",
+        "lsp" => "LSP",
         _ => return None,
     })
 }

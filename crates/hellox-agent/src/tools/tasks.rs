@@ -4,6 +4,9 @@ use serde_json::Value;
 use super::ToolRegistry;
 
 pub(super) fn register_tools(registry: &mut ToolRegistry) {
+    registry.register_runtime(hellox_tools_task::CronCreateTool);
+    registry.register_runtime(hellox_tools_task::CronDeleteTool);
+    registry.register_runtime(hellox_tools_task::CronListTool);
     registry.register_runtime(hellox_tools_task::TaskCreateTool);
     registry.register_runtime(hellox_tools_task::TaskGetTool);
     registry.register_runtime(hellox_tools_task::TaskListTool);
@@ -19,6 +22,10 @@ pub(super) fn register_tools(registry: &mut ToolRegistry) {
 impl hellox_tools_task::TaskToolContext for crate::tools::ToolExecutionContext {
     fn working_directory(&self) -> &std::path::Path {
         &self.working_directory
+    }
+
+    fn config_path(&self) -> &std::path::Path {
+        &self.config_path
     }
 
     async fn ensure_write_allowed(&self, path: &std::path::Path) -> anyhow::Result<()> {
