@@ -14,7 +14,7 @@ use hellox_agent::StoredSession;
 use hellox_config::{default_config_path, load_or_default, HelloxConfig};
 
 use gateway::ensure_gateway_ready;
-pub use localization::{resolve_app_language, AppLanguage};
+pub use localization::{resolve_app_language, resolve_default_app_language, AppLanguage};
 use onboarding::{resolve_provider_readiness, run_interactive_provider_onboarding};
 pub use trust::ensure_workspace_trusted;
 

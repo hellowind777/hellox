@@ -37,21 +37,23 @@ use crate::memory::{
     MemoryDecayOptions, MemoryPruneOptions,
 };
 use crate::memory_panel::render_memory_panel;
+use crate::repl::output_localizer::localize_user_visible_output;
 use crate::search::{format_search_results, merge_search_hits, search_memories, search_sessions};
 use crate::session_panel::render_session_panel;
 use crate::sessions::{format_session_detail, format_session_list, list_sessions, load_session};
-use crate::startup::resolve_app_language;
+use crate::startup::{resolve_app_language, resolve_default_app_language, AppLanguage};
 use crate::transcript::{default_share_path, export_stored_session_markdown};
 
 pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
+    let language = resolve_default_app_language();
     match command {
         MemoryCommands::Panel {
             archived,
             memory_id,
         } => {
-            println!(
-                "{}",
-                render_memory_panel(&memory_root(), archived, memory_id.as_deref())?
+            print_localized(
+                language,
+                render_memory_panel(&memory_root(), archived, memory_id.as_deref())?,
             );
         }
         MemoryCommands::List { archived } => {
@@ -60,7 +62,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
             } else {
                 list_memories(&memory_root())?
             };
-            println!("{}", format_memory_list(&memories));
+            print_localized(language, format_memory_list(&memories));
         }
         MemoryCommands::Show {
             memory_id,
@@ -71,7 +73,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
             } else {
                 load_memory(&memory_root(), &memory_id)?
             };
-            println!("{markdown}");
+            print_localized(language, markdown);
         }
         MemoryCommands::Search {
             query,
@@ -83,7 +85,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
             } else {
                 search_memories_ranked(&memory_root(), &query, limit)?
             };
-            println!("{}", format_memory_search_results(&query, &hits));
+            print_localized(language, format_memory_search_results(&query, &hits));
         }
         MemoryCommands::Clusters {
             archived,
@@ -102,7 +104,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
                     semantic,
                 },
             )?;
-            println!("{}", format_memory_cluster_report(&report));
+            print_localized(language, format_memory_cluster_report(&report));
         }
         MemoryCommands::Prune {
             scope,
@@ -119,7 +121,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
                     apply,
                 },
             )?;
-            println!("{}", format_memory_prune_report(&report));
+            print_localized(language, format_memory_prune_report(&report));
         }
         MemoryCommands::Archive {
             scope,
@@ -136,7 +138,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
                     apply,
                 },
             )?;
-            println!("{}", format_memory_archive_report(&report));
+            print_localized(language, format_memory_archive_report(&report));
         }
         MemoryCommands::Decay {
             scope,
@@ -157,7 +159,7 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
                     apply,
                 },
             )?;
-            println!("{}", format_memory_decay_report(&report));
+            print_localized(language, format_memory_decay_report(&report));
         }
         MemoryCommands::Capture {
             session_id,
@@ -167,9 +169,12 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
             let result =
                 capture_memory_from_snapshot(&snapshot, &memory_root(), instructions.as_deref())?;
             println!(
-                "Captured layered memory using {} mode. {}",
-                compact_mode_label(result.mode),
-                memory_result_targets(&result)
+                "{}",
+                memory_capture_text(
+                    language,
+                    compact_mode_label(result.mode, language),
+                    &memory_result_targets(&result),
+                )
             );
         }
     }
@@ -178,20 +183,21 @@ pub fn handle_memory_command(command: MemoryCommands) -> Result<()> {
 }
 
 pub fn handle_session_command(command: SessionCommands) -> Result<()> {
+    let language = resolve_default_app_language();
     match command {
         SessionCommands::Panel { session_id } => {
-            println!(
-                "{}",
-                render_session_panel(&sessions_root(), session_id.as_deref())?
+            print_localized(
+                language,
+                render_session_panel(&sessions_root(), session_id.as_deref())?,
             );
         }
         SessionCommands::List => {
             let sessions = list_sessions(&sessions_root())?;
-            println!("{}", format_session_list(&sessions));
+            print_localized(language, format_session_list(&sessions));
         }
         SessionCommands::Show { session_id } => {
             let snapshot = load_session(&sessions_root(), &session_id)?;
-            println!("{}", format_session_detail(&snapshot));
+            print_localized(language, format_session_detail(&snapshot));
         }
         SessionCommands::Compact {
             session_id,
@@ -210,11 +216,15 @@ pub fn handle_session_command(command: SessionCommands) -> Result<()> {
             )?;
             stored.save(&messages)?;
             println!(
-                "Compacted session `{session_id}` in {} mode: {} -> {} message(s). {}",
-                compact_mode_label(result.mode),
-                result.original_message_count,
-                result.retained_message_count,
-                memory_result_targets(&memory_result)
+                "{}",
+                compacted_session_text(
+                    language,
+                    &session_id,
+                    compact_mode_label(result.mode, language),
+                    result.original_message_count,
+                    result.retained_message_count,
+                    &memory_result_targets(&memory_result),
+                )
             );
         }
         SessionCommands::Share { session_id, output } => {
@@ -224,8 +234,11 @@ pub fn handle_session_command(command: SessionCommands) -> Result<()> {
             });
             export_stored_session_markdown(&snapshot, &destination)?;
             println!(
-                "Shared transcript written to `{}`.",
-                destination.display().to_string().replace('\\', "/")
+                "{}",
+                shared_transcript_text(
+                    language,
+                    &destination.display().to_string().replace('\\', "/"),
+                )
             );
         }
     }
@@ -234,10 +247,11 @@ pub fn handle_session_command(command: SessionCommands) -> Result<()> {
 }
 
 pub fn handle_search(query: String, limit: usize) -> Result<()> {
+    let language = resolve_default_app_language();
     let session_hits = search_sessions(&sessions_root(), &query, limit)?;
     let memory_hits = search_memories(&memory_root(), &query, limit)?;
     let hits = merge_search_hits(limit, vec![session_hits, memory_hits]);
-    println!("{}", format_search_results(&query, &hits));
+    print_localized(language, format_search_results(&query, &hits));
     Ok(())
 }
 
@@ -306,28 +320,29 @@ pub fn handle_cost_command() -> Result<()> {
 pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
     let config_path = default_config_path();
     let mut config = load_or_default(Some(config_path.clone()))?;
+    let language = resolve_app_language(&config);
     let auth_backend = auth_backend_for_config_path(&config_path);
 
     match command {
         McpCommands::Panel { server_name } => {
-            println!(
-                "{}",
-                render_mcp_panel(&config_path, &config, server_name.as_deref())?
+            print_localized(
+                language,
+                render_mcp_panel(&config_path, &config, server_name.as_deref())?,
             );
         }
         McpCommands::List => {
-            println!("{}", format_server_list(&config));
+            print_localized(language, format_server_list(&config));
         }
         McpCommands::Show { server_name } => {
-            println!(
-                "{}",
-                format_server_detail(&server_name, get_server(&config, &server_name)?)
+            print_localized(
+                language,
+                format_server_detail(&server_name, get_server(&config, &server_name)?),
             );
         }
         McpCommands::Tools { server_name } => {
             let server = get_server(&config, &server_name)?;
             let result = mcp_list_tools(&auth_backend, &server_name, server)?;
-            println!("{}", format_tool_list(&server_name, &result));
+            print_localized(language, format_tool_list(&server_name, &result));
         }
         McpCommands::Call {
             server_name,
@@ -337,22 +352,25 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
             let server = get_server(&config, &server_name)?;
             let arguments = parse_tool_call_arguments(input.as_deref())?;
             let result = mcp_call_tool(&auth_backend, &server_name, server, &tool_name, arguments)?;
-            println!("{}", format_tool_call(&server_name, &tool_name, &result));
+            print_localized(
+                language,
+                format_tool_call(&server_name, &tool_name, &result),
+            );
         }
         McpCommands::Resources { server_name } => {
             let server = get_server(&config, &server_name)?;
             let result = mcp_list_resources(&auth_backend, &server_name, server)?;
-            println!("{}", format_resource_list(&server_name, &result));
+            print_localized(language, format_resource_list(&server_name, &result));
         }
         McpCommands::Prompts { server_name } => {
             let server = get_server(&config, &server_name)?;
             let result = mcp_list_prompts(&auth_backend, &server_name, server)?;
-            println!("{}", format_prompt_list(&server_name, &result));
+            print_localized(language, format_prompt_list(&server_name, &result));
         }
         McpCommands::ReadResource { server_name, uri } => {
             let server = get_server(&config, &server_name)?;
             let result = mcp_read_resource(&auth_backend, &server_name, server, &uri)?;
-            println!("{}", format_resource_read(&server_name, &uri, &result));
+            print_localized(language, format_resource_read(&server_name, &uri, &result));
         }
         McpCommands::GetPrompt {
             server_name,
@@ -363,13 +381,16 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
             let arguments = parse_prompt_arguments(input.as_deref())?;
             let result =
                 mcp_get_prompt(&auth_backend, &server_name, server, &prompt_name, arguments)?;
-            println!("{}", format_prompt_get(&server_name, &prompt_name, &result));
+            print_localized(
+                language,
+                format_prompt_get(&server_name, &prompt_name, &result),
+            );
         }
         McpCommands::AuthShow { server_name } => {
             let server = get_server(&config, &server_name)?;
-            println!(
-                "{}",
-                format_auth_status(&auth_backend, &server_name, server)?
+            print_localized(
+                language,
+                format_auth_status(&auth_backend, &server_name, server)?,
             );
         }
         McpCommands::AuthSetToken {
@@ -378,15 +399,24 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
         } => {
             let server = get_server(&config, &server_name)?;
             set_bearer_token(&auth_backend, &server_name, server, bearer_token)?;
-            println!("Stored MCP bearer token for `{server_name}`.");
+            print_localized(
+                language,
+                format!("Stored MCP bearer token for `{server_name}`."),
+            );
         }
         McpCommands::AuthClear { server_name } => {
             get_server(&config, &server_name)?;
             let removed = clear_bearer_token(&auth_backend, &server_name)?;
             if removed {
-                println!("Cleared MCP bearer token for `{server_name}`.");
+                print_localized(
+                    language,
+                    format!("Cleared MCP bearer token for `{server_name}`."),
+                );
             } else {
-                println!("No stored MCP bearer token found for `{server_name}`.");
+                print_localized(
+                    language,
+                    format!("No stored MCP bearer token found for `{server_name}`."),
+                );
             }
         }
         McpCommands::AuthOauthSet {
@@ -416,17 +446,23 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
                 },
             )?;
             save_config(Some(config_path.clone()), &config)?;
-            println!(
-                "Configured MCP OAuth for `{server_name}` in `{}`.",
-                normalize_path(&config_path)
+            print_localized(
+                language,
+                format!(
+                    "Configured MCP OAuth for `{server_name}` in `{}`.",
+                    normalize_path(&config_path)
+                ),
             );
         }
         McpCommands::AuthOauthStart { server_name } => {
             let server = get_server(&config, &server_name)?;
             let request = start_server_oauth_authorization(&server_name, server)?;
-            println!(
-                "server: {server_name}\nauthorization_url: {}\ncode_verifier: {}\nstate: {}",
-                request.authorization_url, request.code_verifier, request.state
+            print_localized(
+                language,
+                format!(
+                    "server: {server_name}\nauthorization_url: {}\ncode_verifier: {}\nstate: {}",
+                    request.authorization_url, request.code_verifier, request.state
+                ),
             );
         }
         McpCommands::AuthOauthExchange {
@@ -442,37 +478,49 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
                 &code,
                 &code_verifier,
             )?;
-            println!(
-                "Stored MCP OAuth account `{}` for `{server_name}` (provider: {}).",
-                account.account_id, account.provider
+            print_localized(
+                language,
+                format!(
+                    "Stored MCP OAuth account `{}` for `{server_name}` (provider: {}).",
+                    account.account_id, account.provider
+                ),
             );
         }
         McpCommands::AuthOauthRefresh { server_name } => {
             let server = get_server(&config, &server_name)?;
             let account = refresh_server_oauth_access_token(&auth_backend, &server_name, server)?;
-            println!(
-                "Refreshed MCP OAuth account `{}` for `{server_name}`.",
-                account.account_id
+            print_localized(
+                language,
+                format!(
+                    "Refreshed MCP OAuth account `{}` for `{server_name}`.",
+                    account.account_id
+                ),
             );
         }
         McpCommands::AuthOauthClear { server_name } => {
             let server = get_server(&config, &server_name)?;
             if clear_server_oauth_account(&auth_backend, &server_name, server)? {
-                println!(
-                    "Cleared linked MCP OAuth account for `{server_name}`. OAuth client config remains in `{}`.",
-                    normalize_path(&config_path)
+                print_localized(
+                    language,
+                    format!(
+                        "Cleared linked MCP OAuth account for `{server_name}`. OAuth client config remains in `{}`.",
+                        normalize_path(&config_path)
+                    ),
                 );
             } else {
-                println!("No linked MCP OAuth account found for `{server_name}`.");
+                print_localized(
+                    language,
+                    format!("No linked MCP OAuth account found for `{server_name}`."),
+                );
             }
         }
         McpCommands::RegistryList { cursor, limit } => {
             let result = list_registry_servers(cursor.as_deref(), Some(limit))?;
-            println!("{}", format_registry_list(&result));
+            print_localized(language, format_registry_list(&result));
         }
         McpCommands::RegistryShow { name } => {
             let entry = get_registry_server_latest(&name)?;
-            println!("{}", format_registry_detail(&entry));
+            print_localized(language, format_registry_detail(&entry));
         }
         McpCommands::RegistryInstall {
             name,
@@ -486,9 +534,15 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
                 mcp_scope(scope),
             )?;
             save_config(Some(config_path.clone()), &config)?;
-            println!(
-                "Installed MCP registry server `{}` as `{}` using `{}` -> {}.",
-                result.registry_name, result.installed_server_name, result.transport, result.url
+            print_localized(
+                language,
+                format!(
+                    "Installed MCP registry server `{}` as `{}` using `{}` -> {}.",
+                    result.registry_name,
+                    result.installed_server_name,
+                    result.transport,
+                    result.url
+                ),
             );
         }
         McpCommands::AddStdio {
@@ -511,9 +565,12 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
             );
             add_server(&mut config, server_name.clone(), server)?;
             save_config(Some(config_path.clone()), &config)?;
-            println!(
-                "Added MCP server `{server_name}` to `{}`.",
-                normalize_path(&config_path)
+            print_localized(
+                language,
+                format!(
+                    "Added MCP server `{server_name}` to `{}`.",
+                    normalize_path(&config_path)
+                ),
             );
         }
         McpCommands::AddSse {
@@ -551,9 +608,12 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
             )?;
             add_server(&mut config, server_name.clone(), server)?;
             save_config(Some(config_path.clone()), &config)?;
-            println!(
-                "Added MCP server `{server_name}` to `{}`.",
-                normalize_path(&config_path)
+            print_localized(
+                language,
+                format!(
+                    "Added MCP server `{server_name}` to `{}`.",
+                    normalize_path(&config_path)
+                ),
             );
         }
         McpCommands::AddWs {
@@ -591,36 +651,77 @@ pub fn handle_mcp_command(command: McpCommands) -> Result<()> {
             )?;
             add_server(&mut config, server_name.clone(), server)?;
             save_config(Some(config_path.clone()), &config)?;
-            println!(
-                "Added MCP server `{server_name}` to `{}`.",
-                normalize_path(&config_path)
+            print_localized(
+                language,
+                format!(
+                    "Added MCP server `{server_name}` to `{}`.",
+                    normalize_path(&config_path)
+                ),
             );
         }
         McpCommands::Enable { server_name } => {
             set_server_enabled(&mut config, &server_name, true)?;
             save_config(Some(config_path.clone()), &config)?;
-            println!("Enabled MCP server `{server_name}`.");
+            print_localized(language, format!("Enabled MCP server `{server_name}`."));
         }
         McpCommands::Disable { server_name } => {
             set_server_enabled(&mut config, &server_name, false)?;
             save_config(Some(config_path.clone()), &config)?;
-            println!("Disabled MCP server `{server_name}`.");
+            print_localized(language, format!("Disabled MCP server `{server_name}`."));
         }
         McpCommands::Remove { server_name } => {
             remove_server(&mut config, &server_name)?;
             save_config(Some(config_path.clone()), &config)?;
-            println!("Removed MCP server `{server_name}`.");
+            print_localized(language, format!("Removed MCP server `{server_name}`."));
         }
     }
 
     Ok(())
 }
 
-fn compact_mode_label(mode: CompactMode) -> &'static str {
-    match mode {
-        CompactMode::Micro => "microcompact",
-        CompactMode::Full => "compact",
+fn compact_mode_label(mode: CompactMode, language: AppLanguage) -> &'static str {
+    match (mode, language) {
+        (CompactMode::Micro, AppLanguage::English) => "microcompact",
+        (CompactMode::Full, AppLanguage::English) => "compact",
+        (CompactMode::Micro, AppLanguage::SimplifiedChinese) => "微压缩",
+        (CompactMode::Full, AppLanguage::SimplifiedChinese) => "压缩",
     }
+}
+
+fn memory_capture_text(language: AppLanguage, mode: &str, targets: &str) -> String {
+    match language {
+        AppLanguage::English => format!("Captured layered memory using {mode} mode. {targets}"),
+        AppLanguage::SimplifiedChinese => format!("已使用 `{mode}` 模式捕获分层记忆。{targets}"),
+    }
+}
+
+fn compacted_session_text(
+    language: AppLanguage,
+    session_id: &str,
+    mode: &str,
+    original_count: usize,
+    retained_count: usize,
+    targets: &str,
+) -> String {
+    match language {
+        AppLanguage::English => format!(
+            "Compacted session `{session_id}` in {mode} mode: {original_count} -> {retained_count} message(s). {targets}"
+        ),
+        AppLanguage::SimplifiedChinese => format!(
+            "已使用 `{mode}` 模式压缩会话 `{session_id}`：{original_count} -> {retained_count} 条消息。{targets}"
+        ),
+    }
+}
+
+fn shared_transcript_text(language: AppLanguage, path: &str) -> String {
+    match language {
+        AppLanguage::English => format!("Shared transcript written to `{path}`."),
+        AppLanguage::SimplifiedChinese => format!("已将转录导出到 `{path}`。"),
+    }
+}
+
+fn print_localized(language: AppLanguage, text: impl Into<String>) {
+    println!("{}", localize_user_visible_output(language, text.into()));
 }
 
 fn normalize_path(path: &Path) -> String {

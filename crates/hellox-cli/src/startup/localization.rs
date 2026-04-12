@@ -1,4 +1,4 @@
-use hellox_config::HelloxConfig;
+use hellox_config::{default_config_path, load_or_default, HelloxConfig};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum AppLanguage {
@@ -47,6 +47,11 @@ pub fn resolve_app_language(config: &HelloxConfig) -> AppLanguage {
         .and_then(parse_language)
         .or_else(|| sys_locale::get_locale().as_deref().and_then(parse_language))
         .unwrap_or(AppLanguage::English)
+}
+
+pub fn resolve_default_app_language() -> AppLanguage {
+    let config = load_or_default(Some(default_config_path())).unwrap_or_default();
+    resolve_app_language(&config)
 }
 
 fn parse_language(raw: &str) -> Option<AppLanguage> {

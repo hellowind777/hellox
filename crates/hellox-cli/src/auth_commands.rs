@@ -8,27 +8,30 @@ use hellox_auth::{
 };
 
 use crate::cli_types::AuthCommands;
+use crate::repl::output_localizer::localize_user_visible_output;
+use crate::startup::{resolve_default_app_language, AppLanguage};
 
 pub fn handle_auth_command(command: AuthCommands) -> Result<()> {
+    let language = resolve_default_app_language();
     let backend = LocalAuthStoreBackend::default();
     let mut store = backend.load_auth_store()?;
 
     match command {
         AuthCommands::Status => {
-            println!("{}", format_auth_summary(&store));
+            print_localized(language, format_auth_summary(&store));
         }
         AuthCommands::Accounts => {
-            println!("{}", format_account_list(&store));
+            print_localized(language, format_account_list(&store));
         }
         AuthCommands::Devices => {
-            println!("{}", format_device_list(&store));
+            print_localized(language, format_device_list(&store));
         }
         AuthCommands::Show { account_id } => {
             let account = store
                 .accounts
                 .get(&account_id)
                 .ok_or_else(|| anyhow!("Auth account `{account_id}` was not found"))?;
-            println!("{}", format_account_detail(account));
+            print_localized(language, format_account_detail(account));
         }
         AuthCommands::Login {
             account_id,
@@ -46,25 +49,25 @@ pub fn handle_auth_command(command: AuthCommands) -> Result<()> {
                 scopes,
             );
             backend.save_auth_store(&store)?;
-            println!("Stored auth account `{account_id}`.");
+            print_localized(language, format!("Stored auth account `{account_id}`."));
         }
         AuthCommands::Logout { account_id } => {
             logout_account(&mut store, &account_id)?;
             backend.save_auth_store(&store)?;
-            println!("Removed auth account `{account_id}`.");
+            print_localized(language, format!("Removed auth account `{account_id}`."));
         }
         AuthCommands::Keys => {
-            println!("{}", format_provider_key_list(&store));
+            print_localized(language, format_provider_key_list(&store));
         }
         AuthCommands::SetKey { provider, api_key } => {
             set_provider_key(&mut store, provider.clone(), api_key);
             backend.save_auth_store(&store)?;
-            println!("Stored provider key `{provider}`.");
+            print_localized(language, format!("Stored provider key `{provider}`."));
         }
         AuthCommands::RemoveKey { provider } => {
             remove_provider_key(&mut store, &provider)?;
             backend.save_auth_store(&store)?;
-            println!("Removed provider key `{provider}`.");
+            print_localized(language, format!("Removed provider key `{provider}`."));
         }
         AuthCommands::TrustDevice {
             account_id,
@@ -73,12 +76,12 @@ pub fn handle_auth_command(command: AuthCommands) -> Result<()> {
         } => {
             let device = trust_device(&mut store, &account_id, device_name, scopes)?;
             backend.save_auth_store(&store)?;
-            println!("{}", format_device_detail(&device));
+            print_localized(language, format_device_detail(&device));
         }
         AuthCommands::RevokeDevice { device_id } => {
             revoke_device(&mut store, &device_id)?;
             backend.save_auth_store(&store)?;
-            println!("Removed trusted device `{device_id}`.");
+            print_localized(language, format!("Removed trusted device `{device_id}`."));
         }
         AuthCommands::OauthStart {
             account_id,
@@ -100,9 +103,12 @@ pub fn handle_auth_command(command: AuthCommands) -> Result<()> {
                 scopes,
                 login_hint,
             })?;
-            println!(
-                "account_id: {}\nauthorization_url: {}\ncode_verifier: {}\nstate: {}",
-                account_id, request.authorization_url, request.code_verifier, request.state
+            print_localized(
+                language,
+                format!(
+                    "account_id: {}\nauthorization_url: {}\ncode_verifier: {}\nstate: {}",
+                    account_id, request.authorization_url, request.code_verifier, request.state
+                ),
             );
         }
         AuthCommands::OauthExchange {
@@ -128,9 +134,9 @@ pub fn handle_auth_command(command: AuthCommands) -> Result<()> {
             let tokens = exchange_oauth_authorization_code(&oauth, &code, &code_verifier)?;
             store_oauth_account(&mut store, account_id.clone(), &oauth, &tokens);
             backend.save_auth_store(&store)?;
-            println!(
-                "{}",
-                format_account_detail(find_auth_account(&store, &account_id)?)
+            print_localized(
+                language,
+                format_account_detail(find_auth_account(&store, &account_id)?),
             );
         }
         AuthCommands::OauthRefresh {
@@ -156,12 +162,16 @@ pub fn handle_auth_command(command: AuthCommands) -> Result<()> {
             let tokens = refresh_oauth_access_token(&oauth, &refresh_token)?;
             store_oauth_account(&mut store, account_id.clone(), &oauth, &tokens);
             backend.save_auth_store(&store)?;
-            println!(
-                "{}",
-                format_account_detail(find_auth_account(&store, &account_id)?)
+            print_localized(
+                language,
+                format_account_detail(find_auth_account(&store, &account_id)?),
             );
         }
     }
 
     Ok(())
+}
+
+fn print_localized(language: AppLanguage, text: impl Into<String>) {
+    println!("{}", localize_user_visible_output(language, text.into()));
 }
