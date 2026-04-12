@@ -68,6 +68,41 @@ pub fn run_pane_host_command(
     Ok(output)
 }
 
+pub fn assert_pane_host_replay_consumed(replay_path: &Path) -> Result<()> {
+    let guard = replay_harness_state()
+        .lock()
+        .map_err(|_| anyhow!("pane-host replay harness mutex is poisoned"))?;
+
+    let Some(harness) = guard.as_ref() else {
+        return Err(anyhow!(
+            "pane-host replay `{}` has not been loaded",
+            replay_path.display()
+        ));
+    };
+    if harness.path != replay_path {
+        return Err(anyhow!(
+            "pane-host replay `{}` is not active; active replay is `{}`",
+            replay_path.display(),
+            harness.path.display()
+        ));
+    }
+    if harness.queue.is_empty() {
+        return Ok(());
+    }
+
+    let next = harness
+        .queue
+        .front()
+        .map(|record| format!("{} ({} {:?})", record.context, record.program, record.argv))
+        .unwrap_or_else(|| "(unknown)".to_string());
+    Err(anyhow!(
+        "pane-host replay `{}` has {} unused record(s); next unused record: {}",
+        replay_path.display(),
+        harness.queue.len(),
+        next
+    ))
+}
+
 fn thread_record_path_override() -> Option<PathBuf> {
     THREAD_RECORD_PATH.with(|path| path.borrow().clone())
 }
@@ -372,6 +407,7 @@ mod tests {
         .expect("launch tmux pane via replay");
 
         assert_eq!(pane_target, "%1");
+        super::assert_pane_host_replay_consumed(&fixture_path).expect("replay fully consumed");
     }
 
     #[test]
@@ -429,5 +465,69 @@ mod tests {
         .expect("launch iterm pane via replay");
 
         assert_eq!(pane_target, "123");
+        super::assert_pane_host_replay_consumed(&fixture_path).expect("replay fully consumed");
+    }
+
+    #[test]
+    fn pane_host_replay_consumption_reports_unused_records() {
+        let _env_lock = pane_backend_test_env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *super::replay_harness_state()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+
+        let fixture_path = unique_fixture_path("unused-records");
+        let _replay = ThreadReplayGuard::enable(&fixture_path);
+        let _record = EnvGuard::remove(super::PANE_HOST_RECORD_ENV);
+
+        write_fixture(
+            &fixture_path,
+            &[PaneHostRecord {
+                context: "probe".to_string(),
+                program: "echo".to_string(),
+                argv: vec!["ok".to_string()],
+                success: true,
+                stdout: "ok\n".to_string(),
+                stderr: String::new(),
+            }],
+        );
+
+        let output = super::run_pane_host_command("echo", &[String::from("ok")], "probe")
+            .expect("consume first replay record");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+        super::assert_pane_host_replay_consumed(&fixture_path)
+            .expect("single replay record was consumed");
+
+        write_fixture(
+            &fixture_path,
+            &[
+                PaneHostRecord {
+                    context: "probe".to_string(),
+                    program: "echo".to_string(),
+                    argv: vec!["ok".to_string()],
+                    success: true,
+                    stdout: "ok\n".to_string(),
+                    stderr: String::new(),
+                },
+                PaneHostRecord {
+                    context: "extra".to_string(),
+                    program: "echo".to_string(),
+                    argv: vec!["extra".to_string()],
+                    success: true,
+                    stdout: "extra\n".to_string(),
+                    stderr: String::new(),
+                },
+            ],
+        );
+        *super::replay_harness_state()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+
+        let _ = super::run_pane_host_command("echo", &[String::from("ok")], "probe")
+            .expect("consume first replay record");
+        let err = super::assert_pane_host_replay_consumed(&fixture_path)
+            .expect_err("unused record should be reported");
+        assert!(err.to_string().contains("unused record"));
     }
 }
