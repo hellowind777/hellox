@@ -1,3 +1,4 @@
+use super::format::shortcut_text;
 use super::output_localizer::print_localized_repl_output;
 use super::*;
 
@@ -22,6 +23,10 @@ pub(super) async fn handle_repl_input_async_impl(
                 "{}",
                 help_text_for_workdir(session.working_directory(), driver.language)
             );
+            Ok(ReplAction::Continue)
+        }
+        ReplCommand::Shortcuts => {
+            println!("{}", shortcut_text(driver.language));
             Ok(ReplAction::Continue)
         }
         ReplCommand::Status => {

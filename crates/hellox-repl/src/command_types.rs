@@ -7,6 +7,7 @@ pub use crate::workflow_command_types::WorkflowCommand;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplCommand {
     Help,
+    Shortcuts,
     Status,
     Doctor,
     Usage,

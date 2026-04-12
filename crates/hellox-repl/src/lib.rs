@@ -29,6 +29,8 @@ mod tests {
     #[test]
     fn parses_basic_repl_commands() {
         assert_eq!(parse_command("/help"), Some(ReplCommand::Help));
+        assert_eq!(parse_command("?"), Some(ReplCommand::Shortcuts));
+        assert_eq!(parse_command("/shortcuts"), Some(ReplCommand::Shortcuts));
         assert_eq!(
             parse_command("/workflow dashboard release-review"),
             Some(ReplCommand::Workflow(WorkflowCommand::Dashboard {

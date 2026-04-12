@@ -24,6 +24,43 @@ pub(super) fn help_text() -> String {
     render_help_text(None, AppLanguage::English)
 }
 
+pub(super) fn shortcut_text(language: AppLanguage) -> String {
+    match language {
+        AppLanguage::English => [
+            "Shortcuts and input tips:",
+            "Prompt entry:",
+            "  ?                 Show this shortcuts menu",
+            "  / + Tab           Browse slash commands",
+            "  /help             Show the full command reference",
+            "Input editing:",
+            "  Enter             Submit the current prompt",
+            "  ↑                 Edit the previous prompt after the first submit",
+            "  Ctrl+C            Exit the current REPL session",
+            "Interactive panels:",
+            "  1..9              Jump to a visible selector item",
+            "  /tasks panel      Open the local task dashboard",
+            "  /workflow dashboard <name> Open the workflow dashboard shell",
+        ]
+        .join("\n"),
+        AppLanguage::SimplifiedChinese => [
+            "快捷键与输入提示：",
+            "输入入口：",
+            "  ?                 显示这份快捷帮助",
+            "  / + Tab           浏览斜杠命令",
+            "  /help             显示完整命令帮助",
+            "输入编辑：",
+            "  Enter             发送当前输入",
+            "  ↑                 首轮提交后编辑上一条输入",
+            "  Ctrl+C            退出当前 REPL 会话",
+            "交互面板：",
+            "  1..9              跳转到当前可见选择项",
+            "  /tasks panel      打开本地任务面板",
+            "  /workflow dashboard <name> 打开工作流仪表板 shell",
+        ]
+        .join("\n"),
+    }
+}
+
 pub(super) fn help_text_for_workdir(root: &Path, language: AppLanguage) -> String {
     match list_invocable_workflows(root) {
         Ok(workflows) if !workflows.is_empty() => render_help_text(

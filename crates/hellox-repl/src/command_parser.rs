@@ -16,6 +16,9 @@ use crate::workflow_command_parser::parse_workflow_command;
 
 pub fn parse_command(input: &str) -> Option<ReplCommand> {
     let trimmed = input.trim();
+    if trimmed == "?" {
+        return Some(ReplCommand::Shortcuts);
+    }
     if !trimmed.starts_with('/') {
         return None;
     }
@@ -27,6 +30,7 @@ pub fn parse_command(input: &str) -> Option<ReplCommand> {
     let command = match name.as_str() {
         "" => ReplCommand::Help,
         "help" => ReplCommand::Help,
+        "shortcuts" | "shortcut" => ReplCommand::Shortcuts,
         "status" => ReplCommand::Status,
         "doctor" => ReplCommand::Doctor,
         "usage" => ReplCommand::Usage,

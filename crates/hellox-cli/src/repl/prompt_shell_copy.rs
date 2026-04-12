@@ -45,10 +45,10 @@ fn shell_status_line(language: AppLanguage, model: &str, workspace_trusted: bool
 fn shell_quick_commands_line(language: AppLanguage) -> String {
     match language {
         AppLanguage::English => {
-            "│ /help commands · /status session · /doctor diagnostics · /workflow flows".to_string()
+            "│ ? shortcuts · /help commands · /status session · /workflow flows".to_string()
         }
         AppLanguage::SimplifiedChinese => {
-            "│ /help 命令 · /status 状态 · /doctor 诊断 · /workflow 工作流".to_string()
+            "│ ? 快捷键 · /help 命令 · /status 状态 · /workflow 工作流".to_string()
         }
     }
 }

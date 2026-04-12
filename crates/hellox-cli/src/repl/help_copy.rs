@@ -23,6 +23,7 @@ pub(super) fn remote_capable_lines(language: AppLanguage) -> &'static [&'static 
 
 const CORE_WORKFLOW_LINES_EN: &[&str] = &[
     "  /help                Show this help message",
+    "  /shortcuts           Show keyboard shortcuts and input affordances",
     "  /status              Show current REPL status",
     "  /doctor              Inspect local config, providers, and storage health",
     "  /usage               Show persisted workspace activity totals",
@@ -106,6 +107,7 @@ const CORE_WORKFLOW_LINES_EN: &[&str] = &[
 
 const CORE_WORKFLOW_LINES_ZH_CN: &[&str] = &[
     "  /help                显示这条帮助信息",
+    "  /shortcuts           显示快捷键与输入提示",
     "  /status              显示当前 REPL 状态",
     "  /doctor              检查本地配置、provider 与存储健康状态",
     "  /usage               显示工作区持久化活动汇总",

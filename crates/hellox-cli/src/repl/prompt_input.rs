@@ -22,6 +22,11 @@ const PROMPT_COMMANDS: &[PromptCommandCopy] = &[
         simplified_chinese: "查看可用命令",
     },
     PromptCommandCopy {
+        value: "/shortcuts",
+        english: "show keyboard shortcuts",
+        simplified_chinese: "查看快捷键提示",
+    },
+    PromptCommandCopy {
         value: "/status",
         english: "show the active session",
         simplified_chinese: "查看当前会话状态",

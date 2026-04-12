@@ -14,7 +14,7 @@ use serde_json::json;
 use super::commands::{
     ModelCommand, OutputStyleCommand, ReplCommand, SessionCommand, WorkflowCommand,
 };
-use super::format::{config_text, help_text, help_text_for_workdir, status_text};
+use super::format::{config_text, help_text, help_text_for_workdir, shortcut_text, status_text};
 use super::{handle_repl_input, ReplAction, ReplMetadata};
 use crate::startup::AppLanguage;
 use crate::tasks::{save_tasks, TaskItem};
@@ -194,6 +194,14 @@ fn parse_known_and_unknown_commands() {
     assert_eq!(
         super::commands::parse_command("/help"),
         Some(ReplCommand::Help)
+    );
+    assert_eq!(
+        super::commands::parse_command("?"),
+        Some(ReplCommand::Shortcuts)
+    );
+    assert_eq!(
+        super::commands::parse_command("/shortcuts"),
+        Some(ReplCommand::Shortcuts)
     );
     assert_eq!(
         super::commands::parse_command("/model gpt-5"),
@@ -466,6 +474,10 @@ fn prompt_state_uses_repo_example_before_first_submit() {
     assert!(state
         .completions
         .iter()
+        .any(|item| item.value == "/shortcuts"));
+    assert!(state
+        .completions
+        .iter()
         .any(|item| item.value == "/workflow"));
     assert!(state
         .completions
@@ -536,6 +548,7 @@ fn prompt_state_uses_existing_messages_as_continuation_signal() {
 fn help_text_lists_core_commands() {
     let text = help_text();
     assert!(text.contains("/help"));
+    assert!(text.contains("/shortcuts"));
     assert!(text.contains("/output-style"));
     assert!(text.contains("/install"));
     assert!(text.contains("/upgrade"));
@@ -556,6 +569,17 @@ fn help_text_lists_core_commands() {
     assert!(text.contains("/session panel [id]"));
     assert!(text.contains("/session share <id> [path]"));
     assert!(text.contains("/session list"));
+}
+
+#[test]
+fn shortcut_text_is_localized() {
+    let english = shortcut_text(AppLanguage::English);
+    let chinese = shortcut_text(AppLanguage::SimplifiedChinese);
+
+    assert!(english.contains("?                 Show this shortcuts menu"));
+    assert!(english.contains("/ + Tab           Browse slash commands"));
+    assert!(chinese.contains("?                 显示这份快捷帮助"));
+    assert!(chinese.contains("/ + Tab           浏览斜杠命令"));
 }
 
 #[test]
