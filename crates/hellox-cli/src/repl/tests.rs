@@ -7,6 +7,7 @@ use hellox_agent::{
     default_tool_registry, AgentOptions, AgentSession, GatewayClient, StoredSession,
     StoredSessionMessage, StoredSessionSnapshot,
 };
+use hellox_repl::ReplLoopDriver;
 use hellox_config::{save_config, HelloxConfig, PermissionMode};
 use serde_json::json;
 
@@ -353,6 +354,31 @@ fn parse_known_and_unknown_commands() {
         Some(ReplCommand::Unknown(String::from("unknown")))
     );
     assert_eq!(super::commands::parse_command("plain prompt"), None);
+}
+
+#[test]
+fn repl_banner_includes_welcome_context_and_commands() {
+    let session = session();
+    let lines = super::CliReplDriver::new().banner_lines(&session);
+
+    assert_eq!(
+        lines.first().expect("welcome line"),
+        &format!("╭─ Welcome to hellox v{}", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(lines.iter().any(|line| line.contains("Local-first coding session ready")));
+    assert!(lines.iter().any(|line| line.contains("cwd     ")));
+    assert!(lines.iter().any(|line| line.contains("model   opus")));
+    assert!(lines.iter().any(|line| line.contains("session new local session")));
+    assert!(lines.iter().any(|line| line.contains("/help · /status · /resume · /exit")));
+    assert_eq!(
+        lines.last().expect("closing line"),
+        "╰─ Start typing your task and press Enter"
+    );
+}
+
+#[test]
+fn repl_prompt_label_matches_claude_style_prefix() {
+    assert_eq!(super::CliReplDriver::new().prompt_label(), "❯ ");
 }
 
 #[test]

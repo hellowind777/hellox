@@ -41,8 +41,8 @@ pub trait ReplLoopDriver<Session> {
         ]
     }
 
-    fn prompt_label(&self) -> &str {
-        "hellox> "
+    fn prompt_label(&self) -> String {
+        String::from("❯ ")
     }
 
     async fn handle_input(
@@ -83,7 +83,8 @@ where
     }
 
     loop {
-        print!("{}", driver.prompt_label());
+        let prompt = driver.prompt_label();
+        print!("{prompt}");
         io::stdout().flush()?;
 
         let mut line = String::new();
@@ -129,7 +130,8 @@ where
     let history_path = repl_history_path(metadata);
 
     let result = loop {
-        match editor.readline(driver.prompt_label()) {
+        let prompt = driver.prompt_label();
+        match editor.readline(&prompt) {
             Ok(line) => {
                 let trimmed = line.trim();
                 if trimmed.is_empty() {

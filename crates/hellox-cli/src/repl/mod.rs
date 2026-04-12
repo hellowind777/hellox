@@ -127,14 +127,11 @@ impl CliReplDriver {
 #[async_trait]
 impl ReplLoopDriver<AgentSession> for CliReplDriver {
     fn banner_lines(&self, session: &AgentSession) -> Vec<String> {
-        let mut lines = vec![
-            String::from("hellox repl"),
-            String::from("type `exit` or `/exit` to quit"),
-        ];
-        if let Some(session_id) = session.session_id() {
-            lines.push(format!("session: {session_id}"));
-        }
-        lines
+        welcome_banner_lines(session)
+    }
+
+    fn prompt_label(&self) -> String {
+        default_prompt_label()
     }
 
     async fn handle_input(
@@ -163,6 +160,23 @@ impl ReplLoopDriver<AgentSession> for CliReplDriver {
         }
         Ok(())
     }
+}
+
+fn welcome_banner_lines(session: &AgentSession) -> Vec<String> {
+    let session_id = session.session_id().unwrap_or("new local session");
+    vec![
+        format!("╭─ Welcome to hellox v{}", env!("CARGO_PKG_VERSION")),
+        String::from("├─ Local-first coding session ready"),
+        format!("├─ cwd     {}", session.working_directory().display()),
+        format!("├─ model   {}", session.model()),
+        format!("├─ session {session_id}"),
+        String::from("├─ commands /help · /status · /resume · /exit"),
+        String::from("╰─ Start typing your task and press Enter"),
+    ]
+}
+
+fn default_prompt_label() -> String {
+    String::from("❯ ")
 }
 
 impl CliReplDriver {
