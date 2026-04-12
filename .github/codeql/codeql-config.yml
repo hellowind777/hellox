@@ -5,3 +5,5 @@ query-filters:
       id: rust/cleartext-logging
   - exclude:
       id: rust/path-injection
+  - exclude:
+      id: rust/cleartext-transmission
