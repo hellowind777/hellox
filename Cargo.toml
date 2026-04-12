@@ -62,5 +62,5 @@ uuid = { version = "1", features = ["v4", "serde"] }
 regex = "1"
 scraper = "0.24"
 lopdf = "0.35"
-similar = "2"
+similar = "3"
 rustyline = "14"
