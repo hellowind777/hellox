@@ -9,6 +9,7 @@ authors.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 clap.workspace = true
+crossterm.workspace = true
 hellox-agent = { path = "../hellox-agent" }
 hellox-auth = { path = "../hellox-auth" }
 hellox-bridge = { path = "../hellox-bridge" }

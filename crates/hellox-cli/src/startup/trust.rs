@@ -6,13 +6,16 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
+use crossterm::cursor::MoveUp;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
+use crossterm::ExecutableCommand;
 use hellox_config::config_root_for;
-use hellox_tui::render_cards;
 use serde::{Deserialize, Serialize};
 
 use super::trust_copy::{
-    accepted_cards, dialog_title, invalid_choice_text, prompt_label, trust_cards, TrustChoice,
-    TrustMode,
+    fallback_notice_text, invalid_choice_text, prompt_label, trust_dialog_lines, TrustChoice,
+    TrustMode, TrustSelection,
 };
 use super::AppLanguage;
 
@@ -67,41 +70,145 @@ fn prompt_for_workspace_trust(
     normalized: &str,
     mode: TrustMode,
 ) -> Result<bool> {
-    let store_path = workspace_trust_path_for(config_path)
-        .display()
-        .to_string()
-        .replace('\\', "/");
+    let choice = match prompt_for_workspace_trust_interactive(language, normalized, mode) {
+        Ok(choice) => choice,
+        Err(error) => {
+            println!();
+            println!("{}", fallback_notice_text(language));
+            println!("{error}");
+            prompt_for_workspace_trust_fallback(language, normalized, mode)?
+        }
+    };
 
-    println!();
-    print_title(language, dialog_title(language));
-    for line in render_cards(&trust_cards(language, normalized, mode, &store_path)) {
+    match choice {
+        TrustChoice::Trust => {
+            remember_workspace_trust(config_path, working_directory, normalized, mode)?;
+            Ok(true)
+        }
+        TrustChoice::Exit => Ok(false),
+    }
+}
+
+fn prompt_for_workspace_trust_interactive(
+    language: AppLanguage,
+    normalized: &str,
+    _mode: TrustMode,
+) -> Result<TrustChoice> {
+    let _raw_mode = RawModeGuard::activate()?;
+    let mut stdout = io::stdout();
+    let mut rendered_line_count = 0usize;
+    let mut selection = TrustSelection::Trust;
+    let mut exit_pending = false;
+
+    loop {
+        rendered_line_count = redraw_trust_dialog(
+            &mut stdout,
+            rendered_line_count,
+            &trust_dialog_lines(language, normalized, selection, exit_pending),
+        )?;
+
+        match event::read().context("failed to read trust dialog input")? {
+            Event::Key(key) if is_key_press(key) => {
+                match resolve_key_action(language, key, exit_pending) {
+                    TrustKeyAction::MovePrevious => {
+                        selection = selection.previous();
+                        exit_pending = false;
+                    }
+                    TrustKeyAction::MoveNext => {
+                        selection = selection.next();
+                        exit_pending = false;
+                    }
+                    TrustKeyAction::SelectTrust => {
+                        selection = TrustSelection::Trust;
+                        exit_pending = false;
+                    }
+                    TrustKeyAction::SelectExit => {
+                        selection = TrustSelection::Exit;
+                        exit_pending = false;
+                    }
+                    TrustKeyAction::Confirm => {
+                        clear_rendered_dialog(&mut stdout, rendered_line_count)?;
+                        return Ok(selection.choice());
+                    }
+                    TrustKeyAction::Cancel => {
+                        clear_rendered_dialog(&mut stdout, rendered_line_count)?;
+                        return Ok(TrustChoice::Exit);
+                    }
+                    TrustKeyAction::ArmExit => {
+                        exit_pending = true;
+                    }
+                    TrustKeyAction::ExitImmediately => {
+                        clear_rendered_dialog(&mut stdout, rendered_line_count)?;
+                        return Ok(TrustChoice::Exit);
+                    }
+                    TrustKeyAction::Ignore => {}
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn prompt_for_workspace_trust_fallback(
+    language: AppLanguage,
+    normalized: &str,
+    _mode: TrustMode,
+) -> Result<TrustChoice> {
+    for line in trust_dialog_lines(language, normalized, TrustSelection::Trust, false) {
         println!("{line}");
     }
 
     loop {
-        print!("{}", prompt_label(language, mode));
+        print!("{}", prompt_label(language));
         io::stdout().flush()?;
 
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
 
         match TrustChoice::from_input(language, &input) {
-            Some(TrustChoice::Trust) => {
-                remember_workspace_trust(config_path, working_directory, normalized, mode)?;
+            Some(choice) => {
                 println!();
-                for line in render_cards(&accepted_cards(language, normalized, mode)) {
-                    println!("{line}");
-                }
-                println!();
-                return Ok(true);
+                return Ok(choice);
             }
-            Some(TrustChoice::Exit) => {
-                println!();
-                return Ok(false);
-            }
-            None => println!("{}", invalid_choice_text(language, mode)),
+            None => println!("{}", invalid_choice_text(language)),
         }
     }
+}
+
+fn redraw_trust_dialog(
+    stdout: &mut io::Stdout,
+    previous_line_count: usize,
+    lines: &[String],
+) -> Result<usize> {
+    if previous_line_count > 0 {
+        stdout
+            .execute(MoveUp(previous_line_count as u16))
+            .context("failed to reposition trust dialog cursor")?;
+        stdout
+            .execute(Clear(ClearType::FromCursorDown))
+            .context("failed to clear trust dialog")?;
+    }
+
+    for line in lines {
+        writeln!(stdout, "{line}")?;
+    }
+    stdout.flush()?;
+    Ok(lines.len())
+}
+
+fn clear_rendered_dialog(stdout: &mut io::Stdout, line_count: usize) -> Result<()> {
+    if line_count == 0 {
+        return Ok(());
+    }
+
+    stdout
+        .execute(MoveUp(line_count as u16))
+        .context("failed to reposition trust dialog cursor for clear")?;
+    stdout
+        .execute(Clear(ClearType::FromCursorDown))
+        .context("failed to clear rendered trust dialog")?;
+    stdout.flush()?;
+    Ok(())
 }
 
 fn remember_workspace_trust(
@@ -208,19 +315,81 @@ fn user_home_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn print_title(language: AppLanguage, title: &str) {
-    println!();
-    match language {
-        AppLanguage::English => println!("{title}\n{}", "·".repeat(title.len().max(20))),
-        AppLanguage::SimplifiedChinese => println!("{title}\n{}", "·".repeat(24)),
-    }
-}
-
 fn unix_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TrustKeyAction {
+    MovePrevious,
+    MoveNext,
+    SelectTrust,
+    SelectExit,
+    Confirm,
+    Cancel,
+    ArmExit,
+    ExitImmediately,
+    Ignore,
+}
+
+struct RawModeGuard;
+
+impl RawModeGuard {
+    fn activate() -> Result<Self> {
+        enable_raw_mode().context("failed to enable raw mode for trust dialog")?;
+        Ok(Self)
+    }
+}
+
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+    }
+}
+
+fn is_key_press(key: KeyEvent) -> bool {
+    matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
+}
+
+fn resolve_key_action(language: AppLanguage, key: KeyEvent, exit_pending: bool) -> TrustKeyAction {
+    if key.modifiers.contains(KeyModifiers::CONTROL)
+        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+    {
+        return if exit_pending {
+            TrustKeyAction::ExitImmediately
+        } else {
+            TrustKeyAction::ArmExit
+        };
+    }
+
+    match key.code {
+        KeyCode::Up | KeyCode::Left => TrustKeyAction::MovePrevious,
+        KeyCode::Down | KeyCode::Right => TrustKeyAction::MoveNext,
+        KeyCode::Enter => TrustKeyAction::Confirm,
+        KeyCode::Esc => TrustKeyAction::Cancel,
+        KeyCode::Char('1') => TrustKeyAction::SelectTrust,
+        KeyCode::Char('2') => TrustKeyAction::SelectExit,
+        KeyCode::Char(ch) if matches_single_key_accept(language, ch) => TrustKeyAction::SelectTrust,
+        KeyCode::Char(ch) if matches_single_key_reject(language, ch) => TrustKeyAction::SelectExit,
+        _ => TrustKeyAction::Ignore,
+    }
+}
+
+fn matches_single_key_accept(language: AppLanguage, value: char) -> bool {
+    match language {
+        AppLanguage::English => matches!(value, 'y' | 'Y'),
+        AppLanguage::SimplifiedChinese => matches!(value, 'y' | 'Y' | '是'),
+    }
+}
+
+fn matches_single_key_reject(language: AppLanguage, value: char) -> bool {
+    match language {
+        AppLanguage::English => matches!(value, 'n' | 'N'),
+        AppLanguage::SimplifiedChinese => matches!(value, 'n' | 'N' | '否'),
+    }
 }
 
 #[cfg(test)]
