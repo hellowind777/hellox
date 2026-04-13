@@ -392,7 +392,7 @@ fn repl_banner_includes_welcome_context_and_commands() {
     assert!(lines.iter().any(|line| line.contains("╭─ Start Here ")));
     assert!(lines
         .iter()
-        .any(|line| line.contains("slash") && line.contains("Type `/` then press Tab")));
+        .any(|line| line.contains("slash") && line.contains("Type `/` to open commands")));
     assert!(lines.iter().any(|line| line.contains("╭─ Local Flow ")));
     assert!(lines
         .iter()
@@ -417,9 +417,12 @@ fn repl_banner_supports_simplified_chinese_copy() {
         .iter()
         .any(|line| line.contains("信任") && line.contains("工作区已信任")));
     assert!(lines.iter().any(|line| line.contains("╭─ 开始使用 ")));
-    assert!(lines
-        .iter()
-        .any(|line| line.contains("命令") && line.contains("输入 `/` 后按 Tab 浏览斜杠命令")));
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("命令")
+                && line.contains("输入 `/` 打开命令菜单，再按 Tab 补全"))
+    );
     assert!(lines.iter().any(|line| line.contains("╭─ 本地链路 ")));
     assert!(lines
         .iter()
@@ -510,7 +513,7 @@ fn prompt_state_switches_to_continuation_hint_after_submit() {
     assert!(state
         .shell_lines
         .iter()
-        .any(|line| line.contains("输入 / + Tab 浏览命令")));
+        .any(|line| line.contains("输入 / 打开命令菜单 · Tab 补全")));
 }
 
 #[test]
@@ -583,9 +586,11 @@ fn shortcut_text_is_localized() {
     let chinese = shortcut_text(AppLanguage::SimplifiedChinese);
 
     assert!(english.contains("?                 Show this shortcuts menu"));
-    assert!(english.contains("/ + Tab           Browse slash commands"));
+    assert!(english.contains("/                 Open slash commands"));
+    assert!(english.contains("Tab               Complete the highlighted slash command"));
     assert!(chinese.contains("?                 显示这份快捷帮助"));
-    assert!(chinese.contains("/ + Tab           浏览斜杠命令"));
+    assert!(chinese.contains("/                 打开斜杠命令菜单"));
+    assert!(chinese.contains("Tab               补全当前高亮的斜杠命令"));
 }
 
 #[test]

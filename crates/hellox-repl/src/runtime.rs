@@ -1,13 +1,17 @@
 use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use hellox_config::HelloxConfig;
 use rustyline::error::ReadlineError;
 use rustyline::history::DefaultHistory;
-use rustyline::{CompletionType, Config, Editor};
+use rustyline::{
+    Cmd, CompletionType, ConditionalEventHandler, Config, Editor, Event, EventContext,
+    EventHandler, KeyCode, KeyEvent, Modifiers, RepeatCount,
+};
 
 use crate::input_helper::{ReplInputHelper, ReplPromptState};
 
@@ -102,13 +106,14 @@ where
 
         let mut line = String::new();
         io::stdin().read_line(&mut line)?;
-        let trimmed = line.trim();
+        let raw_line = strip_line_endings(&line);
+        let trimmed = raw_line.trim();
 
         if trimmed.is_empty() {
             continue;
         }
 
-        match driver.handle_input(trimmed, session, metadata).await? {
+        match driver.handle_input(raw_line, session, metadata).await? {
             ReplAction::Continue => continue,
             ReplAction::Exit => return Ok(ReplExit::Exit),
             ReplAction::Resume(session_id) => return Ok(ReplExit::Resume(session_id)),
@@ -127,7 +132,20 @@ fn init_rustyline(metadata: &ReplMetadata) -> Result<Editor<ReplInputHelper, Def
         .completion_prompt_limit(40)
         .build();
     let mut editor = Editor::with_config(config)?;
-    editor.set_helper(Some(ReplInputHelper::default()));
+    let prompt_state = Arc::new(Mutex::new(ReplPromptState::default()));
+    editor.set_helper(Some(ReplInputHelper::with_state_handle(
+        prompt_state.clone(),
+    )));
+    editor.bind_sequence(
+        KeyEvent(KeyCode::Tab, Modifiers::NONE),
+        EventHandler::Conditional(Box::new(SlashTabEventHandler {
+            prompt_state: prompt_state.clone(),
+        })),
+    );
+    editor.bind_sequence(
+        KeyEvent::ctrl('I'),
+        EventHandler::Conditional(Box::new(SlashTabEventHandler { prompt_state })),
+    );
     let history_path = repl_history_path(metadata);
     if let Some(parent) = history_path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -157,13 +175,14 @@ where
         }
         match editor.readline(&prompt) {
             Ok(line) => {
-                let trimmed = line.trim();
+                let raw_line = strip_line_endings(&line);
+                let trimmed = raw_line.trim();
                 if trimmed.is_empty() {
                     continue;
                 }
 
                 let _ = editor.add_history_entry(trimmed);
-                match driver.handle_input(trimmed, session, metadata).await? {
+                match driver.handle_input(raw_line, session, metadata).await? {
                     ReplAction::Continue => continue,
                     ReplAction::Exit => break ReplExit::Exit,
                     ReplAction::Resume(session_id) => break ReplExit::Resume(session_id),
@@ -191,6 +210,26 @@ fn repl_history_path(metadata: &ReplMetadata) -> PathBuf {
     root.join("repl-history.txt")
 }
 
+fn strip_line_endings(line: &str) -> &str {
+    line.trim_end_matches(['\r', '\n'])
+}
+
+struct SlashTabEventHandler {
+    prompt_state: Arc<Mutex<ReplPromptState>>,
+}
+
+impl ConditionalEventHandler for SlashTabEventHandler {
+    fn handle(&self, evt: &Event, _: RepeatCount, _: bool, ctx: &EventContext) -> Option<Cmd> {
+        let _ = evt;
+        let state = self
+            .prompt_state
+            .lock()
+            .expect("repl prompt state poisoned");
+        ReplInputHelper::best_completion_remainder(&state, ctx.line(), ctx.pos())
+            .map(|remainder| Cmd::Insert(1, remainder))
+    }
+}
+
 fn compose_prompt_text(label: &str, state: &ReplPromptState) -> String {
     if state.shell_lines.is_empty() {
         return label.to_string();
@@ -203,9 +242,9 @@ fn compose_prompt_text(label: &str, state: &ReplPromptState) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::input_helper::ReplPromptState;
+    use crate::input_helper::{ReplInputHelper, ReplPromptState};
 
-    use super::compose_prompt_text;
+    use super::{compose_prompt_text, strip_line_endings};
 
     #[test]
     fn compose_prompt_text_appends_label_after_shell_lines() {
@@ -222,5 +261,28 @@ mod tests {
             compose_prompt_text("╰─ ❯ ", &state),
             "╭─ local chat · model opus · trusted workspace\n│ /help commands\n╰─ ❯ "
         );
+    }
+
+    #[test]
+    fn slash_tab_prefers_hint_completion_for_command_fragment() {
+        let state = ReplPromptState::with_placeholder_and_completions(
+            None,
+            vec![
+                crate::input_helper::ReplCompletion::described("/help", "show commands"),
+                crate::input_helper::ReplCompletion::described("/status", "show session"),
+            ],
+        );
+
+        assert!(ReplInputHelper::best_completion_remainder(&state, "/", 1).is_some());
+        assert!(ReplInputHelper::best_completion_remainder(&state, "/sta", 4).is_some());
+        assert!(ReplInputHelper::best_completion_remainder(&state, "plain", 5).is_none());
+        assert!(ReplInputHelper::best_completion_remainder(&state, "/workflow run", 10).is_none());
+        assert!(ReplInputHelper::best_completion_remainder(&state, "/status", 7).is_none());
+    }
+
+    #[test]
+    fn strip_line_endings_preserves_trailing_spaces() {
+        assert_eq!(strip_line_endings("/st    \r\n"), "/st    ");
+        assert_eq!(strip_line_endings("/status"), "/status");
     }
 }

@@ -9,6 +9,7 @@ mod extension_actions;
 mod format;
 mod format_copy;
 mod help_copy;
+mod input_normalizer;
 mod install_actions;
 mod mcp_actions;
 pub(crate) mod output_localizer;
@@ -236,6 +237,14 @@ impl CliReplDriver {
         session: &mut AgentSession,
         metadata: &ReplMetadata,
     ) -> Result<ReplAction> {
+        let normalized_input = if input_normalizer::needs_slash_normalization(input) {
+            let prompt_state = self.prompt_state(session, metadata);
+            input_normalizer::normalize_repl_input(input, &prompt_state.completions)
+        } else {
+            input.trim().to_string()
+        };
+        let input = normalized_input.as_str();
+
         if self.handle_workflow_dashboard_input(input, session).await? {
             return Ok(ReplAction::Continue);
         }

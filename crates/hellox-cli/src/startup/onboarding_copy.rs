@@ -456,7 +456,7 @@ pub(super) fn review_cards(
                 vec![
                     "Enter 发送当前输入".to_string(),
                     "Shift+Enter 插入换行".to_string(),
-                    "输入 `/` 后按 Tab 浏览斜杠命令".to_string(),
+                    "输入 `/` 打开斜杠命令菜单，再按 Tab 补全".to_string(),
                     "若 provider 或 gateway 失败，可先运行 `/doctor`".to_string(),
                 ],
             ),

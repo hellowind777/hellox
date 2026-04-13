@@ -72,7 +72,8 @@ pub(super) fn trust_dialog_lines(
 ) -> Vec<String> {
     let mut lines = vec![
         String::new(),
-        render_header(dialog_title(language)),
+        render_top_border(),
+        format!("{CONTENT_INDENT}{}", dialog_title(language)),
         String::new(),
     ];
     lines.extend(
@@ -96,8 +97,8 @@ pub(super) fn trust_dialog_lines(
 
 pub(super) fn invalid_choice_text(language: AppLanguage) -> &'static str {
     match language {
-        AppLanguage::English => "Use ↑/↓ to switch, Enter to confirm, or press Esc to cancel.",
-        AppLanguage::SimplifiedChinese => "可用 ↑/↓ 切换选项，按 Enter 确认，或按 Esc 取消。",
+        AppLanguage::English => "Enter 1 to trust this folder, or type 2 / esc to cancel.",
+        AppLanguage::SimplifiedChinese => "输入 1 信任此目录，或输入 2 / esc 取消。",
     }
 }
 
@@ -176,17 +177,15 @@ fn option_lines(language: AppLanguage, selection: TrustSelection) -> Vec<String>
 
 fn footer_text(language: AppLanguage, exit_pending: bool) -> &'static str {
     match (language, exit_pending) {
-        (AppLanguage::English, false) => "Enter to confirm · Esc to cancel · ↑/↓ switch",
+        (AppLanguage::English, false) => "Enter to confirm · Esc to cancel",
         (AppLanguage::English, true) => "Press Ctrl+C again to exit",
-        (AppLanguage::SimplifiedChinese, false) => "Enter 确认 · Esc 取消 · ↑/↓ 切换",
+        (AppLanguage::SimplifiedChinese, false) => "Enter 确认 · Esc 取消",
         (AppLanguage::SimplifiedChinese, true) => "再按一次 Ctrl+C 即可退出",
     }
 }
 
-fn render_header(title: &str) -> String {
-    let title_text = format!(" {title} ");
-    let line_width = DIALOG_WIDTH.saturating_sub(display_width(&title_text) + 2);
-    format!("╭{title_text}{}╮", "─".repeat(line_width))
+fn render_top_border() -> String {
+    format!("╭{}╮", "─".repeat(DIALOG_WIDTH.saturating_sub(2)))
 }
 
 fn wrap_text(text: &str) -> Vec<String> {
@@ -328,7 +327,8 @@ mod tests {
             .any(|line| line.contains("Accessing workspace")));
         assert!(lines
             .iter()
-            .any(|line| line.contains("╭ Accessing workspace:")));
+            .any(|line| line.starts_with('╭') && line.ends_with('╮')));
+        assert!(lines.iter().any(|line| line == "  Accessing workspace:"));
         assert!(lines
             .iter()
             .any(|line| line.contains("❯ 1. Yes, I trust this folder")));
@@ -373,6 +373,18 @@ mod tests {
         assert_eq!(
             prompt_label(AppLanguage::SimplifiedChinese),
             "请输入 1 或 2，然后按 Enter："
+        );
+    }
+
+    #[test]
+    fn invalid_choice_copy_matches_typed_fallback_flow() {
+        assert_eq!(
+            super::invalid_choice_text(AppLanguage::English),
+            "Enter 1 to trust this folder, or type 2 / esc to cancel."
+        );
+        assert_eq!(
+            super::invalid_choice_text(AppLanguage::SimplifiedChinese),
+            "输入 1 信任此目录，或输入 2 / esc 取消。"
         );
     }
 }

@@ -56,10 +56,10 @@ fn shell_quick_commands_line(language: AppLanguage) -> String {
 fn shell_shortcuts_line(language: AppLanguage) -> String {
     match language {
         AppLanguage::English => {
-            "│ Type / + Tab for commands · Enter to send · ↑ history".to_string()
+            "│ Type / for commands · Tab completes · Enter sends · ↑ history".to_string()
         }
         AppLanguage::SimplifiedChinese => {
-            "│ 输入 / + Tab 浏览命令 · Enter 发送 · ↑ 历史编辑".to_string()
+            "│ 输入 / 打开命令菜单 · Tab 补全 · Enter 发送 · ↑ 历史编辑".to_string()
         }
     }
 }
@@ -143,7 +143,7 @@ mod tests {
         assert!(lines[2].contains("/workflow 工作流"));
         assert!(lines[3].contains("接受编辑"));
         assert!(lines[3].contains("本地持久化"));
-        assert!(lines[4].contains("/ + Tab"));
+        assert!(lines[4].contains("输入 / 打开命令菜单"));
     }
 
     #[test]

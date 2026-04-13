@@ -126,14 +126,19 @@ fn start_here_lines(session: &AgentSession, language: AppLanguage) -> Vec<String
                 language,
                 "slash",
                 "命令",
-                "Type `/` then press Tab for commands",
+                "Type `/` to open commands, then use Tab to complete",
             ),
             detail_line(language, "history", "历史", "Press ↑ after the first task"),
         ],
         AppLanguage::SimplifiedChinese => vec![
             detail_line(language, "example", "示例", &example),
             detail_line(language, "发送", "发送", "直接输入任务并按 Enter"),
-            detail_line(language, "命令", "命令", "输入 `/` 后按 Tab 浏览斜杠命令"),
+            detail_line(
+                language,
+                "命令",
+                "命令",
+                "输入 `/` 打开命令菜单，再按 Tab 补全",
+            ),
             detail_line(language, "历史", "历史", "完成首轮后可按 ↑ 编辑上一条输入"),
         ],
     }

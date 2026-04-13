@@ -19,6 +19,13 @@ use super::trust_copy::{
 };
 use super::AppLanguage;
 
+const ANSI_RESET: &str = "\x1b[0m";
+const ANSI_BOLD: &str = "\x1b[1m";
+const ANSI_DIM: &str = "\x1b[2m";
+const ANSI_WARNING: &str = "\x1b[33m";
+const ANSI_SUGGESTION: &str = "\x1b[36m";
+const ANSI_UNDERLINE: &str = "\x1b[4m";
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct WorkspaceTrustStore {
     #[serde(default)]
@@ -118,17 +125,17 @@ fn prompt_for_workspace_trust_interactive(
                         selection = selection.next();
                         exit_pending = false;
                     }
-                    TrustKeyAction::SelectTrust => {
-                        selection = TrustSelection::Trust;
-                        exit_pending = false;
-                    }
-                    TrustKeyAction::SelectExit => {
-                        selection = TrustSelection::Exit;
-                        exit_pending = false;
-                    }
                     TrustKeyAction::Confirm => {
                         clear_rendered_dialog(&mut stdout, rendered_line_count)?;
                         return Ok(selection.choice());
+                    }
+                    TrustKeyAction::ConfirmTrust => {
+                        clear_rendered_dialog(&mut stdout, rendered_line_count)?;
+                        return Ok(TrustChoice::Trust);
+                    }
+                    TrustKeyAction::ConfirmExit => {
+                        clear_rendered_dialog(&mut stdout, rendered_line_count)?;
+                        return Ok(TrustChoice::Exit);
                     }
                     TrustKeyAction::Cancel => {
                         clear_rendered_dialog(&mut stdout, rendered_line_count)?;
@@ -190,10 +197,41 @@ fn redraw_trust_dialog(
     }
 
     for line in lines {
-        writeln!(stdout, "{line}")?;
+        writeln!(stdout, "{}", style_trust_dialog_line(line))?;
     }
     stdout.flush()?;
     Ok(lines.len())
+}
+
+fn style_trust_dialog_line(line: &str) -> String {
+    let trimmed = line.trim_start();
+    if line.starts_with('╭') {
+        return colorize(ANSI_WARNING, line);
+    }
+    if matches!(trimmed, "Accessing workspace:" | "正在访问工作区：") {
+        return colorize(&format!("{ANSI_BOLD}{ANSI_WARNING}"), line);
+    }
+    if trimmed.starts_with('❯') {
+        return colorize(&format!("{ANSI_BOLD}{ANSI_SUGGESTION}"), line);
+    }
+    if trimmed.starts_with("Security guide") || trimmed.starts_with("安全指南") {
+        return colorize(&format!("{ANSI_DIM}{ANSI_UNDERLINE}"), line);
+    }
+    if is_trust_footer_line(trimmed) {
+        return colorize(ANSI_DIM, line);
+    }
+    line.to_string()
+}
+
+fn colorize(prefix: &str, value: &str) -> String {
+    format!("{prefix}{value}{ANSI_RESET}")
+}
+
+fn is_trust_footer_line(trimmed: &str) -> bool {
+    trimmed.starts_with("Enter ")
+        || trimmed.starts_with("Press Ctrl+C")
+        || trimmed.starts_with("再按一次 Ctrl+C")
+        || trimmed.starts_with("Enter 确认")
 }
 
 fn clear_rendered_dialog(stdout: &mut io::Stdout, line_count: usize) -> Result<()> {
@@ -326,9 +364,9 @@ fn unix_timestamp() -> u64 {
 enum TrustKeyAction {
     MovePrevious,
     MoveNext,
-    SelectTrust,
-    SelectExit,
     Confirm,
+    ConfirmTrust,
+    ConfirmExit,
     Cancel,
     ArmExit,
     ExitImmediately,
@@ -370,10 +408,12 @@ fn resolve_key_action(language: AppLanguage, key: KeyEvent, exit_pending: bool) 
         KeyCode::Down | KeyCode::Right => TrustKeyAction::MoveNext,
         KeyCode::Enter => TrustKeyAction::Confirm,
         KeyCode::Esc => TrustKeyAction::Cancel,
-        KeyCode::Char('1') => TrustKeyAction::SelectTrust,
-        KeyCode::Char('2') => TrustKeyAction::SelectExit,
-        KeyCode::Char(ch) if matches_single_key_accept(language, ch) => TrustKeyAction::SelectTrust,
-        KeyCode::Char(ch) if matches_single_key_reject(language, ch) => TrustKeyAction::SelectExit,
+        KeyCode::Char('1') => TrustKeyAction::ConfirmTrust,
+        KeyCode::Char('2') => TrustKeyAction::ConfirmExit,
+        KeyCode::Char(ch) if matches_single_key_accept(language, ch) => {
+            TrustKeyAction::ConfirmTrust
+        }
+        KeyCode::Char(ch) if matches_single_key_reject(language, ch) => TrustKeyAction::ConfirmExit,
         _ => TrustKeyAction::Ignore,
     }
 }
