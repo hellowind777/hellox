@@ -59,6 +59,7 @@ mod transcript;
 mod ui_commands;
 mod usage;
 mod worker_runner;
+mod welcome_v2;
 mod workflow_authoring;
 mod workflow_command_authoring;
 mod workflow_command_support;

@@ -7,13 +7,15 @@ use hellox_auth::{get_provider_key, set_provider_key, LocalAuthStoreBackend};
 use hellox_config::{save_config, HelloxConfig, ProviderConfig};
 use hellox_tui::{render_cards, Card};
 
+use crate::welcome_v2::welcome_v2_lines;
+
 use super::interactive_select::{select_interactive, InteractiveOption};
 use super::onboarding_copy::{
     api_key_prompt, choice_exit_pending_text, detected_finish_prompt, endpoint_cards,
     endpoint_prompt, existing_setup_cards, finish_prompt, interactive_choice_fallback_notice,
-    intro_cards, model_cards, model_footer, model_invalid, model_prompt, onboarding_title,
-    provider_cards, provider_footer, provider_invalid, provider_prompt, required_value_invalid,
-    review_cards, step_label, success_cards, ModelPreset, ProviderOption,
+    intro_cards, model_cards, model_footer, model_invalid, model_prompt, provider_cards,
+    provider_footer, provider_invalid, provider_prompt, required_value_invalid, review_cards,
+    step_label, success_cards, ModelPreset, ProviderOption,
 };
 use super::AppLanguage;
 
@@ -98,7 +100,8 @@ pub fn run_interactive_provider_onboarding(
         return Ok(OnboardingOutcome::default());
     }
 
-    print_title(language, onboarding_title(language));
+    print_lines(&welcome_v2_lines(language));
+    println!();
     print_cards(&intro_cards(language));
 
     if readiness.has_api_key {
@@ -408,16 +411,14 @@ fn prompt_enter(prompt: &str) -> Result<()> {
     Ok(())
 }
 
-fn print_title(language: AppLanguage, title: &str) {
-    println!();
-    match language {
-        AppLanguage::English => println!("{title}\n{}", "·".repeat(title.len().max(12))),
-        AppLanguage::SimplifiedChinese => println!("{title}\n{}", "·".repeat(24)),
+fn print_cards(cards: &[Card]) {
+    for line in render_cards(cards) {
+        println!("{line}");
     }
 }
 
-fn print_cards(cards: &[Card]) {
-    for line in render_cards(cards) {
+fn print_lines(lines: &[String]) {
+    for line in lines {
         println!("{line}");
     }
 }

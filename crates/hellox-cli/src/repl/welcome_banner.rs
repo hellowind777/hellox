@@ -2,6 +2,7 @@ use hellox_agent::AgentSession;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::startup::AppLanguage;
+use crate::welcome_v2::welcome_v2_lines;
 
 use super::prompt_input::example_placeholder_for_workdir;
 
@@ -9,33 +10,12 @@ const BOX_WIDTH: usize = 62;
 const BOX_CONTENT_WIDTH: usize = BOX_WIDTH - 4;
 const DETAIL_LABEL_WIDTH: usize = 8;
 
-const WELCOME_ART_LINES: &[&str] = &[
-    "     *                                       █████▓▓░     ",
-    "                                 *         ███▓░     ░░   ",
-    "            ░░░░░░                        ███▓░           ",
-    "    ░░░   ░░░░░░░░░░                      ███▓░           ",
-    "   ░░░░░░░░░░░░░░░░░    *                ██▓░░      ▓   ",
-    "                                             ░▓▓███▓▓░    ",
-    " *                                 ░░░░                   ",
-    "                                 ░░░░░░░░                 ",
-    "                               ░░░░░░░░░░░░░░           ",
-    "      █████████                                       * ",
-    "      ██▄█████▄██                        *                ",
-    "      █████████      *                                   ",
-    "·······█ █   █ █······································",
-];
-
 pub(super) fn welcome_banner_lines(
     session: &AgentSession,
     language: AppLanguage,
     workspace_trusted: bool,
 ) -> Vec<String> {
-    let mut lines = vec![
-        welcome_header(language),
-        "······················································".to_string(),
-        String::new(),
-    ];
-    lines.extend(WELCOME_ART_LINES.iter().map(|line| (*line).to_string()));
+    let mut lines = welcome_v2_lines(language);
     lines.push(String::new());
     lines.extend(render_box(
         workspace_title(language),
@@ -52,15 +32,6 @@ pub(super) fn welcome_banner_lines(
         &local_flow_lines(language),
     ));
     lines
-}
-
-fn welcome_header(language: AppLanguage) -> String {
-    match language {
-        AppLanguage::English => format!("Welcome to hellox v{} ", env!("CARGO_PKG_VERSION")),
-        AppLanguage::SimplifiedChinese => {
-            format!("欢迎使用 hellox v{} ", env!("CARGO_PKG_VERSION"))
-        }
-    }
 }
 
 fn workspace_title(language: AppLanguage) -> &'static str {

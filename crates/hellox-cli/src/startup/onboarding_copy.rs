@@ -86,13 +86,6 @@ impl ModelPreset {
     }
 }
 
-pub(super) fn onboarding_title(language: AppLanguage) -> &'static str {
-    match language {
-        AppLanguage::English => "hellox setup",
-        AppLanguage::SimplifiedChinese => "hellox 首次配置",
-    }
-}
-
 pub(super) fn intro_cards(language: AppLanguage) -> Vec<Card> {
     match language {
         AppLanguage::English => vec![
