@@ -1,4 +1,5 @@
 mod gateway;
+mod interactive_select;
 mod localization;
 mod onboarding;
 mod onboarding_copy;

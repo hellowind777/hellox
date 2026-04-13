@@ -204,6 +204,13 @@ pub(super) fn provider_prompt(language: AppLanguage) -> &'static str {
     }
 }
 
+pub(super) fn provider_footer(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Enter to confirm · Esc to exit setup",
+        AppLanguage::SimplifiedChinese => "Enter 确认 · Esc 退出引导",
+    }
+}
+
 pub(super) fn provider_invalid(language: AppLanguage) -> &'static str {
     match language {
         AppLanguage::English => "Enter 1, 2, or 3. Press Enter to accept the recommended option.",
@@ -278,6 +285,13 @@ pub(super) fn model_invalid(language: AppLanguage, provider: ProviderOption) -> 
         }
         (ProviderOption::Exit, AppLanguage::English) => "Press Enter to continue.",
         (ProviderOption::Exit, AppLanguage::SimplifiedChinese) => "直接回车继续。",
+    }
+}
+
+pub(super) fn model_footer(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Enter to confirm · Esc to go back",
+        AppLanguage::SimplifiedChinese => "Enter 确认 · Esc 返回上一步",
     }
 }
 
@@ -391,6 +405,22 @@ pub(super) fn required_value_invalid(language: AppLanguage) -> &'static str {
     match language {
         AppLanguage::English => "This field cannot be empty.",
         AppLanguage::SimplifiedChinese => "此项不能为空。",
+    }
+}
+
+pub(super) fn choice_exit_pending_text(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => "Press Ctrl+C again to exit",
+        AppLanguage::SimplifiedChinese => "再按一次 Ctrl+C 即可退出",
+    }
+}
+
+pub(super) fn interactive_choice_fallback_notice(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::English => {
+            "Interactive selection is unavailable here, falling back to typed number input."
+        }
+        AppLanguage::SimplifiedChinese => "当前终端无法使用交互式选择，已回退为输入编号模式。",
     }
 }
 

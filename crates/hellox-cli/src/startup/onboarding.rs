@@ -7,11 +7,13 @@ use hellox_auth::{get_provider_key, set_provider_key, LocalAuthStoreBackend};
 use hellox_config::{save_config, HelloxConfig, ProviderConfig};
 use hellox_tui::{render_cards, Card};
 
+use super::interactive_select::{select_interactive, InteractiveOption};
 use super::onboarding_copy::{
-    api_key_prompt, detected_finish_prompt, endpoint_cards, endpoint_prompt, existing_setup_cards,
-    finish_prompt, intro_cards, model_cards, model_invalid, model_prompt, onboarding_title,
-    provider_cards, provider_invalid, provider_prompt, required_value_invalid, review_cards,
-    step_label, success_cards, ModelPreset, ProviderOption,
+    api_key_prompt, choice_exit_pending_text, detected_finish_prompt, endpoint_cards,
+    endpoint_prompt, existing_setup_cards, finish_prompt, interactive_choice_fallback_notice,
+    intro_cards, model_cards, model_footer, model_invalid, model_prompt, onboarding_title,
+    provider_cards, provider_footer, provider_invalid, provider_prompt, required_value_invalid,
+    review_cards, step_label, success_cards, ModelPreset, ProviderOption,
 };
 use super::AppLanguage;
 
@@ -104,15 +106,19 @@ pub fn run_interactive_provider_onboarding(
         return Ok(OnboardingOutcome::default());
     }
 
-    let provider = select_provider(language)?;
-    if provider == ProviderOption::Exit {
-        return Ok(OnboardingOutcome {
-            exit_requested: true,
-            model_override: None,
-        });
-    }
+    let (provider, model) = loop {
+        let provider = select_provider(language)?;
+        if provider == ProviderOption::Exit {
+            return Ok(OnboardingOutcome {
+                exit_requested: true,
+                model_override: None,
+            });
+        }
 
-    let model = select_model(language, provider)?;
+        if let Some(model) = select_model(language, provider)? {
+            break (provider, model);
+        }
+    };
     let base_url = collect_provider_connection(language, provider, config)?;
     let api_key = prompt_required(language, api_key_prompt(language))?;
 
@@ -211,15 +217,29 @@ fn select_provider(language: AppLanguage) -> Result<ProviderOption> {
         )
     );
     print_cards(&provider_cards(language));
-    prompt_choice(
-        provider_prompt(language),
-        ProviderOption::OpenAiCompatible,
-        ProviderOption::from_input,
-        provider_invalid(language),
-    )
+    match select_interactive(
+        &provider_options(language),
+        0,
+        provider_footer(language),
+        choice_exit_pending_text(language),
+    ) {
+        Ok(Some(choice)) => Ok(choice),
+        Ok(None) => Ok(ProviderOption::Exit),
+        Err(error) => {
+            println!();
+            println!("{}", interactive_choice_fallback_notice(language));
+            println!("{error}");
+            prompt_choice(
+                provider_prompt(language),
+                ProviderOption::OpenAiCompatible,
+                ProviderOption::from_input,
+                provider_invalid(language),
+            )
+        }
+    }
 }
 
-fn select_model(language: AppLanguage, provider: ProviderOption) -> Result<ModelPreset> {
+fn select_model(language: AppLanguage, provider: ProviderOption) -> Result<Option<ModelPreset>> {
     println!();
     println!(
         "{}",
@@ -237,14 +257,29 @@ fn select_model(language: AppLanguage, provider: ProviderOption) -> Result<Model
     let default = match provider {
         ProviderOption::OpenAiCompatible => ModelPreset::OpenAiOpus,
         ProviderOption::Anthropic => ModelPreset::AnthropicOpus,
-        ProviderOption::Exit => return Err(anyhow!("cannot choose model for exit option")),
+        ProviderOption::Exit => return Ok(None),
     };
-    prompt_choice(
-        model_prompt(language, provider),
-        default,
-        |value| ModelPreset::from_input(provider, value),
-        model_invalid(language, provider),
-    )
+    match select_interactive(
+        &model_options(language, provider),
+        0,
+        model_footer(language),
+        choice_exit_pending_text(language),
+    ) {
+        Ok(Some(choice)) => Ok(Some(choice)),
+        Ok(None) => Ok(None),
+        Err(error) => {
+            println!();
+            println!("{}", interactive_choice_fallback_notice(language));
+            println!("{error}");
+            prompt_choice(
+                model_prompt(language, provider),
+                default,
+                |value| ModelPreset::from_input(provider, value),
+                model_invalid(language, provider),
+            )
+            .map(Some)
+        }
+    }
 }
 
 fn collect_provider_connection(
@@ -384,6 +419,74 @@ fn print_title(language: AppLanguage, title: &str) {
 fn print_cards(cards: &[Card]) {
     for line in render_cards(cards) {
         println!("{line}");
+    }
+}
+
+fn provider_options(language: AppLanguage) -> Vec<InteractiveOption<ProviderOption>> {
+    vec![
+        InteractiveOption {
+            label: match language {
+                AppLanguage::English => "OpenAI-compatible endpoint",
+                AppLanguage::SimplifiedChinese => "OpenAI Compatible 接口",
+            }
+            .to_string(),
+            value: ProviderOption::OpenAiCompatible,
+        },
+        InteractiveOption {
+            label: match language {
+                AppLanguage::English => "Anthropic-compatible endpoint",
+                AppLanguage::SimplifiedChinese => "Anthropic 兼容接口",
+            }
+            .to_string(),
+            value: ProviderOption::Anthropic,
+        },
+        InteractiveOption {
+            label: match language {
+                AppLanguage::English => "Exit setup",
+                AppLanguage::SimplifiedChinese => "退出引导",
+            }
+            .to_string(),
+            value: ProviderOption::Exit,
+        },
+    ]
+}
+
+fn model_options(
+    language: AppLanguage,
+    provider: ProviderOption,
+) -> Vec<InteractiveOption<ModelPreset>> {
+    match provider {
+        ProviderOption::OpenAiCompatible => vec![
+            InteractiveOption {
+                label: ModelPreset::OpenAiOpus.display_name(language).to_string(),
+                value: ModelPreset::OpenAiOpus,
+            },
+            InteractiveOption {
+                label: ModelPreset::OpenAiSonnet.display_name(language).to_string(),
+                value: ModelPreset::OpenAiSonnet,
+            },
+        ],
+        ProviderOption::Anthropic => vec![
+            InteractiveOption {
+                label: ModelPreset::AnthropicOpus
+                    .display_name(language)
+                    .to_string(),
+                value: ModelPreset::AnthropicOpus,
+            },
+            InteractiveOption {
+                label: ModelPreset::AnthropicSonnet
+                    .display_name(language)
+                    .to_string(),
+                value: ModelPreset::AnthropicSonnet,
+            },
+            InteractiveOption {
+                label: ModelPreset::AnthropicHaiku
+                    .display_name(language)
+                    .to_string(),
+                value: ModelPreset::AnthropicHaiku,
+            },
+        ],
+        ProviderOption::Exit => Vec::new(),
     }
 }
 
