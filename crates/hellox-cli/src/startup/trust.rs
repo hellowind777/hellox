@@ -24,7 +24,6 @@ const ANSI_BOLD: &str = "\x1b[1m";
 const ANSI_DIM: &str = "\x1b[2m";
 const ANSI_WARNING: &str = "\x1b[33m";
 const ANSI_SUGGESTION: &str = "\x1b[36m";
-const ANSI_UNDERLINE: &str = "\x1b[4m";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct WorkspaceTrustStore {
@@ -77,13 +76,14 @@ fn prompt_for_workspace_trust(
     normalized: &str,
     mode: TrustMode,
 ) -> Result<bool> {
-    let choice = match prompt_for_workspace_trust_interactive(language, normalized, mode) {
+    let display_path = display_workspace_path(working_directory)?;
+    let choice = match prompt_for_workspace_trust_interactive(language, &display_path, mode) {
         Ok(choice) => choice,
         Err(error) => {
             println!();
             println!("{}", fallback_notice_text(language));
             println!("{error}");
-            prompt_for_workspace_trust_fallback(language, normalized, mode)?
+            prompt_for_workspace_trust_fallback(language, &display_path, mode)?
         }
     };
 
@@ -98,7 +98,7 @@ fn prompt_for_workspace_trust(
 
 fn prompt_for_workspace_trust_interactive(
     language: AppLanguage,
-    normalized: &str,
+    display_path: &str,
     _mode: TrustMode,
 ) -> Result<TrustChoice> {
     let _raw_mode = RawModeGuard::activate()?;
@@ -111,7 +111,7 @@ fn prompt_for_workspace_trust_interactive(
         rendered_line_count = redraw_trust_dialog(
             &mut stdout,
             rendered_line_count,
-            &trust_dialog_lines(language, normalized, selection, exit_pending),
+            &trust_dialog_lines(language, display_path, selection, exit_pending),
         )?;
 
         match event::read().context("failed to read trust dialog input")? {
@@ -158,10 +158,10 @@ fn prompt_for_workspace_trust_interactive(
 
 fn prompt_for_workspace_trust_fallback(
     language: AppLanguage,
-    normalized: &str,
+    display_path: &str,
     _mode: TrustMode,
 ) -> Result<TrustChoice> {
-    for line in trust_dialog_lines(language, normalized, TrustSelection::Trust, false) {
+    for line in trust_dialog_lines(language, display_path, TrustSelection::Trust, false) {
         println!("{line}");
     }
 
@@ -197,13 +197,13 @@ fn redraw_trust_dialog(
     }
 
     for line in lines {
-        writeln!(stdout, "{}", style_trust_dialog_line(line))?;
+        writeln!(stdout, "{}", style_trust_dialog_line(lines, line))?;
     }
     stdout.flush()?;
     Ok(lines.len())
 }
 
-fn style_trust_dialog_line(line: &str) -> String {
+fn style_trust_dialog_line(lines: &[String], line: &str) -> String {
     let trimmed = line.trim_start();
     if line.starts_with('╭') {
         return colorize(ANSI_WARNING, line);
@@ -211,11 +211,14 @@ fn style_trust_dialog_line(line: &str) -> String {
     if matches!(trimmed, "Accessing workspace:" | "正在访问工作区：") {
         return colorize(&format!("{ANSI_BOLD}{ANSI_WARNING}"), line);
     }
+    if is_trust_path_line(lines, line) {
+        return colorize(ANSI_BOLD, line);
+    }
     if trimmed.starts_with('❯') {
         return colorize(&format!("{ANSI_BOLD}{ANSI_SUGGESTION}"), line);
     }
     if trimmed.starts_with("Security guide") || trimmed.starts_with("安全指南") {
-        return colorize(&format!("{ANSI_DIM}{ANSI_UNDERLINE}"), line);
+        return colorize(ANSI_DIM, line);
     }
     if is_trust_footer_line(trimmed) {
         return colorize(ANSI_DIM, line);
@@ -232,6 +235,41 @@ fn is_trust_footer_line(trimmed: &str) -> bool {
         || trimmed.starts_with("Press Ctrl+C")
         || trimmed.starts_with("再按一次 Ctrl+C")
         || trimmed.starts_with("Enter 确认")
+}
+
+fn is_trust_path_line(lines: &[String], line: &str) -> bool {
+    if line.trim().is_empty() {
+        return false;
+    }
+
+    let Some(title_index) = lines.iter().position(|candidate| {
+        matches!(
+            candidate.trim_start(),
+            "Accessing workspace:" | "正在访问工作区："
+        )
+    }) else {
+        return false;
+    };
+
+    let Some(path_start) = lines
+        .iter()
+        .skip(title_index + 1)
+        .position(|candidate| !candidate.trim().is_empty())
+        .map(|offset| title_index + 1 + offset)
+    else {
+        return false;
+    };
+
+    let path_end = lines
+        .iter()
+        .skip(path_start)
+        .position(|candidate| candidate.trim().is_empty())
+        .map(|offset| path_start + offset)
+        .unwrap_or(lines.len());
+
+    lines[path_start..path_end]
+        .iter()
+        .any(|candidate| candidate == line)
 }
 
 fn clear_rendered_dialog(stdout: &mut io::Stdout, line_count: usize) -> Result<()> {
@@ -342,6 +380,24 @@ fn normalize_workspace_path(path: &Path) -> Result<String> {
     }
 }
 
+fn display_workspace_path(path: &Path) -> Result<String> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+    let resolved = absolute.canonicalize().unwrap_or(absolute);
+    let display = resolved.display().to_string();
+    #[cfg(windows)]
+    {
+        return Ok(display.trim_start_matches(r"\\?\").to_string());
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(display)
+    }
+}
+
 fn session_trust_cache() -> &'static Mutex<HashSet<String>> {
     static SESSION_TRUST: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     SESSION_TRUST.get_or_init(|| Mutex::new(HashSet::new()))
@@ -440,8 +496,9 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        normalize_workspace_path, remember_workspace_trust, resolve_trust_mode, save_trust_store,
-        session_trust_cache, workspace_trust_path_for, WorkspaceTrustStore,
+        display_workspace_path, normalize_workspace_path, remember_workspace_trust,
+        resolve_trust_mode, save_trust_store, session_trust_cache, workspace_trust_path_for,
+        WorkspaceTrustStore,
     };
     use crate::startup::trust_copy::TrustMode;
 
@@ -461,6 +518,15 @@ mod tests {
         let normalized = normalize_workspace_path(&root).expect("normalize path");
         assert!(normalized.contains('/'));
         assert!(!normalized.contains('\\'));
+    }
+
+    #[test]
+    fn display_workspace_path_avoids_extended_windows_prefix() {
+        let root = temp_root();
+        let display = display_workspace_path(&root).expect("display path");
+        assert!(!display.starts_with(r"\\?\"));
+        #[cfg(windows)]
+        assert!(display.contains('\\'));
     }
 
     #[test]
